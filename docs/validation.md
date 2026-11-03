@@ -30,9 +30,22 @@ output/artifacts, timeouts, cancellation and owned-resource cleanup. Core tests
 cover storage/export integrity, controller ownership and recovery, API token/origin
 boundaries, SSE cursors, invalid configuration, model transport limits and errors.
 
-The model adapter was tested with a real localhost mock HTTP server. No real model
-server or remote model credentials were configured, so no model-quality, GPU or
-provider compatibility results are claimed. Scripted scores validate infrastructure.
+The model adapter was tested with a real localhost mock HTTP server and an existing
+local Strata instance serving `qwen3.8-flash-next-iq3_s` (engine 0.1.56, IQ3_S,
+DFlash2, 262144-token context, RTX 4090). The real reference run
+`ea0438250e1a41a992902bf7fa0284fb` passed all eight independent checks in
+27.812 seconds across five model turns. The endpoint reported 8,390 prompt tokens
+and 1,028 completion tokens, totaling 9,418. The model used command execution,
+file writing and submission tools; no adapter changes were required.
+
+The reproducible request settings are in `examples/strata-qwen.toml`: temperature
+zero, 4096 maximum response tokens, 24 turns and a 600-second run budget. The
+model's default reasoning behavior was used. Strata's explicit offline mode was
+enabled and candidate containers had no network. The Windows host remained
+connected during this smoke test, so it does not establish OS-level inference
+egress isolation. Model-weight hashes and effective generation settings were not
+reported by the endpoint and remain unknown in the run record. This single small
+task demonstrates local tool-calling compatibility, not broad model quality.
 
 The results above are local verification; consult GitHub Actions for current
 remote CI status. The local suites pass with one upstream

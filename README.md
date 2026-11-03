@@ -73,6 +73,10 @@ Offline profiles accept loopback endpoints. Disable cloud forwarding in your
 inference runtime and verify it with internet access disconnected; localhost alone
 does not establish that inference is local.
 
+For an already prepared Strata Qwen3.8 Flash Next instance on port 8081,
+`examples/strata-qwen.toml` contains the settings used in the local reference
+smoke test. See `docs/validation.md` for the result and its limits.
+
 For a remote provider, edit `examples/api-model.toml`, set the named API-key
 environment variable, and choose the API profile. Only the controller contacts
 that provider. The task container still has no external network. Keys are never

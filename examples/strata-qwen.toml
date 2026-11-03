@@ -1,0 +1,17 @@
+# Existing local Strata server; prepare/load the model outside Benchmaxxing.
+# Enable Strata offline mode separately. This profile never installs model assets.
+schema_version = 1
+participant = "openai"
+
+[inference]
+mode = "offline"
+base_url = "http://127.0.0.1:8081/v1"
+model = "qwen3.8-flash-next-iq3_s"
+
+[generation]
+temperature = 0
+max_tokens = 4096
+
+[budgets]
+max_turns = 24
+wall_seconds = 600
