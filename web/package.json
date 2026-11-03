@@ -1,0 +1,33 @@
+{
+  "name": "benchmaxxing-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "generate:api": "openapi-typescript openapi.json -o src/api-types.ts --default-non-nullable false",
+    "test": "playwright test",
+    "test:integration": "playwright test --config playwright.integration.config.ts"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "openapi-typescript": "^7.10.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.0"
+  },
+  "overrides": {
+    "@redocly/openapi-core": { "minimatch": "^11.0.1" }
+  }
+}

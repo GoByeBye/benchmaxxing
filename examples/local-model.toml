@@ -1,0 +1,15 @@
+schema_version = 1
+participant = "openai"
+
+[inference]
+mode = "offline"
+base_url = "http://127.0.0.1:8080/v1"
+model = "replace-with-your-local-model-id"
+
+[generation]
+temperature = 0
+max_tokens = 2048
+
+[budgets]
+max_turns = 24
+wall_seconds = 300

@@ -1,0 +1,17 @@
+.git
+.venv
+.benchmaxxing
+work
+web/node_modules
+web/test-results
+web/playwright-report
+__pycache__
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+dist
+.env
+.env.*
+*.gguf
+*.safetensors

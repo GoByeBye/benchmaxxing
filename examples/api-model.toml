@@ -1,0 +1,15 @@
+schema_version = 1
+participant = "openai"
+
+[inference]
+mode = "api"
+base_url = "https://your-provider.example/v1"
+model = "replace-with-your-model-id"
+api_key_env = "BENCHMAXXING_MODEL_API_KEY"
+
+[generation]
+temperature = 0
+max_tokens = 2048
+
+[budgets]
+wall_seconds = 300

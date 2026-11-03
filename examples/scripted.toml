@@ -1,0 +1,14 @@
+schema_version = 1
+task_id = "python.interval-merge"
+participant = "scripted"
+scripted_variant = "good"
+
+[budgets]
+max_turns = 24
+wall_seconds = 120
+command_seconds = 10
+output_bytes = 65536
+artifact_bytes = 1048576
+memory_mb = 256
+cpus = 1
+pids = 64

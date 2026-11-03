@@ -1,0 +1,11 @@
+# Trusted CI controller only. Candidate containers NEVER receive the Docker socket.
+FROM docker:29-cli AS docker_cli
+FROM python:3.13-slim
+COPY --from=docker_cli /usr/local/bin/docker /usr/local/bin/docker
+WORKDIR /app
+COPY pyproject.toml uv.lock README.md LICENSE ./
+COPY src ./src
+COPY tests ./tests
+RUN pip install --no-cache-dir uv==0.13.7 && uv sync --locked --no-cache
+ENV PATH="/app/.venv/bin:${PATH}"
+CMD ["pytest", "-q", "--basetemp=/tmp/benchmaxxing-tests"]
