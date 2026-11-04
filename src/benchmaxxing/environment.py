@@ -83,7 +83,7 @@ def _bounded_process(
             else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)) if os.name == "nt" else 0,
         )
     except OSError as exc:
         raise EnvironmentError(f"Could not start {args[0]}: {exc}") from exc

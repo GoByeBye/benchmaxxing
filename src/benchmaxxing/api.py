@@ -367,7 +367,7 @@ def create_app(
         application.mount("/", StaticFiles(directory=static, html=True), name="ui")
     else:
 
-        @application.get("/", response_class=HTMLResponse)
+        @application.get("/", response_class=HTMLResponse, include_in_schema=False)
         def build_required() -> str:
             return (
                 "<h1>Benchmaxxing</h1><p>Build the UI: "

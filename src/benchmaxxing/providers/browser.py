@@ -334,7 +334,9 @@ class BrowserEnvironment:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                if os.name == "nt"
+                else 0,
             )
             self._threads = [
                 threading.Thread(target=self._read_stdout, daemon=True),

@@ -47,6 +47,7 @@ only-include = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = ["docker: requires explicitly prepared Docker assets", "integration: integration checks"]
 
 [tool.ruff]
