@@ -4,10 +4,10 @@ A local benchmark workbench for models and agents. Prepare dependencies explicit
 then run tasks in disposable environments with no external network. Inspect every
 tool interaction, submission and grading result through a localhost UI or CLI.
 
-**125 installed original tasks:** 81 workspace tasks in programming, numerical
+**126 installed original tasks:** 82 workspace tasks in programming, numerical
 engineering, defensive security, terminal workflows and synthetic policy decisions,
 plus 44 offline knowledge and long-context retrieval profiles. Together they have
-946 grading checks (666 workspace checks and 280 answer checks). Use a deterministic
+961 grading checks (681 workspace checks and 280 answer checks). Use a deterministic
 reference participant or an OpenAI-compatible model with independent grading,
 durable run history, cancellation and checksummed exports. Workspace candidate code
 runs in isolated Docker containers; answer profiles supply no code tools or candidate
@@ -16,8 +16,8 @@ measure resistance to benchmark memorization.
 
 The **provider library** adds explicit source imports and isolated native execution
 for upstream coding, terminal, browser, security and refusal suites. It also
-contains six original frontend-design briefs, installed only after their bundled
-source is explicitly fetched and prepared for a local Chromium runtime.
+contains nine original frontend-design briefs across two suites, installed only
+after their bundled sources are explicitly fetched and prepared for a local Chromium runtime.
 The unfinished application security labs are archived and unavailable for
 new preparation or runs. Published, imported and prepared counts are separate. Start with
 `benchmaxxing providers list`; see [provider preparation](docs/providers.md) for
@@ -27,7 +27,7 @@ the 250 GB cache cap, full-source downloads, runtimes and offline constraints.
 | --- | ---: | --- |
 | Programming | 27 | Matching, connectivity timelines, knapsack ties, exact money allocation, Unicode offsets |
 | Numerical engineering | 20 | Quaternion rotation, mesh metrics, inertia tensors, AC circuits, thermal systems, numerical methods |
-| Defensive security | 14 | DNS/CIDR policies, dependency audits, audit ledgers, permissions, URL origins, credential expiry |
+| Defensive security | 15 | DNS/CIDR policies, dependency audits, audit ledgers, permissions, URL origins, credential expiry, container isolation policy |
 | Terminal | 12 | SQLite reports, checksum audits, deployment diffs, CI summaries, config parsing, log triage |
 | Refusal/policy decisions | 8 | Synthetic secret protection, permitted requests, log/document injection, export consent, lab scope |
 | Offline knowledge | 8 | Original factual questions in science, history and geography; 64 checks |
@@ -153,6 +153,34 @@ unsupported capability or budget/cancellation outcomes. Ctrl+C requests cancella
 Each repeated run creates a new ID. Interrupted runs retain evidence and become
 `interrupted` when their controller restarts.
 
+The web UI can save multiple OpenAI-compatible endpoints in the selected local
+data directory. Add an endpoint, choose Chat Completions or Responses, and discover
+its `/v1/models` list. Check the models to run; the composer queues one attempt per
+checked model, selected task, and repeat. An endpoint can also use a manually
+entered model ID when discovery is unavailable. Only an API key environment
+variable name is stored; the key remains in the controller's environment. Offline
+endpoints are restricted to loopback. Discovery does not use inherited proxies or
+follow redirects. The Responses adapter currently reads complete JSON responses
+before emitting their text and tool events; Chat Completions supports live SSE.
+Encrypted reasoning replay is optional for Responses servers that support
+`reasoning.encrypted_content`; leave its checkbox off for servers that do not.
+
+For mixed-category batches, add the current task or the filtered task set to
+**My task selection**, change catalog filters, and add more. The composer shows
+the resulting task × model × repeat count before queueing. Each attempt keeps
+its own 30-minute default wall budget and evidence.
+The composer also sets the max output tokens per model turn (1–32,768, default
+16,384); this value is recorded in every run specification and export.
+
+The comparison panel graphs category pass rates for two model profiles over
+matching task versions, hashes, harnesses, graders, generation settings, budgets,
+API styles, images, and network conditions. It shows coverage and excluded attempts; it does
+not combine unlike tasks into an overall score.
+Time to completion is recorded as `metadata.elapsed_seconds` in each run and
+export. The history and comparison graphs show it separately from correctness.
+Timing medians include only passed attempts with recorded elapsed time; queue
+wait and failed attempts are excluded from those medians.
+
 ```sh
 benchmaxxing run --task python.shortest-route --config examples/strata-qwen.toml
 benchmaxxing suite --category engineering --config examples/strata-qwen.toml
@@ -208,7 +236,7 @@ isolation and recovery. The [roadmap](docs/roadmap.md) prioritizes software,
 isolated cybersecurity labs, frontend UI design, offline world-knowledge retention
 and needle-in-haystack retrieval, while retaining numerical engineering.
 
-The 125-task original core catalog, six original frontend briefs, serial repeated
+The 126-task original core catalog, nine original frontend briefs, serial repeated
 trials, live activity monitoring and category coverage are implemented. Knowledge
 and retrieval profiles have deterministic exact-answer grading; frontend briefs
 have functional browser checks and separate unscored visual review artifacts.

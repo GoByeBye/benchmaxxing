@@ -284,8 +284,44 @@ class Store:
             )
             seq = cursor.lastrowid
             assert seq is not None
+            if self._explicit_refusal(kind, data):
+                row = db.execute("SELECT record FROM runs WHERE id=?", (run_id,)).fetchone()
+                assert row is not None
+                record = RunRecord.model_validate_json(row["record"])
+                if record.refusal is None:
+                    record.refusal = (
+                        "explicit_provider"
+                        if record.spec.participant == "openai"
+                        else "scripted_fixture"
+                    )
+                    record.updated_at = timestamp
+                    db.execute(
+                        "UPDATE runs SET record=? WHERE id=?",
+                        (record.model_dump_json(), run_id),
+                    )
             self._progress(db, run_id, seq, timestamp, kind, data)
         return RunEvent(seq=seq, run_id=run_id, timestamp=timestamp, kind=kind, data=data)
+
+    @staticmethod
+    def _explicit_refusal(kind: str, data: dict[str, Any]) -> bool:
+        if kind == "model.delta":
+            text = data.get("text")
+            return data.get("type") == "refusal" and isinstance(text, str) and bool(text.strip())
+        if kind == "model.response":
+            message = data.get("message")
+            refusal = message.get("refusal") if isinstance(message, dict) else None
+            return isinstance(refusal, str) and bool(refusal.strip())
+        return False
+
+    def _historical_refusal(self, run_id: str) -> bool:
+        """Recover an explicit marker in traces written before atomic refusal recording."""
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT kind, data FROM events WHERE run_id=? "
+                "AND kind IN ('model.delta', 'model.response') ORDER BY seq",
+                (run_id,),
+            )
+            return any(self._explicit_refusal(row["kind"], json.loads(row["data"])) for row in rows)
 
     def events(self, run_id: str, after: int = 0, *, limit: int | None = None) -> list[RunEvent]:
         with self._connect() as db:
@@ -364,10 +400,22 @@ class Store:
         interrupted = []
         for record in self.list_runs(limit=1000000):
             if record.status in {"queued", "running"}:
+                refusal = record.refusal
+                if (
+                    refusal is None
+                    and record.status == "running"
+                    and self._historical_refusal(record.id)
+                ):
+                    refusal = (
+                        "explicit_provider"
+                        if record.spec.participant == "openai"
+                        else "scripted_fixture"
+                    )
                 updated = self.update_run(
                     record.id,
                     status="interrupted",
                     error="Controller stopped before completion",
+                    refusal=refusal,
                     event_kind="interrupted",
                     event_data={"reason": "controller_restart"},
                 )

@@ -2,7 +2,7 @@
 
 The provider library separates published suite sizes, imported task records and
 prepared runtimes. A published count is never added to runnable coverage. The
-original 81 tasks remain installed without fetching third-party materials.
+original core tasks remain installed without fetching third-party materials.
 
 All imported attempts use `benchmaxxing-imports/1`. Their identity includes the
 provider, original task ID, source revision, source SHA-256 and local variant.
@@ -82,12 +82,71 @@ setup is rejected rather than silently left in the offline evaluation phase.
 | XSTest | Response capture with separate refusal rubric | Human assessment or a separately configured local judge |
 | HarmBench | Text/multimodal behavior records and response capture | Local classifier for graded results; image-capable participant for multimodal tasks |
 | WorkArena | Cataloged upstream integration boundary | Hosted ServiceNow required; fully offline execution unavailable |
+| Frontend Design | Six original briefs with independent offline Chromium checks and screenshots | Prepared Chromium image; functional scores and human aesthetic review stay separate |
+| Frontend Design Extended | Three separately versioned original briefs | Separate explicit fetch/preparation; existing Frontend Design identities are preserved |
 
 The installed provider panel reports the current machine's actual readiness.
 Fetching a suite does not imply that every runtime, website, GPU or judge is ready.
 No model weights are installed automatically. CyberGym's complete published
 source/binary assets alone exceed the selected cap; its full image collection is
 larger still. Hosted-only providers remain visible with their concrete blockers.
+
+The original application security labs (`cyberlabs`) are archived and unavailable
+for new preparation or runs. The installed defensive security tasks remain in the
+original core catalog. Knowledge and context-retrieval tasks also use the original
+core execution path; they are not additional upstream provider imports. See
+[knowledge and retrieval](knowledge-retrieval.md) and
+[frontend design](frontend-benchmarks.md) for their scoring boundaries.
+
+### Local preparation inventory
+
+A read-only inventory on 4 November 2026 found these preparation receipts in the
+selected development data directory. Receipts record prepared dependencies and
+immutable task/image identities; they do not establish model quality or prove
+that every task has been executed. Consult the live provider panel for changes.
+
+| Provider | Imported records | Prepared records | Remaining integration boundary |
+| --- | ---: | ---: | --- |
+| HumanEval+ / MBPP+ | 164 / 378 | 164 / 378 | Full-suite model validation remains separate |
+| BigCodeBench / SciCode-Verified | 1,140 / 64 | 1,140 / 64 | Full-suite model validation remains separate |
+| SWE-bench Lite / Verified | 300 / 500 | 0 / 0 | Per-instance images and reviewed offline evaluation scripts |
+| Terminal-Bench 2.1 / 4.0 | 93 / 68 | 4 / 1 | Additional byte-reviewed bounded-output adaptations |
+| MiniWoB++ | 125 | 125 | Preparation is not a 125-task model run |
+| WebArena-Verified / VisualWebArena | 812 / 910 | 0 / 0 | Complete local website states; VisualWebArena also needs local grading models |
+| Frontend Design | 6 | 6 | Separate human aesthetic assessment |
+| Frontend Design Extended | 3 | 3 | Separate human aesthetic assessment |
+| InterCode-CTF | 100 | 81 | Remaining external services and setup; separate from defensive core tasks |
+| Cybench | 31 | 0 | Published size is 40; local definitions do not cover the full published suite |
+| CyberGym | 1,507 | 0 | Full preparation exceeds the cap |
+| XSTest / HarmBench | 450 / 510 | 450 / 510 | Response capture only; no automatic official judgment |
+| WorkArena | 0 | 0 | Hosted ServiceNow prevents fully offline preparation |
+
+Cybench catalog difficulty follows explicit challenge-name labels: Very Easy and
+Easy appear as Easy, Medium as Medium, and Hard as Hard. Challenges without an
+upstream difficulty label appear as Unrated. This is a public catalog annotation;
+existing hashed import records and run evidence are unchanged.
+
+Terminal record counts include distinct immutable local variants, so they exceed
+the published 89 and 66 task counts. The inventory does not relabel those records
+as additional upstream tasks. Prepared refusal-capture records do not imply that
+the classifier or a human assessment is complete.
+
+The additional `log-summary-date-ranges` Terminal-Bench 2.1 offline adaptation
+was verified against the frozen source in a separate temporary data directory and
+then installed and prepared in the primary data directory.
+It generates upstream deterministic log inputs at explicit preparation time with
+`--pull=false --network none`, reuses the prepared Python 3.13/pytest image, and
+preserves native assertions. Only `/app/summary.csv` crosses to the fresh grader.
+The upstream solution with its unnecessary package bootstrap removed passed;
+an incorrect CSV failed. The inventory above includes this distinct adaptation.
+
+The configured cap was 250,000,000,000 bytes with a 10,000,000,000-byte free-space
+reserve. Accounted preparation files occupied 14,207,524,474 bytes and distinct
+recorded images 32,423,694,932 bytes, totaling 46,631,219,406 bytes at inventory.
+The 13,813,764,539-byte source cache is part of the file total, not an additional
+charge. Historical out-of-scope assets remain counted and preserved. Docker's
+physical disk and other host files are separate constraints; unused cap does not
+make the WebArena or CyberGym complete datasets fit.
 
 ## Execution, grading and evidence
 
@@ -115,6 +174,10 @@ continuous native score has `passed: null`; an unassessed response has no scorec
 and finishes as `completed` with `assessment_status: needs_review`. Neither is
 counted as a pass. Refusal is recorded separately from correctness; no keyword
 heuristic silently supplies an official HarmBench/XSTest judgment.
+The run-level refusal field records an explicit provider refusal signal. Refusal
+phrased as ordinary response text remains in the trace without a refusal label
+until a human or configured local classifier reviews it. Provider content
+filtering has its own trace event and does not count as a model refusal.
 
 Exports retain the original IDs, source hashes, image identity, local variant,
 harness version, budgets, observations, submission artifacts and native grading

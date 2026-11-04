@@ -1,0 +1,47 @@
+.model-comparison { margin-bottom: 24px; }
+.comparison-explanation, .comparison-empty { color: var(--muted, #8d9591); font-size: 13px; line-height: 1.65; margin: 0 24px 20px; }
+.comparison-empty { padding: 18px; border: 1px dashed currentColor; }
+.comparison-overview { margin: 0 24px 24px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-raised); padding: 18px; }
+.comparison-overview > h3 { font-size: 15px; font-weight: 500; margin: 0 0 6px; }
+.comparison-overview > p { color: var(--muted); font-size: 11px; line-height: 1.6; margin-bottom: 14px; }
+.comparison-overview-category { border-top: 1px solid var(--border); padding: 13px 0 5px; }
+.comparison-overview-category h4 { font-size: 12px; font-weight: 500; margin: 0 0 12px; }
+.comparison-overview-row { display: grid; grid-template-columns: minmax(150px, 1.4fr) minmax(80px, 1fr) 44px minmax(110px, auto); gap: 12px; align-items: center; margin: 9px 0; font-size: 11px; }
+.comparison-overview-row > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.comparison-overview-row > strong { color: var(--text); }
+.comparison-overview-row > small { color: var(--muted); white-space: nowrap; }
+.comparison-overview-track { height: 11px; background: var(--danger-border); border-radius: 3px; overflow: hidden; }
+.comparison-overview-track > span { display: block; height: 100%; background: var(--success-border); }
+.comparison-selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 0 24px 20px; }
+.comparison-selectors label { min-width: 0; font-size: 13px; }
+.comparison-selectors select { display: block; width: 100%; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--field-border); border-radius: 4px; background: var(--surface-deep); color: var(--text); color-scheme: dark; }
+.comparison-categories { padding: 0 24px; }
+.comparison-category { padding: 18px 0; border-top: 1px solid #ffffff18; }
+.comparison-category-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.comparison-category-heading h3 { margin: 0; font-size: 15px; }
+.comparison-category-heading > span { font-size: 12px; color: var(--muted, #8d9591); }
+.comparison-result { display: grid; grid-template-columns: 60px minmax(70px, 1fr) minmax(42px, auto) 180px; align-items: center; gap: 12px; margin: 12px 0; font-size: 12px; }
+.comparison-result small { color: var(--muted, #8d9591); }
+.comparison-track { height: 12px; background: #ffffff12; border-radius: 3px; overflow: hidden; }
+.comparison-track > span { height: 100%; display: block; background: #72c8a2; }
+.comparison-model-1 > span { background: #8caeeb; }
+.comparison-timing { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 18px; }
+.comparison-timing > strong { display: block; font-size: 12px; font-weight: 500; }
+.comparison-timing > span { display: block; color: var(--muted); font-size: 10px; margin: 5px 0 12px; }
+.comparison-timing-row { display: grid; grid-template-columns: 60px minmax(70px, 1fr) minmax(70px, auto) 125px; align-items: center; gap: 12px; margin: 10px 0; font-size: 11px; }
+.comparison-timing-row small { color: var(--muted); }
+.comparison-time-track { height: 9px; border-radius: 3px; background: #ffffff12; overflow: hidden; }
+.comparison-time-track > span { display: block; height: 100%; background: #9d92d3; }
+.comparison-outcomes { width: 100%; font-size: 12px; margin: 12px 0 20px; }
+.comparison-outcomes caption { text-align: left; padding: 12px 24px; font-weight: 600; }
+@media (max-width: 650px) {
+  .comparison-overview-row { grid-template-columns: minmax(80px, 1fr) 44px; gap: 6px 10px; }
+  .comparison-overview-row > span { grid-column: 1 / -1; }
+  .comparison-overview-track { grid-column: 1; }
+  .comparison-overview-row > small { grid-column: 1 / -1; }
+  .comparison-selectors { grid-template-columns: 1fr; }
+  .comparison-result { grid-template-columns: 56px 1fr auto; gap: 8px; }
+  .comparison-result small { grid-column: 2 / -1; }
+  .comparison-timing-row { grid-template-columns: 56px 1fr auto; gap: 8px; }
+  .comparison-timing-row small { grid-column: 2 / -1; }
+}

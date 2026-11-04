@@ -20,6 +20,10 @@ def fetch_suite(data_dir: Path, suite_id: str) -> dict[str, Any]:
         from benchmaxxing.providers.frontend import fetch_frontend_source
 
         fetched = fetch_frontend_source(data_dir)
+    elif suite_id == "frontend-design-extended":
+        from benchmaxxing.providers.frontend import fetch_frontend_extension_source
+
+        fetched = fetch_frontend_extension_source(data_dir)
     elif suite_id in {
         "evalplus-humaneval",
         "evalplus-mbpp",

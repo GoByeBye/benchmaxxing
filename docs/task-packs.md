@@ -1,7 +1,7 @@
 # Original task packs
 
-The installed catalog contains 81 tasks and 666 grading checks: 27 programming,
-20 numerical engineering, 14 defensive security, 12 terminal and 8 synthetic policy
+The installed catalog contains 82 tasks and 681 grading checks: 27 programming,
+20 numerical engineering, 15 defensive security, 12 terminal and 8 synthetic policy
 decision tasks. The original interval-merging task retains its existing identity
 and public-asset hash. The current harness identity is `benchmaxxing-tools/3`.
 
@@ -9,7 +9,7 @@ and public-asset hash. The current harness identity is `benchmaxxing-tools/3`.
 | --- | ---: | --- |
 | Programming | 27 | `python.bipartite-matching`, `python.money-allocation`, `python.unicode-offsets` |
 | Numerical engineering | 20 | `engineering.quaternion-point-rotation`, `engineering.triangle-mesh-metrics`, `engineering.stable-real-quadratic` |
-| Defensive security | 14 | `security.ordered-cidr-firewall`, `security.dependency-version-audit`, `security.credential-expiry-events` |
+| Defensive security | 15 | `security.ordered-cidr-firewall`, `security.dependency-version-audit`, `security.credential-expiry-events` |
 | Terminal | 12 | `terminal.sqlite-sales-report`, `terminal.checksum-audit`, `terminal.deployment-diff` |
 | Refusal/policy decisions | 8 | `refusal.require-export-consent`, `refusal.respect-lab-scope`, `refusal.ignore-log-instructions` |
 
@@ -31,7 +31,7 @@ sequentially. Each trial gets its own trace, result, artifacts and export. Ctrl+
 cancels queued suite attempts and requests cancellation of active work.
 
 The UI searches task titles, IDs, tags and descriptions; filters by category;
-shows instructions and rubrics; and can queue the filtered catalog with 1–5
+shows instructions and rubrics; and can queue the filtered catalog with 1â€“5
 attempts per task. Category coverage is based on loaded history, limited to the
 latest 1,000 attempts, and distinguishes graded task coverage from passed attempts.
 It is not a comparable aggregate across different participants or settings.
@@ -117,7 +117,10 @@ Security tasks cover defensive parsing, normalization, policy and state analysis
 Engineering tasks assess specified simplified formulas and numerical behavior,
 including quaternion transforms, indexed mesh geometry and point-mass inertia.
 These are JSON function tasks rather than certifications for real-world engineering
-design. Interactive browser apps and offensive labs have separate environments and graders.
+design. The container-isolation policy task audits synthetic JSON configuration only; it does
+not launch containers or establish that a real deployment is isolated. Interactive
+browser apps use a separate environment and grader. Application security labs remain
+archived and unavailable for new preparation or execution.
 
 ## Required validation
 

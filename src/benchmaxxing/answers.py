@@ -47,7 +47,7 @@ class AnswerQuestion(Contract):
 
 
 class RetrievalSpec(Contract):
-    generator: Literal["synthetic-ledger/1"] = GENERATOR_VERSION
+    generator: Literal["synthetic-ledger/1", "synthetic-ledger/2"] = GENERATOR_VERSION
     seed: int = Field(ge=0)
     context_bytes: int = Field(ge=4096, le=2_097_152)
     position: float = Field(ge=0, le=1)
@@ -133,13 +133,18 @@ def _key(spec: RetrievalSpec, index: int) -> str:
     return hashlib.sha256(f"needle-key-v1:{spec.seed}:{index}".encode()).hexdigest()[:16]
 
 
+def _alias(spec: RetrievalSpec, index: int) -> str:
+    # Independent namespace: the requested alias must not reveal its target key.
+    return hashlib.sha256(f"needle-alias-v1:{spec.seed}:{index}".encode()).hexdigest()[:16]
+
+
 def _retrieval_task(spec: RetrievalSpec) -> AnswerTask:
     size = spec.context_bytes // 1024
     suffix = f"{spec.mode}-{size}k-p{round(spec.position * 100):02d}-s{spec.seed}"
     questions = []
     for index in range(6):
         key = _key(spec, index)
-        request = f"alias-{key}" if spec.mode == "join" else f"request-{key}"
+        request = f"alias-{_alias(spec, index)}" if spec.mode == "join" else f"request-{key}"
         questions.append(
             AnswerQuestion(
                 id=f"q{index + 1}",
@@ -154,6 +159,7 @@ def _retrieval_task(spec: RetrievalSpec) -> AnswerTask:
         )
     return AnswerTask(
         id="retrieval." + suffix,
+        version="1.1.0" if spec.mode == "join" else "1.0.0",
         title=f"{spec.mode.title()} needle · {size} KiB · position {spec.position:.0%}",
         category="retrieval",
         difficulty="medium" if size <= 32 and spec.mode == "single" else "hard",
@@ -194,7 +200,13 @@ def definitions() -> dict[str, AnswerTask]:
         for position in (0.15, 0.85):
             tasks.append(
                 _retrieval_task(
-                    RetrievalSpec(seed=7351, context_bytes=size, position=position, mode="join")
+                    RetrievalSpec(
+                        generator="synthetic-ledger/2",
+                        seed=7351,
+                        context_bytes=size,
+                        position=position,
+                        mode="join",
+                    )
                 )
             )
         for mode in ("absent", "distractor"):
@@ -231,7 +243,7 @@ def context(task_id: str) -> tuple[str, list[dict[str, Any]]]:
             insertions.append(
                 (
                     (spec.position + index * 0.071) % 0.92 + 0.04,
-                    f"ALIAS alias-{key} target=request-{key}\n",
+                    f"ALIAS alias-{_alias(spec, index)} target=request-{key}\n",
                 )
             )
             insertions.append(((1 - spec.position + index * 0.071) % 0.92 + 0.04, record))

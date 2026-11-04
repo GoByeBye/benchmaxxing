@@ -1,6 +1,11 @@
 # Original frontend design benchmarks
 
 The `frontend-design` suite contains six original, versioned Benchmaxxing briefs.
+The sibling `frontend-design-extended` suite adds three briefs at revision 1.0.0.
+Its separate source and grader preserve the original six source hashes, task IDs
+and task hashes; fetching the extension never rewrites the original pack.
+Frozen graders use canonical line endings on every host: legacy v1 CRLF preserves
+its published identities, while the extension uses LF.
 They measure implementation of an interface from a written specification, using
 HTML, CSS and JavaScript in a single self-contained `index.html`. They are not
 imported leaderboard tasks or browser-control-only exercises.
@@ -13,16 +18,23 @@ imported leaderboard tasks or browser-control-only exercises.
 | Project confirmation dialog | Accessible modal name, initial focus, keyboard containment, Escape restoration and confirmation |
 | Product navigation | Desktop links, mobile expansion state, keyboard link activation, Escape restoration |
 | Appearance preferences | Named toggle, visible foreground/background changes, persisted theme after reload |
+| Quantity and delivery cart (extended) | Live totals, delivery cost, invalid quantity feedback, retained total and keyboard update |
+| Shipping help accordion (extended) | Single expanded answer, controlled regions, Enter/Space toggling and retained focus |
+| Paginated reading list (extended) | Ordered page content, page announcement, native boundary disabled states and keyboard navigation |
 
 All briefs also check document language, title, main landmark, viewport metadata
 and horizontal overflow at desktop and mobile dimensions. These are specific
-observations, not a comprehensive accessibility certification.
+observations, not a comprehensive accessibility certification. Each extension brief
+repeats its complete behavioral sequence from a fresh document at both widths.
+No model judge is used; the visual rubric remains unscored.
 
 ## Preparation and execution
 
 ```sh
 benchmaxxing providers fetch frontend-design
 benchmaxxing providers prepare frontend-design
+benchmaxxing providers fetch frontend-design-extended
+benchmaxxing providers prepare frontend-design-extended
 benchmaxxing tasks --category frontend
 ```
 
@@ -60,8 +72,10 @@ assumptions still apply: browser execution is isolated, but these checks do not
 claim resistance to every adversarial grader or browser attack.
 
 Validated on 4 November 2026: all six good fixtures passed and all six unfinished
-fixtures failed in fresh networkless browser graders. A shared-runner check
-verified two recorded PNG artifacts and the native grading JSON. Protocol tests
+fixtures failed in fresh networkless browser graders. The three extension good
+fixtures also passed and their three unfinished fixtures failed; three targeted
+behavior mutations were rejected at both viewport widths. Shared-runner checks
+verified two recorded PNG artifacts and the native grading JSON for each pack. Protocol tests
 reject invalid artifact hashes, traversal names, unsupported media types,
 duplicates and over-budget outputs. The suite requires no GPU or model weights.
 

@@ -17,7 +17,7 @@ def test_public_catalog_excludes_private_grading_material():
     assert Counter(task.category for task in tasks) == {
         "programming": 27,
         "engineering": 20,
-        "security": 14,
+        "security": 15,
         "terminal": 12,
         "refusal": 8,
     }
@@ -101,3 +101,18 @@ def test_cli_catalog_and_invalid_selection_do_not_need_docker(tmp_path):
     assert result.exit_code == 2
     assert not list(tmp_path.glob("*.sqlite3"))
     assert runner.invoke(app, ["suite", "--category", "unknown"]).exit_code == 2
+
+
+def test_container_isolation_policy_has_independent_boundary_expectations():
+    task = definitions()["security.container-isolation-policy"]
+    cases = {case.name: case for case in task.cases}
+    assert len(cases) == 15
+    assert cases["memory_upper_boundary"].expected == {"issues": []}
+    assert cases["over_budget"].expected == {"issues": ["memory_mb", "pids_limit"]}
+    assert cases["root_user"].expected == {"issues": ["user"]}
+    assert cases["root_group_allowed"].expected == {"issues": []}
+    assert cases["host_mount"].expected == {"issues": ["mounts"]}
+    assert task.preserve_input and task.atol == task.rtol == 0
+    public = task_files(task.id)
+    assert b"over_budget" not in public["public_tests.py"]
+    assert "good_solution" not in public

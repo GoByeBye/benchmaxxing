@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { formatDate, isActive, mutate, needsReview, participantLabel, request, statusLabel } from './api';
+import { formatDate, formatDuration, isActive, mutate, needsReview, participantLabel, request, statusLabel } from './api';
 import type { Artifact, Doctor, Run, RunDetail, RunEvent, RunSpec, Session, Task } from './api';
 import TaskCatalog, { Coverage } from './TaskCatalog';
 import { categoryLabel, filterTasks, isArchivedTask, removedCategories, taskIdentity } from './catalog';
@@ -11,6 +11,10 @@ import { useRunEvidence } from './useRunEvidence';
 import { mergeRunHistory } from './runHistory';
 import SessionFeed from './SessionFeed';
 import ProviderCatalog from './ProviderCatalog';
+import EndpointManager from './EndpointManager';
+import type { ModelTarget } from './EndpointManager';
+import ModelComparison from './ModelComparison';
+import { elapsedSeconds } from './comparisonMath';
 
 type IconName = 'grid' | 'play' | 'arrow' | 'clock' | 'check' | 'terminal' | 'download' | 'refresh' | 'stop' | 'file' | 'shield' | 'close';
 
@@ -47,8 +51,10 @@ function endpointProblem(endpoint: string, mode: 'offline' | 'api') {
   return null;
 }
 
-function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError }: {
-  session: Session | null; doctor: Doctor | null; task: Task | undefined; filteredTasks: Task[];
+function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSelected, onAddFiltered, onRemoveBatch, onClearBatch, recentInference, onCreated, onError }: {
+  session: Session | null; doctor: Doctor | null; task: Task | undefined; filteredTasks: Task[]; batchTasks: Task[];
+  onAddSelected: () => void; onAddFiltered: () => void; onRemoveBatch: (id: string) => void; onClearBatch: () => void;
+  recentInference: RunSpec['inference'];
   onCreated: (run: Run, inspect: boolean) => void; onError: (message: string) => void;
 }) {
   const [participant, setParticipant] = useState<'scripted' | 'openai'>('scripted');
@@ -57,24 +63,53 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
   const [endpoint, setEndpoint] = useState('http://127.0.0.1:8080/v1');
   const [model, setModel] = useState('');
   const [keyEnv, setKeyEnv] = useState('');
+  const [apiStyle, setApiStyle] = useState<'chat_completions' | 'responses'>('chat_completions');
+  const [responsesReasoning, setResponsesReasoning] = useState(false);
+  const [endpointSource, setEndpointSource] = useState<'custom' | 'saved'>('custom');
+  const [modelTargets, setModelTargets] = useState<ModelTarget[]>([]);
+  const sourceTouched = useRef(false);
   const [turns, setTurns] = useState('24');
+  const [maxTokens, setMaxTokens] = useState('16384');
   const [seconds, setSeconds] = useState('1800');
-  const [scope, setScope] = useState<'selected' | 'filtered'>('selected');
+  const [scope, setScope] = useState<'selected' | 'filtered' | 'batch'>('selected');
   const [repeats, setRepeats] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [queueNotice, setQueueNotice] = useState('');
   const [progress, setProgress] = useState({ queued: 0, total: 0 });
-  const targets = scope === 'filtered' ? filteredTasks : task ? [task] : [];
-  const queueCount = targets.length * repeats;
-  const validation = !Number.isInteger(Number(turns)) || Number(turns) < 1 || Number(turns) > 256
-    ? 'Max turns must be a whole number between 1 and 256.'
+  const profileTouched = useRef(false);
+  useEffect(() => {
+    if (profileTouched.current || !recentInference) return;
+    profileTouched.current = true;
+    setParticipant('openai');
+    setMode(recentInference.mode ?? 'offline');
+    setEndpoint(recentInference.base_url ?? '');
+    setModel(recentInference.model ?? '');
+    setKeyEnv(recentInference.api_key_env ?? '');
+    setApiStyle(recentInference.api_style ?? 'chat_completions');
+    setResponsesReasoning(recentInference.responses_reasoning ?? false);
+  }, [recentInference]);
+  useEffect(() => {
+    if (modelTargets.length && !sourceTouched.current) {
+      setEndpointSource('saved');
+      setParticipant('openai');
+    }
+  }, [modelTargets]);
+  const targets = scope === 'filtered' ? filteredTasks : scope === 'batch' ? batchTasks : task ? [task] : [];
+  const modelCount = participant === 'openai' && endpointSource === 'saved' ? modelTargets.length : 1;
+  const queueCount = targets.length * repeats * modelCount;
+  const validation = participant === 'openai' && (!maxTokens.trim() || !Number.isInteger(Number(maxTokens)) || Number(maxTokens) < 1 || Number(maxTokens) > 32768)
+    ? 'Max output tokens must be a whole number between 1 and 32,768.'
+    : !Number.isInteger(Number(turns)) || Number(turns) < 1 || Number(turns) > 256
+      ? 'Max turns must be a whole number between 1 and 256.'
     : !seconds.trim() || !Number.isFinite(Number(seconds)) || Number(seconds) < 1 || Number(seconds) > 86400
       ? 'Time budget must be between 1 and 86,400 seconds.'
       : !Number.isInteger(repeats) || repeats < 1 || repeats > 5
         ? 'Choose between 1 and 5 attempts per task.'
         : participant === 'openai'
-          ? endpointProblem(endpoint.trim(), mode) || (!model.trim() ? 'Enter the model identifier served by your endpoint.' : null)
-            || (keyEnv.trim() && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(keyEnv.trim()) ? 'Enter an environment variable name for the API key.' : null)
+          ? endpointSource === 'saved'
+            ? modelTargets.length === 0 ? 'Check at least one model on a saved endpoint.' : null
+            : endpointProblem(endpoint.trim(), mode) || (!model.trim() ? 'Enter the model identifier served by your endpoint.' : null)
+              || (keyEnv.trim() && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(keyEnv.trim()) ? 'Enter an environment variable name for the API key.' : null)
           : null;
   const hasNative = targets.some(item => item.kind === 'native');
   const unprepared = targets.filter(item => isArchivedTask(item) || (item.kind === 'native' ? item.prepared !== true : !doctor?.ready)).length;
@@ -87,28 +122,32 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
     setSubmitting(true);
     setQueueNotice('');
     const taskIds = Array.from({ length: repeats }, () => targets.map(item => item.id!)).flat();
-    setProgress({ queued: 0, total: taskIds.length });
+    const profiles = participant === 'openai'
+      ? endpointSource === 'saved'
+        ? modelTargets.map(({ endpoint: saved, model: selectedModel }) => ({ mode: saved.mode, base_url: saved.base_url, model: selectedModel, api_key_env: saved.api_key_env, api_style: saved.api_style, responses_reasoning: saved.responses_reasoning }))
+        : [{ mode, base_url: endpoint.trim(), model: model.trim(), api_key_env: keyEnv.trim() || null, api_style: apiStyle, responses_reasoning: responsesReasoning }]
+      : [null];
+    const attempts = taskIds.flatMap(taskId => profiles.map(inference => ({ task_id: taskId, inference })));
+    setProgress({ queued: 0, total: attempts.length });
     const configuration: Omit<RunSpec, 'task_id'> = {
       schema_version: 1,
       participant,
       scripted_variant: variant,
+      ...(participant === 'openai' ? { generation: { max_tokens: Number(maxTokens) } } : {}),
       budgets: { max_turns: Number(turns), wall_seconds: Number(seconds), ...(hasNative ? { memory_mb: 2048, pids: 256, command_seconds: 120, artifact_bytes: 67108864 } : {}) },
-      ...(participant === 'openai' ? {
-        inference: { mode, base_url: endpoint.trim(), model: model.trim(), api_key_env: keyEnv.trim() || null },
-      } : {}),
     };
     let queued = 0;
     try {
-      for (const taskId of taskIds) {
-        const run = await mutate<Run>('/runs', session.token, { ...configuration, task_id: taskId });
+      for (const attempt of attempts) {
+        const run = await mutate<Run>('/runs', session.token, { ...configuration, task_id: attempt.task_id, ...(attempt.inference ? { inference: attempt.inference } : {}) });
         onCreated(run, queued === 0);
         queued++;
-        setProgress({ queued, total: taskIds.length });
+        setProgress({ queued, total: attempts.length });
       }
       setQueueNotice(`Queued ${queued} ${queued === 1 ? 'attempt' : 'attempts'}. Each run has its own trace and scorecard.`);
     }
     catch (error) {
-      setQueueNotice(`${queued} of ${taskIds.length} attempts were queued. Existing runs are preserved.`);
+      setQueueNotice(`${queued} of ${attempts.length} attempts were queued. Existing runs are preserved.`);
       onError(errorMessage(error));
     }
     finally { setSubmitting(false); }
@@ -118,14 +157,17 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
     <div className="panel-heading"><div><span className="eyebrow">EXPERIMENT SETUP</span><h2 id="new-run-heading">Start a run</h2></div><span className="section-index">01</span></div>
     <div className="task-card">
       <span className="task-icon"><Icon name="terminal" size={23} /></span>
-      <div><span className="tag">{scope === 'filtered' ? 'FILTERED SELECTION' : categoryLabel(task?.category ?? 'uncategorized')}</span><h3>{scope === 'filtered' ? `${filteredTasks.length} benchmarks selected` : task?.title ?? 'Choose a benchmark'}</h3><p>{scope === 'filtered' ? 'Each task runs in a fresh environment.' : 'Isolated execution. Independent grading.'}</p></div>
+      <div><span className="tag">{scope === 'filtered' ? 'FILTERED SELECTION' : scope === 'batch' ? 'SAVED SELECTION' : categoryLabel(task?.category ?? 'uncategorized')}</span><h3>{scope === 'filtered' ? `${filteredTasks.length} benchmarks selected` : scope === 'batch' ? `${batchTasks.length} benchmarks selected` : task?.title ?? 'Choose a benchmark'}</h3><p>{scope === 'filtered' || scope === 'batch' ? 'Each task runs in a fresh environment.' : 'Isolated execution. Independent grading.'}</p></div>
     </div>
     <form onSubmit={submit}>
       <fieldset disabled={submitting}>
       <label htmlFor="run-scope">Run scope</label>
-      <select id="run-scope" value={scope} onChange={event => setScope(event.target.value as typeof scope)}><option value="selected">Selected task</option><option value="filtered">Filtered tasks ({filteredTasks.length})</option></select>
+      <select id="run-scope" value={scope} onChange={event => setScope(event.target.value as typeof scope)}><option value="selected">Selected task</option><option value="filtered">Filtered tasks ({filteredTasks.length})</option><option value="batch">My task selection ({batchTasks.length})</option></select>
+      <div className="batch-builder"><div className="batch-actions"><button type="button" className="button button-quiet" disabled={!task} onClick={() => { onAddSelected(); setScope('batch'); }}>Add selected task</button><button type="button" className="button button-quiet" disabled={!filteredTasks.length} onClick={() => { onAddFiltered(); setScope('batch'); }}>Add filtered tasks ({filteredTasks.length})</button></div>
+        {scope === 'batch' && <><div className="batch-heading"><strong>{batchTasks.length} selected across filters</strong><button type="button" disabled={!batchTasks.length} onClick={onClearBatch}>Clear selection</button></div><div className="batch-list" aria-label="Selected benchmark tasks">{batchTasks.map(item => <div key={item.id}><span>{item.title ?? item.id}<small>{categoryLabel(item.category ?? 'uncategorized')}</small></span><button type="button" aria-label={`Remove ${item.title ?? item.id} from batch`} onClick={() => onRemoveBatch(item.id!)}>×</button></div>)}</div></>}
+      </div>
       <label htmlFor="participant">Participant</label>
-      <select id="participant" value={participant} onChange={event => setParticipant(event.target.value as 'scripted' | 'openai')}>
+      <select id="participant" value={participant} onChange={event => { profileTouched.current = true; setParticipant(event.target.value as 'scripted' | 'openai'); }}>
         <option value="scripted" disabled={hasNative}>Scripted reference</option><option value="openai">Model endpoint</option>
       </select>
       {participant === 'scripted' ? <>
@@ -135,26 +177,35 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
         </select>
         <p className="field-hint">Calibrates the grader with a known outcome. Choose a model endpoint to benchmark a model.</p>
       </> : <>
+        <label htmlFor="endpoint-source">Model source</label>
+        <select id="endpoint-source" value={endpointSource} onChange={event => { sourceTouched.current = true; setEndpointSource(event.target.value as typeof endpointSource); }}><option value="custom">Custom endpoint</option><option value="saved">Saved endpoints · select models</option></select>
+        <div hidden={endpointSource !== 'saved'}><EndpointManager session={session} onChange={setModelTargets} /></div>
+        {endpointSource === 'custom' && <>
         <label htmlFor="inference-mode">Inference access</label>
-        <select id="inference-mode" value={mode} onChange={event => setMode(event.target.value as typeof mode)}>
+        <select id="inference-mode" value={mode} onChange={event => { profileTouched.current = true; setMode(event.target.value as typeof mode); }}>
           <option value="offline">Offline · local endpoint</option><option value="api">API · external endpoint</option>
         </select>
         <label htmlFor="endpoint">Endpoint URL</label>
-        <input id="endpoint" type="url" required value={endpoint} onChange={event => setEndpoint(event.target.value)} spellCheck={false} />
+        <input id="endpoint" type="url" required value={endpoint} onChange={event => { profileTouched.current = true; setEndpoint(event.target.value); }} spellCheck={false} />
         <label htmlFor="model">Model identifier</label>
-        <input id="model" required value={model} onChange={event => setModel(event.target.value)} placeholder="As served by your endpoint" autoComplete="off" spellCheck={false} />
+        <input id="model" required value={model} onChange={event => { profileTouched.current = true; setModel(event.target.value); }} placeholder="As served by your endpoint" autoComplete="off" spellCheck={false} />
+        <label htmlFor="api-style">API style</label>
+        <select id="api-style" value={apiStyle} onChange={event => setApiStyle(event.target.value as typeof apiStyle)}><option value="chat_completions">Chat Completions</option><option value="responses">Responses</option></select>
+        {apiStyle === 'responses' && <label className="endpoint-model endpoint-reasoning"><input type="checkbox" checked={responsesReasoning} onChange={event => setResponsesReasoning(event.target.checked)} /><span>Request encrypted reasoning replay (supported servers only)</span></label>}
         <label htmlFor="key-env">API key environment variable <span className="optional">optional</span></label>
-        <input id="key-env" value={keyEnv} onChange={event => setKeyEnv(event.target.value)} placeholder="BENCHMAXXING_API_KEY" autoComplete="off" spellCheck={false} />
+        <input id="key-env" value={keyEnv} onChange={event => { profileTouched.current = true; setKeyEnv(event.target.value); }} placeholder="BENCHMAXXING_API_KEY" autoComplete="off" spellCheck={false} />
         <p className="field-hint">Enter the variable name, not the secret. Model access is separate from the isolated task network.</p>
+        </>}
       </>}
       <div className="form-row">
         <div><label htmlFor="turns">Max turns</label><input id="turns" type="number" required min={1} max={256} value={turns} onChange={event => setTurns(event.target.value)} /></div>
         <div><label htmlFor="seconds">Time budget <span className="optional">sec / attempt</span></label><input id="seconds" type="number" required min={1} max={86400} step="any" value={seconds} onChange={event => setSeconds(event.target.value)} /></div>
       </div>
+      {participant === 'openai' && <><label htmlFor="max-output-tokens">Max output tokens <span className="optional">per model turn</span></label><input id="max-output-tokens" type="number" required min={1} max={32768} step={1} value={maxTokens} onChange={event => setMaxTokens(event.target.value)} /><p className="field-hint">Caps each model response. This is separate from the task's 30-minute wall budget and max turns.</p></>}
       <label htmlFor="repeats">Attempts per task</label>
       <select id="repeats" value={repeats} onChange={event => setRepeats(Number(event.target.value))}>{[1, 2, 3, 4, 5].map(count => <option key={count} value={count}>{count} {count === 1 ? 'attempt' : 'attempts'}</option>)}</select>
       </fieldset>
-      <div className="queue-summary"><strong>{queueCount} {queueCount === 1 ? 'attempt' : 'attempts'} · {targets.length} {targets.length === 1 ? 'task' : 'tasks'}</strong><span>Runs execute sequentially. Budgets apply to each attempt.</span></div>
+      <div className="queue-summary"><strong>{queueCount} {queueCount === 1 ? 'attempt' : 'attempts'} · {targets.length} {targets.length === 1 ? 'task' : 'tasks'}{participant === 'openai' && endpointSource === 'saved' ? ` · ${modelCount} models` : ''}</strong><span>Runs execute sequentially. Budgets apply to each attempt.</span></div>
       {validation && <p className="field-hint validation-hint" role="status">{validation}</p>}
       <button className="button button-primary start-button" type="submit" disabled={!canSubmit}>
         <Icon name="play" size={16} />{submitting ? `Queueing ${progress.queued} / ${progress.total}…` : queueCount > 1 ? `Queue ${queueCount} runs` : 'Start benchmark'}<span className="button-tail"><Icon name="arrow" size={17} /></span>
@@ -221,7 +272,7 @@ function RunInspector({ detail, events, eventCount, selected, session, tasks, st
       <div className="lifecycle"><span>Execute</span><Icon name="arrow" size={14} /><span>Grade</span><Icon name="arrow" size={14} /><span>Inspect</span></div>
     </div> : !run ? <div className="empty-inspector" aria-live="polite"><span className="loading-line" /><p>Loading run evidence…</p></div> : <>
       <div className="run-summary">
-        <div><div className="run-summary-title"><Badge status={needsReview(run) ? 'needs_review' : run.status} /><span className="mono muted">{run.id.slice(0, 12)}</span></div><h3>{participantLabel(run)}</h3><div className="run-task-name">{taskIdentity(run, tasks).title}<span> / {categoryLabel(taskIdentity(run, tasks).category)}</span></div><p>{formatDate(run.created_at)} <span className="separator">/</span> {run.spec.inference?.mode === 'api' ? 'API inference' : 'Offline profile'}</p></div>
+        <div><div className="run-summary-title"><Badge status={needsReview(run) ? 'needs_review' : run.status} /><span className="mono muted">{run.id.slice(0, 12)}</span></div><h3>{participantLabel(run)}</h3><div className="run-task-name">{taskIdentity(run, tasks).title}<span> / {categoryLabel(taskIdentity(run, tasks).category)}</span></div><p>{formatDate(run.created_at)} <span className="separator">/</span> {run.spec.inference?.mode === 'api' ? 'API inference' : 'Offline profile'}{!isActive(run.status) && elapsedSeconds(run) !== null ? <> <span className="separator">/</span> {run.status === 'passed' ? 'Time to completion' : 'Execution time'} {formatDuration(elapsedSeconds(run)!)}</> : null}</p></div>
         <div className="run-actions">
           {isActive(run.status) && <button className="button button-quiet" onClick={onCancel} disabled={!session}><Icon name="stop" size={14} />Cancel</button>}
           {isActive(run.status) ? <button className="button button-quiet" disabled title="Export is available when the run finishes"><Icon name="download" size={15} /><span>Export</span></button> : <a className="button button-quiet" href={`/api/v1/runs/${encodeURIComponent(run.id)}/export`} onClick={event => { event.preventDefault(); void downloadExport(); }} aria-disabled={exporting} title="Download this run's evidence bundle"><Icon name="download" size={15} /><span>{exporting ? 'Exporting…' : 'Export'}</span></a>}
@@ -261,6 +312,7 @@ export default function App() {
   const [taskSuite, setTaskSuite] = useState('all');
   const [includeArchived, setIncludeArchived] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>('python.interval-merge');
+  const [batchTaskIds, setBatchTaskIds] = useState<string[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -277,6 +329,7 @@ export default function App() {
   const catalogTasks = useMemo(() => tasks.filter(task => !removedCategories.has(task.category ?? '') && (includeArchived || !isArchivedTask(task))), [tasks, includeArchived]);
   const filteredTasks = useMemo(() => filterTasks(catalogTasks.filter(task => taskSuite === 'all' || (taskSuite === 'original' ? !task.suite_id || task.tags?.includes('original') : task.suite_id === taskSuite)), taskCategory, taskSearch), [catalogTasks, taskCategory, taskSearch, taskSuite]);
   const selectedTask = filteredTasks.find(task => task.id === selectedTaskId);
+  const batchTasks = useMemo(() => catalogTasks.filter(task => batchTaskIds.includes(task.id!)), [catalogTasks, batchTaskIds]);
 
   useEffect(() => {
     setSelectedTaskId(current => filteredTasks.some(task => task.id === current) ? current : filteredTasks.find(task => task.id === 'python.interval-merge')?.id ?? filteredTasks[0]?.id ?? null);
@@ -361,13 +414,14 @@ export default function App() {
         <section className="metrics" aria-label="Workspace statistics"><div className="metric"><span>Loaded attempts</span><strong>{runs.length.toString().padStart(2, '0')}</strong><small>{runs.length >= 1000 ? 'Latest 1,000 runs' : 'Across loaded run history'}</small><Icon name="terminal" /></div><div className="metric"><span>Passed attempts</span><strong>{passed.toString().padStart(2, '0')}<em className="metric-divider">/</em><em>{finished.length.toString().padStart(2, '0')}</em></strong><small>Of attempts with a pass/fail grade</small><Icon name="check" /></div><div className="metric"><span>Grading checks</span><strong>{recordedChecks.toString().padStart(2, '0')}</strong><small>Recorded with evidence</small><Icon name="shield" /></div><div className="metric"><span>Run queue</span><strong>{queued.toString().padStart(2, '0')}<span className={`activity-dot ${active ? 'is-active' : ''}`} /></strong><small>{queued} queued · {running} running</small><Icon name="clock" /></div></section>
         <ProviderCatalog includeArchived={includeArchived} onArchived={setIncludeArchived} session={session} onChanged={() => void refresh()} onBrowse={suiteId => { setTaskSuite(suiteId); setTaskCategory('all'); setTaskSearch(''); }} />
         <Coverage tasks={catalogTasks} runs={runs} category={taskCategory} onCategory={setTaskCategory} />
+        <ModelComparison runs={runs} />
         <TaskCatalog tasks={catalogTasks} filtered={filteredTasks} selected={selectedTask} category={taskCategory} search={taskSearch} suite={taskSuite} onSuite={setTaskSuite} onCategory={setTaskCategory} onSearch={setTaskSearch} onSelect={setSelectedTaskId} />
         <div className="workbench-grid">
-          <RunComposer session={session} doctor={doctor} task={selectedTask} filteredTasks={filteredTasks} onError={setError} onCreated={(run, inspect) => { setError(null); updateRun(run); if (inspect) { setFollowActive(true); setSelected(run.id); } }} />
+          <RunComposer session={session} doctor={doctor} task={selectedTask} filteredTasks={filteredTasks} batchTasks={batchTasks} onAddSelected={() => { if (selectedTask?.id) setBatchTaskIds(ids => [...new Set([...ids, selectedTask.id!])]); }} onAddFiltered={() => setBatchTaskIds(ids => [...new Set([...ids, ...filteredTasks.map(item => item.id!)])])} onRemoveBatch={id => setBatchTaskIds(ids => ids.filter(item => item !== id))} onClearBatch={() => setBatchTaskIds([])} recentInference={runs.find(run => run.spec.participant === 'openai' && run.spec.inference)?.spec.inference} onError={setError} onCreated={(run, inspect) => { setError(null); updateRun(run); if (inspect) { setFollowActive(true); setSelected(run.id); } }} />
           <RunInspector detail={detail} events={events} eventCount={eventCount} selected={selected} session={session} tasks={tasks} streamState={streamState} onCancel={() => void cancelRun()} onError={setError} />
         </div>
         <section className="panel history" id="history" aria-labelledby="history-heading"><div className="panel-heading"><div><span className="eyebrow">EXPERIMENT LOG</span><h2 id="history-heading">Run history</h2></div><span className="history-count mono">{runs.length} {runs.length === 1 ? 'run' : 'runs'}</span></div>
-          {runs.length === 0 ? <div className="empty-history"><span className="empty-history-dash">—</span><p>No runs yet. Your experiments will be recorded here.</p></div> : <div className="table-scroll"><table><thead><tr><th>Run / participant</th><th>Task</th><th>Status</th><th>Score</th><th>Started</th><th><span className="sr-only">Inspect</span></th></tr></thead><tbody>{runs.map(run => <tr key={run.id} className={run.id === selected ? 'selected' : ''}><td><button className="run-link" onClick={() => inspectRun(run.id)}><strong>{participantLabel(run)}</strong><span className="mono">{run.id.slice(0, 12)}</span></button></td><td><span className="task-cell">{taskIdentity(run, tasks).title}</span><span className="table-subtext">{categoryLabel(taskIdentity(run, tasks).category)}</span></td><td><Badge status={needsReview(run) ? 'needs_review' : run.status} /></td><td><span className={`table-score ${run.score?.passed ? 'score-passed' : ''}`}>{run.score ? `${Math.round(run.score.score * 100)}%` : needsReview(run) ? 'Needs review' : '—'}</span></td><td className="table-date">{formatDate(run.created_at)}</td><td><button className="icon-button" aria-label={`Inspect run ${run.id}`} onClick={() => inspectRun(run.id)}><Icon name="arrow" size={16} /></button></td></tr>)}</tbody></table></div>}
+          {runs.length === 0 ? <div className="empty-history"><span className="empty-history-dash">—</span><p>No runs yet. Your experiments will be recorded here.</p></div> : <div className="table-scroll"><table><thead><tr><th>Run / participant</th><th>Task</th><th>Status</th><th>Score</th><th>Time</th><th>Started</th><th><span className="sr-only">Inspect</span></th></tr></thead><tbody>{runs.map(run => <tr key={run.id} className={run.id === selected ? 'selected' : ''}><td><button className="run-link" onClick={() => inspectRun(run.id)}><strong>{participantLabel(run)}</strong><span className="mono">{run.id.slice(0, 12)}</span></button></td><td><span className="task-cell">{taskIdentity(run, tasks).title}</span><span className="table-subtext">{categoryLabel(taskIdentity(run, tasks).category)}</span></td><td><Badge status={needsReview(run) ? 'needs_review' : run.status} /></td><td><span className={`table-score ${run.score?.passed ? 'score-passed' : ''}`}>{run.score ? `${Math.round(run.score.score * 100)}%` : needsReview(run) ? 'Needs review' : '—'}</span></td><td className="table-date">{!isActive(run.status) && elapsedSeconds(run) !== null ? formatDuration(elapsedSeconds(run)!) : '—'}</td><td className="table-date">{formatDate(run.created_at)}</td><td><button className="icon-button" aria-label={`Inspect run ${run.id}`} onClick={() => inspectRun(run.id)}><Icon name="arrow" size={16} /></button></td></tr>)}</tbody></table></div>}
         </section>
         <footer className="page-footer"><span><span className="footer-dot" />Local execution. Versioned evidence.</span><span>BENCHMAXXING <span className="muted">/</span> FOUNDATION</span></footer>
       </div>

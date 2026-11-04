@@ -226,6 +226,42 @@ def test_import_copies_assets_but_public_contract_omits_grader(tmp_path):
     assert registry.install(directory, source, [task])["copied_bytes"] == 0
 
 
+def test_cybench_catalog_uses_upstream_difficulty_without_rewriting_records(tmp_path):
+    labels = {
+        "[Very Easy] LootStash": "easy",
+        "[Easy] Unbreakable": "easy",
+        "[Medium] LockTalk": "medium",
+        "[Hard] Permuted": "hard",
+        "22-back-to-the-past": "unrated",
+    }
+    tasks = [
+        fake_task(
+            suite_id="cybench",
+            upstream_id=f"benchmark/fixture/{name}",
+            title=f"cybench · benchmark/fixture/{name}",
+            category="cybersecurity",
+        )
+        for name in labels
+    ]
+    registry.install(tmp_path, tmp_path, tasks)
+    hashes = {task.id: task.task_hash for task in tasks}
+    catalog = tmp_path / "imports" / "catalog" / "cybench.json"
+    old_projection = json.loads(catalog.read_text(encoding="utf-8"))
+    for entry in old_projection.values():
+        entry["task"]["difficulty"] = "hard"
+    catalog.write_text(json.dumps(old_projection), encoding="utf-8")
+
+    listed = {
+        task.upstream_id.rsplit("/", 1)[-1]: task
+        for task in registry.list_public_tasks(tmp_path)
+    }
+    assert {name: task.difficulty for name, task in listed.items()} == labels
+    assert {task.id: registry.public_task(tmp_path, task).difficulty for task in tasks} == {
+        task.id: labels[task.upstream_id.rsplit("/", 1)[-1]] for task in tasks
+    }
+    assert {task.id: registry.get_imported(tmp_path, task.id).task_hash for task in tasks} == hashes
+
+
 def test_import_collision_is_preflighted_before_any_new_records(tmp_path):
     existing = fake_task()
     registry.install(tmp_path, tmp_path, [existing])

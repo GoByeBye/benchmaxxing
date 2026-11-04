@@ -194,6 +194,8 @@ def execute_answer(
                 "finish_reason": response.finish_reason,
             },
         )
+        if response.finish_reason == "content_filter":
+            event("model.filtered", {"turn": 1, "reason": "content_filter"})
         metadata["usage"] = response.usage
         metadata["returned_models"] = [response.model] if response.model else []
         if response.refusal:

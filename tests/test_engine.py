@@ -261,6 +261,25 @@ def test_normal_final_answer_is_not_automatically_labeled_refusal(
     assert result.refusal is None
 
 
+def test_provider_content_filter_has_distinct_trace_without_refusal_label(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adapter_fixture(monkeypatch, [ModelResponse(content=None, finish_reason="content_filter")])
+    queued = store.create_run(
+        RunSpec(participant="openai", inference=InferenceProfile(model="test"))
+    )
+    result = engine.execute_run(store, queued.id)
+    assert result.status == "failed"
+    assert result.refusal is None
+    events = list(store.events(queued.id))
+    filtered = [item for item in events if item.kind == "model.filtered"]
+    assert len(filtered) == 1 and filtered[0].data == {"turn": 1, "reason": "content_filter"}
+    assert any(
+        item.kind == "model.response" and item.data["finish_reason"] == "content_filter"
+        for item in events
+    )
+
+
 def test_unsupported_tool_protocol_has_separate_status(
     store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -27,6 +27,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     } catch { /* The HTTP status remains useful if the server returned no JSON. */ }
     throw new ApiError(message, response.status);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -44,3 +45,8 @@ export const statusLabel = (status: string) => status.replaceAll('_', ' ');
 export const participantLabel = (run: Run) => run.spec.participant === 'openai' ? run.spec.inference?.model ?? 'Model endpoint' : `Scripted · ${run.spec.scripted_variant ?? 'good'}`;
 export const formatTime = (value: string) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 export const formatDate = (value: string) => new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${(seconds % 60).toFixed(1)}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+}
