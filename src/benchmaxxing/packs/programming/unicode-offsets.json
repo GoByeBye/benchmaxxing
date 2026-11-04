@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "id": "python.unicode-offsets",
+  "version": "1.0.0",
+  "title": "Word spans in Unicode and UTF-8 coordinates",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "unicode",
+    "tokenization",
+    "offsets"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting a Unicode string and returning a list of word-token records in text\norder. A token starts at a character for which str.isalpha() is true, and continues through letters\nor Unicode combining marks (unicodedata.category starts with 'M'). A leading combining mark does not\nstart a token. Every other character separates tokens, including digits, underscores and emoji.\nEach record is {\"text\": original_substring, \"start\": code_point_offset, \"end\": exclusive_code_point_offset,\n\"byte_start\": UTF8_byte_offset, \"byte_end\": exclusive_UTF8_byte_offset}. Use Python string indices\nfor code-point coordinates; byte offsets refer to the original string encoded as UTF-8, without a BOM.\nDo not normalize, case fold or strip text. Empty string returns []. Inputs contain valid Unicode\nscalar values, no lone surrogates, and at most 2,000 code points.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `\"red blue\"`; output: `[{\"text\": \"red\", \"start\": 0, \"end\": 3, \"byte_start\": 0, \"byte_end\": 3}, {\"text\": \"blue\", \"start\": 4, \"end\": 8, \"byte_start\": 4, \"byte_end\": 8}]`.\n- Input: `\"one,two!\"`; output: `[{\"text\": \"one\", \"start\": 0, \"end\": 3, \"byte_start\": 0, \"byte_end\": 3}, {\"text\": \"two\", \"start\": 4, \"end\": 7, \"byte_start\": 4, \"byte_end\": 7}]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport unicodedata\n\ndef solve(payload):\n    byte_offsets = [0]\n    for char in payload:\n        byte_offsets.append(byte_offsets[-1] + len(char.encode('utf-8')))\n    result, i = [], 0\n    while i < len(payload):\n        if not payload[i].isalpha():\n            i += 1\n            continue\n        start = i\n        i += 1\n        while i < len(payload) and (payload[i].isalpha() or unicodedata.category(payload[i]).startswith('M')):\n            i += 1\n        result.append({'text': payload[start:i], 'start': start, 'end': i,\n                       'byte_start': start, 'byte_end': i})\n    return result\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"ascii\", \"input\": \"red blue\", \"expected\": [{\"text\": \"red\", \"start\": 0, \"end\": 3, \"byte_start\": 0, \"byte_end\": 3}, {\"text\": \"blue\", \"start\": 4, \"end\": 8, \"byte_start\": 4, \"byte_end\": 8}]}, {\"name\": \"punctuation\", \"input\": \"one,two!\", \"expected\": [{\"text\": \"one\", \"start\": 0, \"end\": 3, \"byte_start\": 0, \"byte_end\": 3}, {\"text\": \"two\", \"start\": 4, \"end\": 7, \"byte_start\": 4, \"byte_end\": 7}]}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport unicodedata\n\ndef solve(payload):\n    byte_offsets = [0]\n    for char in payload:\n        byte_offsets.append(byte_offsets[-1] + len(char.encode('utf-8')))\n    result, i = [], 0\n    while i < len(payload):\n        if not payload[i].isalpha():\n            i += 1\n            continue\n        start = i\n        i += 1\n        while i < len(payload) and (payload[i].isalpha() or unicodedata.category(payload[i]).startswith('M')):\n            i += 1\n        result.append({'text': payload[start:i], 'start': start, 'end': i,\n                       'byte_start': byte_offsets[start], 'byte_end': byte_offsets[i]})\n    return result\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport unicodedata\n\ndef solve(payload):\n    byte_offsets = [0]\n    for char in payload:\n        byte_offsets.append(byte_offsets[-1] + len(char.encode('utf-8')))\n    result, i = [], 0\n    while i < len(payload):\n        if not payload[i].isalpha():\n            i += 1\n            continue\n        start = i\n        i += 1\n        while i < len(payload) and (payload[i].isalpha() or unicodedata.category(payload[i]).startswith('M')):\n            i += 1\n        result.append({'text': payload[start:i], 'start': start, 'end': i,\n                       'byte_start': start, 'byte_end': i})\n    return result\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": "",
+      "expected": []
+    },
+    {
+      "name": "ascii_separators",
+      "input": " a\tb ",
+      "expected": [
+        {
+          "text": "a",
+          "start": 1,
+          "end": 2,
+          "byte_start": 1,
+          "byte_end": 2
+        },
+        {
+          "text": "b",
+          "start": 3,
+          "end": 4,
+          "byte_start": 3,
+          "byte_end": 4
+        }
+      ]
+    },
+    {
+      "name": "precomposed_letters",
+      "input": "aé β",
+      "expected": [
+        {
+          "text": "aé",
+          "start": 0,
+          "end": 2,
+          "byte_start": 0,
+          "byte_end": 3
+        },
+        {
+          "text": "β",
+          "start": 3,
+          "end": 4,
+          "byte_start": 4,
+          "byte_end": 6
+        }
+      ]
+    },
+    {
+      "name": "decomposed_mark",
+      "input": "élan",
+      "expected": [
+        {
+          "text": "élan",
+          "start": 0,
+          "end": 5,
+          "byte_start": 0,
+          "byte_end": 6
+        }
+      ]
+    },
+    {
+      "name": "emoji_before_words",
+      "input": "🙂go β",
+      "expected": [
+        {
+          "text": "go",
+          "start": 1,
+          "end": 3,
+          "byte_start": 4,
+          "byte_end": 6
+        },
+        {
+          "text": "β",
+          "start": 4,
+          "end": 5,
+          "byte_start": 7,
+          "byte_end": 9
+        }
+      ]
+    },
+    {
+      "name": "leading_marks",
+      "input": "́a ́b",
+      "expected": [
+        {
+          "text": "a",
+          "start": 1,
+          "end": 2,
+          "byte_start": 2,
+          "byte_end": 3
+        },
+        {
+          "text": "b",
+          "start": 4,
+          "end": 5,
+          "byte_start": 6,
+          "byte_end": 7
+        }
+      ]
+    },
+    {
+      "name": "digits_and_underscore",
+      "input": "a1b_2c",
+      "expected": [
+        {
+          "text": "a",
+          "start": 0,
+          "end": 1,
+          "byte_start": 0,
+          "byte_end": 1
+        },
+        {
+          "text": "b",
+          "start": 2,
+          "end": 3,
+          "byte_start": 2,
+          "byte_end": 3
+        },
+        {
+          "text": "c",
+          "start": 5,
+          "end": 6,
+          "byte_start": 5,
+          "byte_end": 6
+        }
+      ]
+    },
+    {
+      "name": "cjk_and_accent",
+      "input": "東京 café",
+      "expected": [
+        {
+          "text": "東京",
+          "start": 0,
+          "end": 2,
+          "byte_start": 0,
+          "byte_end": 6
+        },
+        {
+          "text": "café",
+          "start": 3,
+          "end": 7,
+          "byte_start": 7,
+          "byte_end": 12
+        }
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

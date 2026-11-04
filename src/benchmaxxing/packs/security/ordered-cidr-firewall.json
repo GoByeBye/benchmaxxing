@@ -1,0 +1,254 @@
+{
+  "schema_version": 1,
+  "id": "security.ordered-cidr-firewall",
+  "version": "1.0.0",
+  "title": "Apply ordered dual-stack CIDR rules",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "network-policy",
+    "ipv4",
+    "ipv6"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) using only local IP parsing. rules is an ordered list of {\"cidr\":string,\"action\":\"allow\"|\"deny\"}, default is \"allow\" or \"deny\", and addresses is a list of strings. Parse CIDRs with host bits allowed and masked (Python ipaddress.ip_network(...,strict=False) semantics). The first matching rule decides, regardless of prefix length; IPv4 and IPv6 never match across families, including IPv4-mapped IPv6 addresses. Return {\"decisions\":[ \"allow\"|\"deny\"|\"invalid\", ...]} in address order. Invalid address text produces \"invalid\". Invalid CIDR, invalid rule action or invalid default returns {\"error\":\"invalid_rule\"} before any decisions. No DNS or network I/O is permitted. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 0, relative tolerance 0; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"basic_ipv4\\\",\\\"input\\\":{\\\"rules\\\":[{\\\"cidr\\\":\\\"10.0.0.0/8\\\",\\\"action\\\":\\\"allow\\\"}],\\\"default\\\":\\\"deny\\\",\\\"addresses\\\":[\\\"10.1.2.3\\\",\\\"11.1.2.3\\\"]},\\\"expected\\\":{\\\"decisions\\\":[\\\"allow\\\",\\\"deny\\\"]}},{\\\"name\\\":\\\"first_match\\\",\\\"input\\\":{\\\"rules\\\":[{\\\"cidr\\\":\\\"10.0.0.0/8\\\",\\\"action\\\":\\\"deny\\\"},{\\\"cidr\\\":\\\"10.1.0.0/16\\\",\\\"action\\\":\\\"allow\\\"}],\\\"default\\\":\\\"allow\\\",\\\"addresses\\\":[\\\"10.1.2.3\\\",\\\"10.2.2.3\\\",\\\"11.0.0.1\\\"]},\\\"expected\\\":{\\\"decisions\\\":[\\\"deny\\\",\\\"deny\\\",\\\"allow\\\"]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import ipaddress\n    if payload[\"default\"] not in (\"allow\", \"deny\"):\n        return {\"error\": \"invalid_rule\"}\n    rules = []\n    try:\n        for rule in payload[\"rules\"]:\n            if rule[\"action\"] not in (\"allow\", \"deny\"):\n                raise ValueError()\n            rules.append((ipaddress.ip_network(rule[\"cidr\"], strict=False), rule[\"action\"]))\n    except ValueError:\n        return {\"error\": \"invalid_rule\"}\n    decisions = []\n    for value in payload[\"addresses\"]:\n        try:\n            address = ipaddress.ip_address(value)\n        except ValueError:\n            decisions.append(\"invalid\")\n            continue\n        result = payload[\"default\"]\n        for network, action in rules:\n            if network.version == address.version and address in network:\n                result = action\n                break\n        decisions.append(result)\n    return {\"decisions\": decisions}\n",
+  "bad_solution": "def solve(payload):\n    import ipaddress\n    rules = sorted(payload[\"rules\"], key=lambda r: ipaddress.ip_network(r[\"cidr\"], strict=False).prefixlen, reverse=True)\n    result = []\n    for value in payload[\"addresses\"]:\n        address = ipaddress.ip_address(value)\n        result.append(next((r[\"action\"] for r in rules if address in ipaddress.ip_network(r[\"cidr\"], strict=False)), payload[\"default\"]))\n    return {\"decisions\": result}\n",
+  "cases": [
+    {
+      "name": "basic_ipv4",
+      "input": {
+        "rules": [
+          {
+            "cidr": "10.0.0.0/8",
+            "action": "allow"
+          }
+        ],
+        "default": "deny",
+        "addresses": [
+          "10.1.2.3",
+          "11.1.2.3"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "first_match",
+      "input": {
+        "rules": [
+          {
+            "cidr": "10.0.0.0/8",
+            "action": "deny"
+          },
+          {
+            "cidr": "10.1.0.0/16",
+            "action": "allow"
+          }
+        ],
+        "default": "allow",
+        "addresses": [
+          "10.1.2.3",
+          "10.2.2.3",
+          "11.0.0.1"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "deny",
+          "deny",
+          "allow"
+        ]
+      }
+    },
+    {
+      "name": "host_bits_masked",
+      "input": {
+        "rules": [
+          {
+            "cidr": "192.0.2.129/24",
+            "action": "allow"
+          }
+        ],
+        "default": "deny",
+        "addresses": [
+          "192.0.2.0",
+          "192.0.2.255",
+          "192.0.3.0"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "ipv6",
+      "input": {
+        "rules": [
+          {
+            "cidr": "2001:db8::/32",
+            "action": "allow"
+          }
+        ],
+        "default": "deny",
+        "addresses": [
+          "2001:DB8:0:1::1",
+          "2001:db9::1",
+          "::1"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "mapped_family",
+      "input": {
+        "rules": [
+          {
+            "cidr": "192.0.2.0/24",
+            "action": "allow"
+          }
+        ],
+        "default": "deny",
+        "addresses": [
+          "192.0.2.1",
+          "::ffff:192.0.2.1"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "single_host",
+      "input": {
+        "rules": [
+          {
+            "cidr": "::1/128",
+            "action": "allow"
+          },
+          {
+            "cidr": "198.51.100.7/32",
+            "action": "allow"
+          }
+        ],
+        "default": "deny",
+        "addresses": [
+          "::1",
+          "::2",
+          "198.51.100.7",
+          "198.51.100.8"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny",
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "invalid_addresses",
+      "input": {
+        "rules": [],
+        "default": "allow",
+        "addresses": [
+          "example.test",
+          "300.1.2.3",
+          "",
+          "1.2.3.4/24"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "invalid",
+          "invalid",
+          "invalid",
+          "invalid"
+        ]
+      }
+    },
+    {
+      "name": "all_ipv4",
+      "input": {
+        "rules": [
+          {
+            "cidr": "0.0.0.0/0",
+            "action": "deny"
+          }
+        ],
+        "default": "allow",
+        "addresses": [
+          "127.0.0.1",
+          "::1"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "deny",
+          "allow"
+        ]
+      }
+    },
+    {
+      "name": "invalid_cidr",
+      "input": {
+        "rules": [
+          {
+            "cidr": "10.0.0.0/99",
+            "action": "allow"
+          }
+        ],
+        "default": "deny",
+        "addresses": []
+      },
+      "expected": {
+        "error": "invalid_rule"
+      }
+    },
+    {
+      "name": "empty_policy",
+      "input": {
+        "rules": [],
+        "default": "deny",
+        "addresses": [
+          "1.2.3.4",
+          "2001:db8::1"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "deny",
+          "deny"
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

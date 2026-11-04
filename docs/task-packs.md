@@ -1,9 +1,17 @@
 # Original task packs
 
-The installed catalog contains 41 tasks and 324 grading checks: 15 programming,
-10 numerical engineering, 6 defensive security, 6 terminal and 4 synthetic policy
+The installed catalog contains 81 tasks and 666 grading checks: 27 programming,
+20 numerical engineering, 14 defensive security, 12 terminal and 8 synthetic policy
 decision tasks. The original interval-merging task retains its existing identity
-and public-asset hash. The new harness identity is `benchmaxxing-tools/2`.
+and public-asset hash. The harness identity is `benchmaxxing-tools/2`.
+
+| Category | Tasks | Example task IDs |
+| --- | ---: | --- |
+| Programming | 27 | `python.bipartite-matching`, `python.money-allocation`, `python.unicode-offsets` |
+| Numerical engineering | 20 | `engineering.quaternion-point-rotation`, `engineering.triangle-mesh-metrics`, `engineering.stable-real-quadratic` |
+| Defensive security | 14 | `security.ordered-cidr-firewall`, `security.dependency-version-audit`, `security.credential-expiry-events` |
+| Terminal | 12 | `terminal.sqlite-sales-report`, `terminal.checksum-audit`, `terminal.deployment-diff` |
+| Refusal/policy decisions | 8 | `refusal.require-export-consent`, `refusal.respect-lab-scope`, `refusal.ignore-log-instructions` |
 
 ## Running the catalog
 
@@ -27,6 +35,31 @@ shows instructions and rubrics; and can queue the filtered catalog with 1–5
 attempts per task. Category coverage is based on loaded history, limited to the
 latest 1,000 attempts, and distinguishes graded task coverage from passed attempts.
 It is not a comparable aggregate across different participants or settings.
+
+## Live monitoring
+
+The UI requests `GET /api/v1/activity` on an approximately one-second cadence.
+This compact snapshot describes queued and running attempts using a durable
+SQLite progress projection updated in the same transaction as each source event.
+It includes queue positions, phase, model turn, last tool, last activity time,
+cancellation state and completed/total grading checks. It does not replay full
+prompts or traces to calculate the activity panel.
+
+Enable **Follow active run** to move inspection to each new active attempt.
+Selecting a run from history or the activity panel pins that inspection; enable
+follow again to resume automatic selection. The activity panel continues updating
+while inspection is pinned and identifies delayed or reconnecting snapshots.
+Elapsed time and model turns show budget consumption, not a completion percentage
+or an ETA. Grading progress counts checks actually reported by the grader.
+
+The selected run's trace uses server-sent events at
+`/api/v1/runs/{run_id}/events?after={sequence}`. The UI batches incoming events
+before rendering, ignores duplicate sequence numbers and reconnects after the last
+received sequence. It displays up to 300 events. Scrolling up or opening older
+evidence freezes that reading window while new events accumulate in a separate
+bounded window; the complete stored trace remains available in the export.
+**Jump to latest** resumes following the newest events. Results and artifacts refresh
+alongside the trace, so completed evidence remains inspectable after live work ends.
 
 ## Pack contract
 
@@ -68,8 +101,10 @@ the run's provider-refusal field and correctness score remain distinct. These
 tasks do not claim to measure nuanced natural-language refusal quality.
 
 Security tasks cover defensive parsing, normalization, policy and state analysis.
-Engineering tasks assess specified simplified formulas and numerical behavior;
-they are not certifications for real-world engineering design. Interactive browser
+Engineering tasks assess specified simplified formulas and numerical behavior,
+including quaternion transforms, indexed mesh geometry and point-mass inertia.
+These are JSON function tasks, not Blender/CAD artifact workflows or certifications
+for real-world engineering design. Interactive browser
 apps, offensive labs, Blender and CAD are separate future packs with their own
 environments and graders.
 

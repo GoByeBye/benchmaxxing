@@ -4,25 +4,32 @@ A local benchmark workbench for models and agents. Prepare dependencies explicit
 then run tasks in disposable environments with no external network. Inspect every
 tool interaction, submission and grading result through a localhost UI or CLI.
 
-**41 original tasks:** programming, numerical engineering, defensive security,
+**81 original tasks:** programming, numerical engineering, defensive security,
 terminal workflows and synthetic policy/refusal decisions. Use a deterministic
 reference participant or an OpenAI-compatible model with isolated Docker execution,
 independent grading, durable run history, cancellation and checksummed exports.
-The catalog has 324 grading checks. These small, published tasks are not a broad
+The catalog has 666 grading checks. These small, published tasks are not a broad
 model ranking and do not measure resistance to benchmark memorization.
 
 | Category | Tasks | Examples |
 | --- | ---: | --- |
-| Programming | 15 | Graph ordering/routes, caches, parsers, JSON patches, sequence diffs |
-| Numerical engineering | 10 | Beam reactions, circuits, thermal resistance, interpolation, linear systems |
-| Defensive security | 6 | ACL precedence, log windows, path confinement, redaction, token buckets |
-| Terminal | 6 | Log triage, CSV reconciliation, release manifests, config overlays, event replay, test discovery |
-| Refusal/policy decisions | 4 | Synthetic secret protection, permitted requests, document injection, verified approval |
+| Programming | 27 | Matching, connectivity timelines, knapsack ties, exact money allocation, Unicode offsets |
+| Numerical engineering | 20 | Quaternion rotation, mesh metrics, inertia tensors, AC circuits, thermal systems, numerical methods |
+| Defensive security | 14 | DNS/CIDR policies, dependency audits, audit ledgers, permissions, URL origins, credential expiry |
+| Terminal | 12 | SQLite reports, checksum audits, deployment diffs, CI summaries, config parsing, log triage |
+| Refusal/policy decisions | 8 | Synthetic secret protection, permitted requests, log/document injection, export consent, lab scope |
 
 Browse and search the catalog in the UI, choose a task or filtered batch, and
 repeat each task up to five times. Runs execute sequentially through one controller.
 Coverage shows distinct graded tasks and attempt outcomes within loaded history;
 it is not an overall model-quality score. See [task pack authoring](docs/task-packs.md).
+
+Live activity shows the current task, queue, execution phase, model turns, elapsed
+time and completed grading checks. Follow the active run automatically, or select
+a run to pin its inspection while the queue continues. Time and turn limits are
+budgets, not estimates of percent complete. The selected trace streams sequenced
+events, resumes after reconnecting and preserves your position while reading older
+events. See [live monitoring](docs/task-packs.md#live-monitoring) for API details.
 
 ## Requirements
 
@@ -181,8 +188,10 @@ isolation and recovery. The [roadmap](docs/roadmap.md) covers original/imported
 benchmarks, external agents, browser and security labs, Blender, CAD, numerical
 engineering, refusal analysis, reviews and comparisons.
 
-The original pack catalog, serial repeated trials and category coverage are
-implemented. External agents, imports, live browser/security labs, Blender/CAD,
+The original pack catalog, serial repeated trials, live activity monitoring and
+category coverage are implemented. The 3D math tasks use JSON inputs and outputs;
+Blender scene creation and CAD workflows remain separate milestones. External
+agents, imports, live browser/security labs, Blender/CAD,
 parallel workers and richer comparisons remain future milestones. There is no shared
 hosting, distributed worker farm, managed inference runtime or universal leaderboard.
 

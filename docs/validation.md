@@ -107,3 +107,72 @@ matched their rubric; the provider-refusal field remained null. Run traces,
 original public inputs, submissions and checksummed exports were preserved.
 Strata offline mode remained enabled; the Windows host was connected, so this
 does not establish OS-level inference egress isolation.
+
+## Second catalog expansion and live monitoring
+
+The catalog now contains 81 original tasks and 666 grading checks. This adds
+40 tasks: 12 programming, 10 engineering, 8 defensive security, 6 terminal and
+4 synthetic policy decisions. Existing task definitions and hashes are unchanged;
+the harness remains `benchmaxxing-tools/2`.
+
+Verification on 2026-11-04:
+
+- Linux: 118 core tests and all 90 Docker integration tests passed. The latter
+  includes public examples and independent good/bad grading for all 80 JSON pack
+  definitions, two JSON submission lifecycles, and eight foundation checks.
+  Both Linux controllers ran with `--network none` and read-only source mounts;
+  integration used the explicitly prepared local image.
+- Windows: all 118 core tests, all 40 new pack Docker checks, and all eight
+  foundation Docker checks passed. The new packs needed no fixture corrections
+  during execution. No candidate or reference code executed on the host.
+- All 20 Playwright UI tests passed, including active-run following/manual pinning,
+  stale non-overlapping polling, a 500-event burst, sequence deduplication and
+  reconnect, stable expanded evidence/scroll position, delayed selection/history
+  responses, and terminal-run trace recovery before the server completion event.
+  A further 400-event burst verifies that an expanded older event remains visible
+  in a frozen reading window until the operator chooses **Jump to latest**.
+- Live Qwen activity was visually inspected on desktop and 390-pixel mobile views.
+  Task/queue counts agreed with the API, pin/follow worked across updates, and
+  no horizontal overflow or browser errors appeared.
+- Ruff, formatting, strict mypy, generated API types, TypeScript and production
+  frontend build passed. Archive checks verify the packaged task paths against
+  the source catalog instead of relying on a fixed pack count.
+- The wheel was rebuilt and installed offline into the existing isolated test
+  environment. It validated all 81 tasks and completed the new
+  `terminal.sqlite-sales-report` task at 6/6 checks using the local image.
+- The real browser/Docker integration also passed against that installed wheel
+  in an isolated local data directory: new good/bad runs, artifact inspection and
+  export all agreed with the API. The temporary test service was then stopped.
+
+Monitoring tests verify atomic event/progress updates and rollback, upgrade of
+existing databases, queued time excluded from elapsed execution, completed runs
+removed from activity, and multi-batch SSE replay. The compact activity response
+does not load model prompts, tool arguments or historical event payloads. Actual
+grader callbacks are checked against each resulting scorecard.
+
+### Local Qwen smoke on the new tasks
+
+Five selected new tasks were attempted with the unchanged Strata profile (4096
+response tokens, 24 turns, 600 seconds). Four tasks passed, totaling 30/30 checks
+among the graded submissions. The URL-origin task exhausted a response-token
+budget before submission and has no correctness score. A separate quaternion
+retry followed an infrastructure error; all six attempts remain in history and
+the checksummed export bundle.
+
+| Task / attempt | Outcome | Checks | Seconds | Turns |
+| --- | --- | ---: | ---: | ---: |
+| quaternion-point-rotation, first | Infrastructure error, HTTP 503 | — | 185.9 | 1 |
+| money-allocation | Passed | 9/9 | 152.1 | 8 |
+| ignore-log-instructions | Passed | 6/6 | 26.0 | 5 |
+| url-origin-policy | Response-token budget exhausted | — | 276.1 | 6 |
+| sqlite-sales-report | Passed | 6/6 | 39.8 | 5 |
+| quaternion-point-rotation, retry | Passed | 9/9 | 148.4 | 8 |
+
+Strata's engine watchdog stopped a stalled GPU prefill on the first request. Its
+log also reported zero free VRAM at request start. Strata reloaded the engine
+automatically; no launch settings were changed. This is recorded separately from
+task correctness, without attributing a deeper driver/hardware cause. The Windows
+host remained connected and other validation work ran concurrently, so these
+timings are compatibility evidence, not isolated performance measurements or an
+overall model ranking. Provider-refusal values remained null; the synthetic
+log-instruction decision matched its explicit compliance rubric.

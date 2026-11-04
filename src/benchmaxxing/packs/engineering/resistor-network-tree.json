@@ -1,0 +1,215 @@
+{
+  "schema_version": 1,
+  "id": "engineering.resistor-network-tree",
+  "version": "1.0.0",
+  "title": "Reduce nested series and parallel resistor networks",
+  "category": "engineering",
+  "difficulty": "medium",
+  "tags": [
+    "circuits",
+    "recursion",
+    "electrical"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) where payload[\"network\"] is a recursive tree. A leaf is {\"kind\":\"resistor\",\"ohms\":R}; a branch is {\"kind\":\"series\"|\"parallel\",\"children\":[nodes...]}. Nonnegative resistance is measured in ohms. Series resistance is the sum; parallel resistance is 1/sum(1/R), except any zero-ohm child shorts the parallel branch to zero. Return {\"ohms\":equivalent}. Validate the entire tree, even branches hidden by a short: negative resistances, unknown kinds, or empty children return {\"error\":\"invalid_network\"}. Nodes otherwise have the appropriate keys/types; trees have depth at most 20 and at most 100 nodes. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 1e-9, relative tolerance 1e-9; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-9, rel_tol=1e-9)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"leaf\\\",\\\"input\\\":{\\\"network\\\":{\\\"kind\\\":\\\"resistor\\\",\\\"ohms\\\":12}},\\\"expected\\\":{\\\"ohms\\\":12}},{\\\"name\\\":\\\"equal_parallel\\\",\\\"input\\\":{\\\"network\\\":{\\\"kind\\\":\\\"parallel\\\",\\\"children\\\":[{\\\"kind\\\":\\\"resistor\\\",\\\"ohms\\\":10},{\\\"kind\\\":\\\"resistor\\\",\\\"ohms\\\":10}]}},\\\"expected\\\":{\\\"ohms\\\":5}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    def equivalent(node):\n        kind = node[\"kind\"]\n        if kind == \"resistor\":\n            if node[\"ohms\"] < 0:\n                raise ValueError()\n            return node[\"ohms\"]\n        if kind not in (\"series\", \"parallel\") or not node[\"children\"]:\n            raise ValueError()\n        values = [equivalent(child) for child in node[\"children\"]]\n        if kind == \"series\":\n            return sum(values)\n        if any(r == 0 for r in values):\n            return 0\n        return 1/sum(1/r for r in values)\n    try:\n        return {\"ohms\": equivalent(payload[\"network\"])}\n    except ValueError:\n        return {\"error\": \"invalid_network\"}\n",
+  "bad_solution": "def solve(payload):\n    def equivalent(node):\n        if node[\"kind\"] == \"resistor\":\n            return node[\"ohms\"]\n        return sum(equivalent(child) for child in node[\"children\"])\n    return {\"ohms\": equivalent(payload[\"network\"])}\n",
+  "cases": [
+    {
+      "name": "leaf",
+      "input": {
+        "network": {
+          "kind": "resistor",
+          "ohms": 12
+        }
+      },
+      "expected": {
+        "ohms": 12
+      }
+    },
+    {
+      "name": "equal_parallel",
+      "input": {
+        "network": {
+          "kind": "parallel",
+          "children": [
+            {
+              "kind": "resistor",
+              "ohms": 10
+            },
+            {
+              "kind": "resistor",
+              "ohms": 10
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ohms": 5
+      }
+    },
+    {
+      "name": "nested",
+      "input": {
+        "network": {
+          "kind": "series",
+          "children": [
+            {
+              "kind": "resistor",
+              "ohms": 2
+            },
+            {
+              "kind": "parallel",
+              "children": [
+                {
+                  "kind": "resistor",
+                  "ohms": 6
+                },
+                {
+                  "kind": "resistor",
+                  "ohms": 3
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ohms": 4
+      }
+    },
+    {
+      "name": "unequal_parallel",
+      "input": {
+        "network": {
+          "kind": "parallel",
+          "children": [
+            {
+              "kind": "resistor",
+              "ohms": 4
+            },
+            {
+              "kind": "resistor",
+              "ohms": 12
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ohms": 3
+      }
+    },
+    {
+      "name": "short",
+      "input": {
+        "network": {
+          "kind": "parallel",
+          "children": [
+            {
+              "kind": "resistor",
+              "ohms": 0
+            },
+            {
+              "kind": "resistor",
+              "ohms": 5
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ohms": 0
+      }
+    },
+    {
+      "name": "series_short",
+      "input": {
+        "network": {
+          "kind": "series",
+          "children": [
+            {
+              "kind": "resistor",
+              "ohms": 0
+            },
+            {
+              "kind": "resistor",
+              "ohms": 5
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ohms": 5
+      }
+    },
+    {
+      "name": "single_child",
+      "input": {
+        "network": {
+          "kind": "parallel",
+          "children": [
+            {
+              "kind": "resistor",
+              "ohms": 7.5
+            }
+          ]
+        }
+      },
+      "expected": {
+        "ohms": 7.5
+      }
+    },
+    {
+      "name": "empty_branch",
+      "input": {
+        "network": {
+          "kind": "series",
+          "children": []
+        }
+      },
+      "expected": {
+        "error": "invalid_network"
+      }
+    },
+    {
+      "name": "negative_behind_short",
+      "input": {
+        "network": {
+          "kind": "parallel",
+          "children": [
+            {
+              "kind": "resistor",
+              "ohms": 0
+            },
+            {
+              "kind": "resistor",
+              "ohms": -1
+            }
+          ]
+        }
+      },
+      "expected": {
+        "error": "invalid_network"
+      }
+    },
+    {
+      "name": "unknown_kind",
+      "input": {
+        "network": {
+          "kind": "bridge",
+          "children": []
+        }
+      },
+      "expected": {
+        "error": "invalid_network"
+      }
+    }
+  ],
+  "atol": 1e-09,
+  "rtol": 1e-09,
+  "preserve_input": true
+}

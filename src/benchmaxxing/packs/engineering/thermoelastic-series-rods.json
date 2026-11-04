@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "id": "engineering.thermoelastic-series-rods",
+  "version": "1.0.0",
+  "title": "Resolve constrained thermal expansion in series rods",
+  "category": "engineering",
+  "difficulty": "hard",
+  "tags": [
+    "mechanics",
+    "thermal",
+    "elasticity",
+    "units"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for a chain of axially loaded rods with no intermediate external loads. segments contains length_m>0, area_m2>0, young_pa>0, alpha_per_k (signed), delta_temp_k (signed). imposed_extension_m is the signed total end-to-end extension, positive for elongation. All rods share axial force N, positive in tension. Free extension f_i=alpha_i*deltaT_i*L_i and compliance c_i=L_i/(A_i*E_i). N=(imposed_extension-sum(f_i))/sum(c_i), and each segment extension e_i=f_i+N*c_i. Return {\"force_n\":N,\"segment_extensions_m\":[e_i,...]} in original order. Empty segments or any nonpositive length, area or Young modulus returns {\"error\":\"invalid_segment\"} before calculation. Small-strain linear elasticity is assumed. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 1e-8, relative tolerance 1e-9; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-8, rel_tol=1e-9)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"fixed_hot_rod\\\",\\\"input\\\":{\\\"segments\\\":[{\\\"length_m\\\":2,\\\"area_m2\\\":1,\\\"young_pa\\\":100,\\\"alpha_per_k\\\":0.01,\\\"delta_temp_k\\\":10}],\\\"imposed_extension_m\\\":0},\\\"expected\\\":{\\\"force_n\\\":-10,\\\"segment_extensions_m\\\":[0]}},{\\\"name\\\":\\\"free_expansion\\\",\\\"input\\\":{\\\"segments\\\":[{\\\"length_m\\\":2,\\\"area_m2\\\":1,\\\"young_pa\\\":100,\\\"alpha_per_k\\\":0.01,\\\"delta_temp_k\\\":10}],\\\"imposed_extension_m\\\":0.2},\\\"expected\\\":{\\\"force_n\\\":0,\\\"segment_extensions_m\\\":[0.2]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    ss = payload[\"segments\"]\n    if not ss or any(s[k] <= 0 for s in ss for k in (\"length_m\", \"area_m2\", \"young_pa\")):\n        return {\"error\": \"invalid_segment\"}\n    free = [s[\"alpha_per_k\"]*s[\"delta_temp_k\"]*s[\"length_m\"] for s in ss]\n    compliance = [s[\"length_m\"]/(s[\"area_m2\"]*s[\"young_pa\"]) for s in ss]\n    force = (payload[\"imposed_extension_m\"]-sum(free))/sum(compliance)\n    return {\"force_n\": force, \"segment_extensions_m\": [f+force*c for f, c in zip(free, compliance)]}\n",
+  "bad_solution": "def solve(payload):\n    ss = payload[\"segments\"]\n    free = [s[\"alpha_per_k\"]*s[\"delta_temp_k\"]*s[\"length_m\"] for s in ss]\n    return {\"force_n\": 0, \"segment_extensions_m\": free}\n",
+  "cases": [
+    {
+      "name": "fixed_hot_rod",
+      "input": {
+        "segments": [
+          {
+            "length_m": 2,
+            "area_m2": 1,
+            "young_pa": 100,
+            "alpha_per_k": 0.01,
+            "delta_temp_k": 10
+          }
+        ],
+        "imposed_extension_m": 0
+      },
+      "expected": {
+        "force_n": -10,
+        "segment_extensions_m": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "free_expansion",
+      "input": {
+        "segments": [
+          {
+            "length_m": 2,
+            "area_m2": 1,
+            "young_pa": 100,
+            "alpha_per_k": 0.01,
+            "delta_temp_k": 10
+          }
+        ],
+        "imposed_extension_m": 0.2
+      },
+      "expected": {
+        "force_n": 0,
+        "segment_extensions_m": [
+          0.2
+        ]
+      }
+    },
+    {
+      "name": "tensile_displacement",
+      "input": {
+        "segments": [
+          {
+            "length_m": 2,
+            "area_m2": 1,
+            "young_pa": 100,
+            "alpha_per_k": 0.01,
+            "delta_temp_k": 10
+          }
+        ],
+        "imposed_extension_m": 0.3
+      },
+      "expected": {
+        "force_n": 5,
+        "segment_extensions_m": [
+          0.3
+        ]
+      }
+    },
+    {
+      "name": "different_compliances",
+      "input": {
+        "segments": [
+          {
+            "length_m": 1,
+            "area_m2": 1,
+            "young_pa": 100,
+            "alpha_per_k": 0.01,
+            "delta_temp_k": 10
+          },
+          {
+            "length_m": 1,
+            "area_m2": 2,
+            "young_pa": 100,
+            "alpha_per_k": 0,
+            "delta_temp_k": 10
+          }
+        ],
+        "imposed_extension_m": 0
+      },
+      "expected": {
+        "force_n": -6.666666666666667,
+        "segment_extensions_m": [
+          0.03333333333333333,
+          -0.03333333333333333
+        ]
+      }
+    },
+    {
+      "name": "cooling_constrained",
+      "input": {
+        "segments": [
+          {
+            "length_m": 1,
+            "area_m2": 0.01,
+            "young_pa": 200000000000,
+            "alpha_per_k": 1e-05,
+            "delta_temp_k": -50
+          }
+        ],
+        "imposed_extension_m": 0
+      },
+      "expected": {
+        "force_n": 1000000,
+        "segment_extensions_m": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "opposing_expansions",
+      "input": {
+        "segments": [
+          {
+            "length_m": 1,
+            "area_m2": 1,
+            "young_pa": 100,
+            "alpha_per_k": 0.01,
+            "delta_temp_k": 10
+          },
+          {
+            "length_m": 1,
+            "area_m2": 1,
+            "young_pa": 100,
+            "alpha_per_k": -0.01,
+            "delta_temp_k": 10
+          }
+        ],
+        "imposed_extension_m": 0
+      },
+      "expected": {
+        "force_n": 0,
+        "segment_extensions_m": [
+          0.1,
+          -0.1
+        ]
+      }
+    },
+    {
+      "name": "empty",
+      "input": {
+        "segments": [],
+        "imposed_extension_m": 0
+      },
+      "expected": {
+        "error": "invalid_segment"
+      }
+    },
+    {
+      "name": "zero_area",
+      "input": {
+        "segments": [
+          {
+            "length_m": 1,
+            "area_m2": 0,
+            "young_pa": 100,
+            "alpha_per_k": 0,
+            "delta_temp_k": 0
+          }
+        ],
+        "imposed_extension_m": 1
+      },
+      "expected": {
+        "error": "invalid_segment"
+      }
+    },
+    {
+      "name": "negative_modulus",
+      "input": {
+        "segments": [
+          {
+            "length_m": 1,
+            "area_m2": 1,
+            "young_pa": -100,
+            "alpha_per_k": 0,
+            "delta_temp_k": 0
+          }
+        ],
+        "imposed_extension_m": 0
+      },
+      "expected": {
+        "error": "invalid_segment"
+      }
+    }
+  ],
+  "atol": 1e-08,
+  "rtol": 1e-09,
+  "preserve_input": true
+}

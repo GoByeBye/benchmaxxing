@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "id": "engineering.rk4-affine-dynamics",
+  "version": "1.0.0",
+  "title": "Advance affine dynamics with classical RK4",
+  "category": "engineering",
+  "difficulty": "medium",
+  "tags": [
+    "numerics",
+    "ode",
+    "time-stepping"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for scalar dynamics dy/dt=rate_per_s*y+forcing_per_s. Use classical explicit fourth-order Runge-Kutta, not the exact exponential solution: k1=f(y), k2=f(y+h*k1/2), k3=f(y+h*k2/2), k4=f(y+h*k3); next=y+h*(k1+2*k2+2*k3+k4)/6. initial is y at time zero; step_s is h>0 and steps must be an integer from 0 through 1000 (a Boolean is not an integer here). Return {\"values\":[initial,y_after_one_step,...]} with steps+1 entries. Invalid step_s or steps returns {\"error\":\"invalid_steps\"}. The rate has units 1/s, forcing has units y/s, and h is seconds. Tests stay in a finite numerical range. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 1e-9, relative tolerance 1e-9; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-9, rel_tol=1e-9)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"decay\\\",\\\"input\\\":{\\\"initial\\\":1,\\\"rate_per_s\\\":-1,\\\"forcing_per_s\\\":0,\\\"step_s\\\":1,\\\"steps\\\":2},\\\"expected\\\":{\\\"values\\\":[1,0.375,0.140625]}},{\\\"name\\\":\\\"constant_forcing\\\",\\\"input\\\":{\\\"initial\\\":3,\\\"rate_per_s\\\":0,\\\"forcing_per_s\\\":2,\\\"step_s\\\":0.5,\\\"steps\\\":3},\\\"expected\\\":{\\\"values\\\":[3,4,5,6]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    h, steps = payload[\"step_s\"], payload[\"steps\"]\n    if h <= 0 or isinstance(steps, bool) or not isinstance(steps, int) or not 0 <= steps <= 1000:\n        return {\"error\": \"invalid_steps\"}\n    a, b = payload[\"rate_per_s\"], payload[\"forcing_per_s\"]\n    y = payload[\"initial\"]\n    values = [y]\n    for _ in range(steps):\n        k1 = a*y+b\n        k2 = a*(y+h*k1/2)+b\n        k3 = a*(y+h*k2/2)+b\n        k4 = a*(y+h*k3)+b\n        y += h*(k1+2*k2+2*k3+k4)/6\n        values.append(y)\n    return {\"values\": values}\n",
+  "bad_solution": "def solve(payload):\n    y = payload[\"initial\"]\n    values = [y]\n    for _ in range(payload[\"steps\"]):\n        y += payload[\"step_s\"]*(payload[\"rate_per_s\"]*y+payload[\"forcing_per_s\"])\n        values.append(y)\n    return {\"values\": values}\n",
+  "cases": [
+    {
+      "name": "decay",
+      "input": {
+        "initial": 1,
+        "rate_per_s": -1,
+        "forcing_per_s": 0,
+        "step_s": 1,
+        "steps": 2
+      },
+      "expected": {
+        "values": [
+          1,
+          0.375,
+          0.140625
+        ]
+      }
+    },
+    {
+      "name": "constant_forcing",
+      "input": {
+        "initial": 3,
+        "rate_per_s": 0,
+        "forcing_per_s": 2,
+        "step_s": 0.5,
+        "steps": 3
+      },
+      "expected": {
+        "values": [
+          3,
+          4,
+          5,
+          6
+        ]
+      }
+    },
+    {
+      "name": "growth",
+      "input": {
+        "initial": 1,
+        "rate_per_s": 1,
+        "forcing_per_s": 0,
+        "step_s": 1,
+        "steps": 1
+      },
+      "expected": {
+        "values": [
+          1,
+          2.7083333333333335
+        ]
+      }
+    },
+    {
+      "name": "equilibrium",
+      "input": {
+        "initial": 3,
+        "rate_per_s": -2,
+        "forcing_per_s": 6,
+        "step_s": 0.25,
+        "steps": 2
+      },
+      "expected": {
+        "values": [
+          3,
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "name": "forced_decay",
+      "input": {
+        "initial": 0,
+        "rate_per_s": -1,
+        "forcing_per_s": 1,
+        "step_s": 1,
+        "steps": 2
+      },
+      "expected": {
+        "values": [
+          0,
+          0.625,
+          0.859375
+        ]
+      }
+    },
+    {
+      "name": "smaller_step",
+      "input": {
+        "initial": 1,
+        "rate_per_s": -1,
+        "forcing_per_s": 0,
+        "step_s": 0.5,
+        "steps": 1
+      },
+      "expected": {
+        "values": [
+          1,
+          0.6067708333333334
+        ]
+      }
+    },
+    {
+      "name": "zero_steps",
+      "input": {
+        "initial": -2,
+        "rate_per_s": 10,
+        "forcing_per_s": 4,
+        "step_s": 1,
+        "steps": 0
+      },
+      "expected": {
+        "values": [
+          -2
+        ]
+      }
+    },
+    {
+      "name": "zero_step_size",
+      "input": {
+        "initial": 1,
+        "rate_per_s": -1,
+        "forcing_per_s": 0,
+        "step_s": 0,
+        "steps": 1
+      },
+      "expected": {
+        "error": "invalid_steps"
+      }
+    },
+    {
+      "name": "fractional_count",
+      "input": {
+        "initial": 1,
+        "rate_per_s": -1,
+        "forcing_per_s": 0,
+        "step_s": 1,
+        "steps": 1.5
+      },
+      "expected": {
+        "error": "invalid_steps"
+      }
+    },
+    {
+      "name": "boolean_count",
+      "input": {
+        "initial": 1,
+        "rate_per_s": -1,
+        "forcing_per_s": 0,
+        "step_s": 1,
+        "steps": true
+      },
+      "expected": {
+        "error": "invalid_steps"
+      }
+    }
+  ],
+  "atol": 1e-09,
+  "rtol": 1e-09,
+  "preserve_input": true
+}

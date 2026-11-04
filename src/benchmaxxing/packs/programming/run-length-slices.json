@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "id": "python.run-length-slices",
+  "version": "1.0.0",
+  "title": "Slice compressed symbol runs without expansion",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "compression",
+    "sequences",
+    "boundaries"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), with runs ([string_symbol,nonnegative_integer_count] pairs) and slices\n({\"start\": integer,\"stop\": integer} records). Runs describe a sequence of atomic string symbols;\na symbol can contain multiple characters or be empty. For each query apply Python's positive-step\nslice bounds: add total sequence length to negative indices, clamp each bound into [0,total], and\nselect [start,stop). If stop <= start the selection is empty. Return one run list per query, preserving\norder, omitting zero counts and merging adjacent identical symbols. Input runs need not already be\nmerged. Counts may be as large as 10^12; do not expand the sequence. There are at most 200 runs and\n100 queries. Empty runs and no queries are valid. Output remains compressed; this is not string slicing.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"runs\": [[\"a\", 2], [\"b\", 1]], \"slices\": [{\"start\": 0, \"stop\": 3}]}`; output: `[[[\"a\", 2], [\"b\", 1]]]`.\n- Input: `{\"runs\": [[\"x\", 5]], \"slices\": [{\"start\": 1, \"stop\": 4}]}`; output: `[[[\"x\", 3]]]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    total = sum(count for symbol, count in payload['runs'])\n    def bound(index):\n        return max(0, min(total, index))\n    results = []\n    for query in payload['slices']:\n        start, stop = bound(query['start']), bound(query['stop'])\n        selected, position = [], 0\n        if stop > start:\n            for symbol, count in payload['runs']:\n                overlap = max(0, min(position + count, stop) - max(position, start))\n                if overlap:\n                    if selected and selected[-1][0] == symbol:\n                        selected[-1][1] += overlap\n                    else:\n                        selected.append([symbol, overlap])\n                position += count\n        results.append(selected)\n    return results\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"whole\", \"input\": {\"runs\": [[\"a\", 2], [\"b\", 1]], \"slices\": [{\"start\": 0, \"stop\": 3}]}, \"expected\": [[[\"a\", 2], [\"b\", 1]]]}, {\"name\": \"inside_run\", \"input\": {\"runs\": [[\"x\", 5]], \"slices\": [{\"start\": 1, \"stop\": 4}]}, \"expected\": [[[\"x\", 3]]]}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    total = sum(count for symbol, count in payload['runs'])\n    def bound(index):\n        return max(0, min(total, index + total if index < 0 else index))\n    results = []\n    for query in payload['slices']:\n        start, stop = bound(query['start']), bound(query['stop'])\n        selected, position = [], 0\n        if stop > start:\n            for symbol, count in payload['runs']:\n                overlap = max(0, min(position + count, stop) - max(position, start))\n                if overlap:\n                    if selected and selected[-1][0] == symbol:\n                        selected[-1][1] += overlap\n                    else:\n                        selected.append([symbol, overlap])\n                position += count\n        results.append(selected)\n    return results\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    total = sum(count for symbol, count in payload['runs'])\n    def bound(index):\n        return max(0, min(total, index))\n    results = []\n    for query in payload['slices']:\n        start, stop = bound(query['start']), bound(query['stop'])\n        selected, position = [], 0\n        if stop > start:\n            for symbol, count in payload['runs']:\n                overlap = max(0, min(position + count, stop) - max(position, start))\n                if overlap:\n                    if selected and selected[-1][0] == symbol:\n                        selected[-1][1] += overlap\n                    else:\n                        selected.append([symbol, overlap])\n                position += count\n        results.append(selected)\n    return results\n",
+  "cases": [
+    {
+      "name": "empty_runs",
+      "input": {
+        "runs": [],
+        "slices": [
+          {
+            "start": 0,
+            "stop": 10
+          }
+        ]
+      },
+      "expected": [
+        []
+      ]
+    },
+    {
+      "name": "no_queries",
+      "input": {
+        "runs": [
+          [
+            "a",
+            2
+          ]
+        ],
+        "slices": []
+      },
+      "expected": []
+    },
+    {
+      "name": "cross_run_boundary",
+      "input": {
+        "runs": [
+          [
+            "A",
+            3
+          ],
+          [
+            "B",
+            2
+          ]
+        ],
+        "slices": [
+          {
+            "start": 1,
+            "stop": 4
+          }
+        ]
+      },
+      "expected": [
+        [
+          [
+            "A",
+            2
+          ],
+          [
+            "B",
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "negative_bounds",
+      "input": {
+        "runs": [
+          [
+            "A",
+            3
+          ],
+          [
+            "B",
+            2
+          ]
+        ],
+        "slices": [
+          {
+            "start": -3,
+            "stop": -1
+          }
+        ]
+      },
+      "expected": [
+        [
+          [
+            "A",
+            1
+          ],
+          [
+            "B",
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "merge_and_skip_zero",
+      "input": {
+        "runs": [
+          [
+            "A",
+            2
+          ],
+          [
+            "A",
+            0
+          ],
+          [
+            "A",
+            3
+          ],
+          [
+            "B",
+            1
+          ]
+        ],
+        "slices": [
+          {
+            "start": 0,
+            "stop": 6
+          }
+        ]
+      },
+      "expected": [
+        [
+          [
+            "A",
+            5
+          ],
+          [
+            "B",
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "clamp_both_bounds",
+      "input": {
+        "runs": [
+          [
+            "a",
+            2
+          ],
+          [
+            "b",
+            1
+          ]
+        ],
+        "slices": [
+          {
+            "start": -99,
+            "stop": 99
+          }
+        ]
+      },
+      "expected": [
+        [
+          [
+            "a",
+            2
+          ],
+          [
+            "b",
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "reversed_and_empty",
+      "input": {
+        "runs": [
+          [
+            "a",
+            5
+          ]
+        ],
+        "slices": [
+          {
+            "start": 4,
+            "stop": 2
+          },
+          {
+            "start": 3,
+            "stop": 3
+          }
+        ]
+      },
+      "expected": [
+        [],
+        []
+      ]
+    },
+    {
+      "name": "huge_compressed_count",
+      "input": {
+        "runs": [
+          [
+            "A",
+            1000000000000
+          ],
+          [
+            "B",
+            2
+          ]
+        ],
+        "slices": [
+          {
+            "start": 999999999999,
+            "stop": 1000000000002
+          }
+        ]
+      },
+      "expected": [
+        [
+          [
+            "A",
+            1
+          ],
+          [
+            "B",
+            2
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "empty_symbol_is_an_item",
+      "input": {
+        "runs": [
+          [
+            "",
+            2
+          ],
+          [
+            "x",
+            1
+          ]
+        ],
+        "slices": [
+          {
+            "start": 0,
+            "stop": 3
+          }
+        ]
+      },
+      "expected": [
+        [
+          [
+            "",
+            2
+          ],
+          [
+            "x",
+            1
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "all_zero_counts",
+      "input": {
+        "runs": [
+          [
+            "a",
+            0
+          ],
+          [
+            "b",
+            0
+          ]
+        ],
+        "slices": [
+          {
+            "start": -1,
+            "stop": 2
+          },
+          {
+            "start": 0,
+            "stop": 0
+          }
+        ]
+      },
+      "expected": [
+        [],
+        []
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

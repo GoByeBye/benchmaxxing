@@ -15,11 +15,11 @@ def test_public_catalog_excludes_private_grading_material():
     tasks = list_tasks()
     assert len({task.id for task in tasks}) == len(tasks)
     assert Counter(task.category for task in tasks) == {
-        "programming": 15,
-        "engineering": 10,
-        "security": 6,
-        "terminal": 6,
-        "refusal": 4,
+        "programming": 27,
+        "engineering": 20,
+        "security": 14,
+        "terminal": 12,
+        "refusal": 8,
     }
     for task in tasks:
         assert len(task.task_hash) == 64
@@ -94,7 +94,7 @@ def test_cli_catalog_and_invalid_selection_do_not_need_docker(tmp_path):
     runner = CliRunner()
     result = runner.invoke(app, ["tasks", "--category", "terminal"])
     assert result.exit_code == 0
-    assert len(json.loads(result.output)) == 6
+    assert len(json.loads(result.output)) == 12
     result = runner.invoke(app, ["validate-packs"])
     assert result.exit_code == 0 and json.loads(result.output)["valid"]
     result = runner.invoke(app, ["run", "--task", "unknown.task", "--data-dir", str(tmp_path)])

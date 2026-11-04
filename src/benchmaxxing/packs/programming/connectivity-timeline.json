@@ -1,0 +1,308 @@
+{
+  "schema_version": 1,
+  "id": "python.connectivity-timeline",
+  "version": "1.0.0",
+  "title": "Connectivity through counted edge updates",
+  "category": "programming",
+  "difficulty": "hard",
+  "tags": [
+    "graphs",
+    "state-machines",
+    "connectivity"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting nodes (distinct strings) and operations. Operations are add/remove\nwith a,b endpoints, connected with a,b endpoints, or components without endpoints. Edges are undirected\nand counted: add increments multiplicity; remove decrements it by one. Every removal has an active\ncopy, and all endpoints are listed. Self-edges are allowed. Return a list containing one boolean for\neach connected query and one integer for each components query, in input order. Updates produce no\noutput. Connectivity uses edges with positive multiplicity. A node is connected to itself even when\nisolated. Isolated nodes each count as a component; an empty graph has zero components. There are at\nmost 60 nodes and 200 operations. Results describe the graph immediately at each query, not its final state.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"nodes\": [\"a\", \"b\"], \"operations\": [{\"op\": \"components\"}, {\"op\": \"add\", \"a\": \"a\", \"b\": \"b\"}, {\"op\": \"connected\", \"a\": \"a\", \"b\": \"b\"}]}`; output: `[2, true]`.\n- Input: `{\"nodes\": [\"a\", \"b\"], \"operations\": [{\"op\": \"add\", \"a\": \"a\", \"b\": \"b\"}, {\"op\": \"remove\", \"a\": \"b\", \"b\": \"a\"}, {\"op\": \"components\"}]}`; output: `[2]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    nodes, edges, answers = payload['nodes'], {}, []\n    for operation in payload['operations']:\n        action = operation['op']\n        if action in ('add', 'remove'):\n            key = tuple(sorted((operation['a'], operation['b'])))\n            if action == 'add':\n                edges[key] = 1\n            else:\n                edges[key] = 0\n            continue\n        adjacency = {node: set() for node in nodes}\n        for (a, b), count in edges.items():\n            if count:\n                adjacency[a].add(b)\n                adjacency[b].add(a)\n        groups = {}\n        group_count = 0\n        for root in nodes:\n            if root in groups:\n                continue\n            stack = [root]\n            groups[root] = group_count\n            while stack:\n                for child in adjacency[stack.pop()]:\n                    if child not in groups:\n                        groups[child] = group_count\n                        stack.append(child)\n            group_count += 1\n        if action == 'components':\n            answers.append(group_count)\n        else:\n            answers.append(groups[operation['a']] == groups[operation['b']])\n    return answers\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"join\", \"input\": {\"nodes\": [\"a\", \"b\"], \"operations\": [{\"op\": \"components\"}, {\"op\": \"add\", \"a\": \"a\", \"b\": \"b\"}, {\"op\": \"connected\", \"a\": \"a\", \"b\": \"b\"}]}, \"expected\": [2, true]}, {\"name\": \"remove\", \"input\": {\"nodes\": [\"a\", \"b\"], \"operations\": [{\"op\": \"add\", \"a\": \"a\", \"b\": \"b\"}, {\"op\": \"remove\", \"a\": \"b\", \"b\": \"a\"}, {\"op\": \"components\"}]}, \"expected\": [2]}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    nodes, edges, answers = payload['nodes'], {}, []\n    for operation in payload['operations']:\n        action = operation['op']\n        if action in ('add', 'remove'):\n            key = tuple(sorted((operation['a'], operation['b'])))\n            if action == 'add':\n                edges[key] = edges.get(key, 0) + 1\n            else:\n                edges[key] -= 1\n            continue\n        adjacency = {node: set() for node in nodes}\n        for (a, b), count in edges.items():\n            if count:\n                adjacency[a].add(b)\n                adjacency[b].add(a)\n        groups = {}\n        group_count = 0\n        for root in nodes:\n            if root in groups:\n                continue\n            stack = [root]\n            groups[root] = group_count\n            while stack:\n                for child in adjacency[stack.pop()]:\n                    if child not in groups:\n                        groups[child] = group_count\n                        stack.append(child)\n            group_count += 1\n        if action == 'components':\n            answers.append(group_count)\n        else:\n            answers.append(groups[operation['a']] == groups[operation['b']])\n    return answers\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    nodes, edges, answers = payload['nodes'], {}, []\n    for operation in payload['operations']:\n        action = operation['op']\n        if action in ('add', 'remove'):\n            key = tuple(sorted((operation['a'], operation['b'])))\n            if action == 'add':\n                edges[key] = 1\n            else:\n                edges[key] = 0\n            continue\n        adjacency = {node: set() for node in nodes}\n        for (a, b), count in edges.items():\n            if count:\n                adjacency[a].add(b)\n                adjacency[b].add(a)\n        groups = {}\n        group_count = 0\n        for root in nodes:\n            if root in groups:\n                continue\n            stack = [root]\n            groups[root] = group_count\n            while stack:\n                for child in adjacency[stack.pop()]:\n                    if child not in groups:\n                        groups[child] = group_count\n                        stack.append(child)\n            group_count += 1\n        if action == 'components':\n            answers.append(group_count)\n        else:\n            answers.append(groups[operation['a']] == groups[operation['b']])\n    return answers\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": {
+        "nodes": [],
+        "operations": [
+          {
+            "op": "components"
+          }
+        ]
+      },
+      "expected": [
+        0
+      ]
+    },
+    {
+      "name": "no_queries",
+      "input": {
+        "nodes": [
+          "a"
+        ],
+        "operations": [
+          {
+            "op": "add",
+            "a": "a",
+            "b": "a"
+          }
+        ]
+      },
+      "expected": []
+    },
+    {
+      "name": "isolated_self",
+      "input": {
+        "nodes": [
+          "b",
+          "a"
+        ],
+        "operations": [
+          {
+            "op": "connected",
+            "a": "a",
+            "b": "a"
+          },
+          {
+            "op": "connected",
+            "a": "a",
+            "b": "b"
+          }
+        ]
+      },
+      "expected": [
+        true,
+        false
+      ]
+    },
+    {
+      "name": "duplicate_copies",
+      "input": {
+        "nodes": [
+          "a",
+          "b"
+        ],
+        "operations": [
+          {
+            "op": "add",
+            "a": "a",
+            "b": "b"
+          },
+          {
+            "op": "add",
+            "a": "b",
+            "b": "a"
+          },
+          {
+            "op": "remove",
+            "a": "a",
+            "b": "b"
+          },
+          {
+            "op": "connected",
+            "a": "a",
+            "b": "b"
+          },
+          {
+            "op": "remove",
+            "a": "b",
+            "b": "a"
+          },
+          {
+            "op": "components"
+          }
+        ]
+      },
+      "expected": [
+        true,
+        2
+      ]
+    },
+    {
+      "name": "bridge_removed",
+      "input": {
+        "nodes": [
+          "a",
+          "b",
+          "c"
+        ],
+        "operations": [
+          {
+            "op": "add",
+            "a": "a",
+            "b": "b"
+          },
+          {
+            "op": "add",
+            "a": "b",
+            "b": "c"
+          },
+          {
+            "op": "connected",
+            "a": "a",
+            "b": "c"
+          },
+          {
+            "op": "remove",
+            "a": "b",
+            "b": "c"
+          },
+          {
+            "op": "connected",
+            "a": "a",
+            "b": "c"
+          },
+          {
+            "op": "components"
+          }
+        ]
+      },
+      "expected": [
+        true,
+        false,
+        2
+      ]
+    },
+    {
+      "name": "alternate_route",
+      "input": {
+        "nodes": [
+          "a",
+          "b",
+          "c"
+        ],
+        "operations": [
+          {
+            "op": "add",
+            "a": "a",
+            "b": "b"
+          },
+          {
+            "op": "add",
+            "a": "b",
+            "b": "c"
+          },
+          {
+            "op": "add",
+            "a": "a",
+            "b": "c"
+          },
+          {
+            "op": "remove",
+            "a": "a",
+            "b": "b"
+          },
+          {
+            "op": "components"
+          },
+          {
+            "op": "connected",
+            "a": "a",
+            "b": "b"
+          }
+        ]
+      },
+      "expected": [
+        1,
+        true
+      ]
+    },
+    {
+      "name": "self_edges_do_not_join",
+      "input": {
+        "nodes": [
+          "a",
+          "b"
+        ],
+        "operations": [
+          {
+            "op": "add",
+            "a": "a",
+            "b": "a"
+          },
+          {
+            "op": "add",
+            "a": "b",
+            "b": "b"
+          },
+          {
+            "op": "components"
+          },
+          {
+            "op": "remove",
+            "a": "a",
+            "b": "a"
+          },
+          {
+            "op": "connected",
+            "a": "a",
+            "b": "a"
+          }
+        ]
+      },
+      "expected": [
+        2,
+        true
+      ]
+    },
+    {
+      "name": "readd_after_disconnect",
+      "input": {
+        "nodes": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "operations": [
+          {
+            "op": "add",
+            "a": "a",
+            "b": "b"
+          },
+          {
+            "op": "add",
+            "a": "c",
+            "b": "d"
+          },
+          {
+            "op": "components"
+          },
+          {
+            "op": "add",
+            "a": "b",
+            "b": "c"
+          },
+          {
+            "op": "components"
+          },
+          {
+            "op": "remove",
+            "a": "c",
+            "b": "b"
+          },
+          {
+            "op": "components"
+          },
+          {
+            "op": "add",
+            "a": "a",
+            "b": "d"
+          },
+          {
+            "op": "components"
+          }
+        ]
+      },
+      "expected": [
+        2,
+        1,
+        2,
+        1
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

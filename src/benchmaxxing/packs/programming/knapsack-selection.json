@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "id": "python.knapsack-selection",
+  "version": "1.0.0",
+  "title": "Zero-or-one knapsack with canonical ties",
+  "category": "programming",
+  "difficulty": "hard",
+  "tags": [
+    "dynamic-programming",
+    "optimization",
+    "tie-breaking"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting capacity (integer 0..100) and items (at most 25 objects with unique\nstring id, nonnegative integer weight, and integer value). Select each item at most once and keep\ntotal weight <= capacity. Return {\"value\": sum, \"weight\": sum, \"items\": sorted_selected_ids}.\nMaximize value; on ties minimize weight, then number of selected items, then the lexicographically\nsmallest sorted ID list. Empty selection is allowed. Zero-weight items and nonpositive values are\nvalid. ID ordering is Python string ordering; input order must not matter.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"capacity\": 3, \"items\": [{\"id\": \"a\", \"weight\": 1, \"value\": 2}, {\"id\": \"b\", \"weight\": 2, \"value\": 4}]}`; output: `{\"value\": 6, \"weight\": 3, \"items\": [\"a\", \"b\"]}`.\n- Input: `{\"capacity\": 1, \"items\": [{\"id\": \"a\", \"weight\": 2, \"value\": 8}]}`; output: `{\"value\": 0, \"weight\": 0, \"items\": []}`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    best = {0: (0, ())}\n    for item in sorted(payload['items'], key=lambda entry: entry['id']):\n        for used in range(payload['capacity'] + 1):\n            if used not in best:\n                continue\n            value, ids = best[used]\n            weight = used + item['weight']\n            if weight <= payload['capacity']:\n                candidate = (value + item['value'], ids + (item['id'],))\n                key = lambda entry: (-entry[0], len(entry[1]), entry[1])\n                if weight not in best or key(candidate) < key(best[weight]):\n                    best[weight] = candidate\n    weight, (value, ids) = min(best.items(), key=lambda pair: (-pair[1][0], pair[0], len(pair[1][1]), pair[1][1]))\n    return {'value': value, 'weight': weight, 'items': list(ids)}\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"fit\", \"input\": {\"capacity\": 3, \"items\": [{\"id\": \"a\", \"weight\": 1, \"value\": 2}, {\"id\": \"b\", \"weight\": 2, \"value\": 4}]}, \"expected\": {\"value\": 6, \"weight\": 3, \"items\": [\"a\", \"b\"]}}, {\"name\": \"too_heavy\", \"input\": {\"capacity\": 1, \"items\": [{\"id\": \"a\", \"weight\": 2, \"value\": 8}]}, \"expected\": {\"value\": 0, \"weight\": 0, \"items\": []}}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    best = {0: (0, ())}\n    for item in sorted(payload['items'], key=lambda entry: entry['id']):\n        updated = dict(best)\n        for used, (value, ids) in best.items():\n            weight = used + item['weight']\n            if weight <= payload['capacity']:\n                candidate = (value + item['value'], ids + (item['id'],))\n                key = lambda entry: (-entry[0], len(entry[1]), entry[1])\n                if weight not in updated or key(candidate) < key(updated[weight]):\n                    updated[weight] = candidate\n        best = updated\n    weight, (value, ids) = min(best.items(), key=lambda pair: (-pair[1][0], pair[0], len(pair[1][1]), pair[1][1]))\n    return {'value': value, 'weight': weight, 'items': list(ids)}\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    best = {0: (0, ())}\n    for item in sorted(payload['items'], key=lambda entry: entry['id']):\n        for used in range(payload['capacity'] + 1):\n            if used not in best:\n                continue\n            value, ids = best[used]\n            weight = used + item['weight']\n            if weight <= payload['capacity']:\n                candidate = (value + item['value'], ids + (item['id'],))\n                key = lambda entry: (-entry[0], len(entry[1]), entry[1])\n                if weight not in best or key(candidate) < key(best[weight]):\n                    best[weight] = candidate\n    weight, (value, ids) = min(best.items(), key=lambda pair: (-pair[1][0], pair[0], len(pair[1][1]), pair[1][1]))\n    return {'value': value, 'weight': weight, 'items': list(ids)}\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": {
+        "capacity": 5,
+        "items": []
+      },
+      "expected": {
+        "value": 0,
+        "weight": 0,
+        "items": []
+      }
+    },
+    {
+      "name": "no_reuse",
+      "input": {
+        "capacity": 4,
+        "items": [
+          {
+            "id": "a",
+            "weight": 2,
+            "value": 3
+          }
+        ]
+      },
+      "expected": {
+        "value": 3,
+        "weight": 2,
+        "items": [
+          "a"
+        ]
+      }
+    },
+    {
+      "name": "zero_weight_once",
+      "input": {
+        "capacity": 0,
+        "items": [
+          {
+            "id": "b",
+            "weight": 0,
+            "value": 3
+          },
+          {
+            "id": "a",
+            "weight": 0,
+            "value": 2
+          },
+          {
+            "id": "z",
+            "weight": 0,
+            "value": 0
+          }
+        ]
+      },
+      "expected": {
+        "value": 5,
+        "weight": 0,
+        "items": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "name": "lighter_on_value_tie",
+      "input": {
+        "capacity": 5,
+        "items": [
+          {
+            "id": "heavy",
+            "weight": 5,
+            "value": 9
+          },
+          {
+            "id": "light",
+            "weight": 3,
+            "value": 9
+          }
+        ]
+      },
+      "expected": {
+        "value": 9,
+        "weight": 3,
+        "items": [
+          "light"
+        ]
+      }
+    },
+    {
+      "name": "fewer_items_on_tie",
+      "input": {
+        "capacity": 4,
+        "items": [
+          {
+            "id": "a",
+            "weight": 2,
+            "value": 3
+          },
+          {
+            "id": "b",
+            "weight": 2,
+            "value": 3
+          },
+          {
+            "id": "z",
+            "weight": 4,
+            "value": 6
+          }
+        ]
+      },
+      "expected": {
+        "value": 6,
+        "weight": 4,
+        "items": [
+          "z"
+        ]
+      }
+    },
+    {
+      "name": "lexical_ids",
+      "input": {
+        "capacity": 2,
+        "items": [
+          {
+            "id": "z",
+            "weight": 2,
+            "value": 7
+          },
+          {
+            "id": "a",
+            "weight": 2,
+            "value": 7
+          }
+        ]
+      },
+      "expected": {
+        "value": 7,
+        "weight": 2,
+        "items": [
+          "a"
+        ]
+      }
+    },
+    {
+      "name": "skip_negative_and_zero",
+      "input": {
+        "capacity": 5,
+        "items": [
+          {
+            "id": "n",
+            "weight": 0,
+            "value": -3
+          },
+          {
+            "id": "zero",
+            "weight": 0,
+            "value": 0
+          },
+          {
+            "id": "p",
+            "weight": 3,
+            "value": 2
+          }
+        ]
+      },
+      "expected": {
+        "value": 2,
+        "weight": 3,
+        "items": [
+          "p"
+        ]
+      }
+    },
+    {
+      "name": "combination_beats_one",
+      "input": {
+        "capacity": 6,
+        "items": [
+          {
+            "id": "a",
+            "weight": 3,
+            "value": 5
+          },
+          {
+            "id": "b",
+            "weight": 3,
+            "value": 5
+          },
+          {
+            "id": "c",
+            "weight": 5,
+            "value": 9
+          }
+        ]
+      },
+      "expected": {
+        "value": 10,
+        "weight": 6,
+        "items": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "id": "engineering.quaternion-point-rotation",
+  "version": "1.0.0",
+  "title": "Rotate 3D points with normalized quaternions",
+  "category": "engineering",
+  "difficulty": "medium",
+  "tags": [
+    "3d",
+    "quaternions",
+    "rigid-transforms"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload). Input quaternion is [w,x,y,z] in scalar-first order, points is a list of 3D positions in metres, and translation is a 3D displacement in metres. Normalize the quaternion, perform its right-handed active rotation of every point, then add translation. Return {\"points\": [...]} in input order. Quaternion q and -q represent the same rotation. If its Euclidean norm is <=1e-12 return {\"error\":\"zero_quaternion\"}, including for empty points. Quaternion components have magnitude at most 1e6. Do not round output. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 1e-9, relative tolerance 1e-9; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-9, rel_tol=1e-9)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"identity\\\",\\\"input\\\":{\\\"quaternion\\\":[1,0,0,0],\\\"points\\\":[[1,2,3],[-1,0,4]],\\\"translation\\\":[0,0,0]},\\\"expected\\\":{\\\"points\\\":[[1,2,3],[-1,0,4]]}},{\\\"name\\\":\\\"quarter_turn_z\\\",\\\"input\\\":{\\\"quaternion\\\":[1,0,0,1],\\\"points\\\":[[1,0,0],[0,1,2]],\\\"translation\\\":[0,0,0]},\\\"expected\\\":{\\\"points\\\":[[0,1,0],[-1,0,2]]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import math\n    q = payload[\"quaternion\"]\n    norm = math.sqrt(sum(x*x for x in q))\n    if norm <= 1e-12:\n        return {\"error\": \"zero_quaternion\"}\n    w, x, y, z = [v/norm for v in q]\n    matrix = [\n        [1-2*(y*y+z*z), 2*(x*y-z*w), 2*(x*z+y*w)],\n        [2*(x*y+z*w), 1-2*(x*x+z*z), 2*(y*z-x*w)],\n        [2*(x*z-y*w), 2*(y*z+x*w), 1-2*(x*x+y*y)],\n    ]\n    return {\"points\": [[sum(row[j]*p[j] for j in range(3))+payload[\"translation\"][i] for i, row in enumerate(matrix)] for p in payload[\"points\"]]}\n",
+  "bad_solution": "def solve(payload):\n    return {\"points\": [[p[i]+payload[\"translation\"][i] for i in range(3)] for p in payload[\"points\"]]}\n",
+  "cases": [
+    {
+      "name": "identity",
+      "input": {
+        "quaternion": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "points": [
+          [
+            1,
+            2,
+            3
+          ],
+          [
+            -1,
+            0,
+            4
+          ]
+        ],
+        "translation": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "points": [
+          [
+            1,
+            2,
+            3
+          ],
+          [
+            -1,
+            0,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "name": "quarter_turn_z",
+      "input": {
+        "quaternion": [
+          1,
+          0,
+          0,
+          1
+        ],
+        "points": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            2
+          ]
+        ],
+        "translation": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "points": [
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            -1,
+            0,
+            2
+          ]
+        ]
+      }
+    },
+    {
+      "name": "scaled_quaternion",
+      "input": {
+        "quaternion": [
+          10,
+          0,
+          0,
+          10
+        ],
+        "points": [
+          [
+            2,
+            3,
+            4
+          ]
+        ],
+        "translation": [
+          1,
+          -1,
+          2
+        ]
+      },
+      "expected": {
+        "points": [
+          [
+            -2,
+            1,
+            6
+          ]
+        ]
+      }
+    },
+    {
+      "name": "negative_equivalent",
+      "input": {
+        "quaternion": [
+          -1,
+          0,
+          0,
+          -1
+        ],
+        "points": [
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        "translation": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "points": [
+          [
+            0,
+            1,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "name": "half_turn_x",
+      "input": {
+        "quaternion": [
+          0,
+          2,
+          0,
+          0
+        ],
+        "points": [
+          [
+            1,
+            2,
+            3
+          ]
+        ],
+        "translation": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "points": [
+          [
+            1,
+            -2,
+            -3
+          ]
+        ]
+      }
+    },
+    {
+      "name": "quarter_turn_y",
+      "input": {
+        "quaternion": [
+          1,
+          0,
+          1,
+          0
+        ],
+        "points": [
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            1,
+            0,
+            0
+          ]
+        ],
+        "translation": [
+          2,
+          3,
+          4
+        ]
+      },
+      "expected": {
+        "points": [
+          [
+            3,
+            3,
+            4
+          ],
+          [
+            2,
+            3,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "name": "axis_cycle",
+      "input": {
+        "quaternion": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "points": [
+          [
+            1,
+            2,
+            3
+          ]
+        ],
+        "translation": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "points": [
+          [
+            3,
+            1,
+            2
+          ]
+        ]
+      }
+    },
+    {
+      "name": "empty_points",
+      "input": {
+        "quaternion": [
+          3,
+          2,
+          1,
+          4
+        ],
+        "points": [],
+        "translation": [
+          1,
+          2,
+          3
+        ]
+      },
+      "expected": {
+        "points": []
+      }
+    },
+    {
+      "name": "zero_quaternion",
+      "input": {
+        "quaternion": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "points": [],
+        "translation": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expected": {
+        "error": "zero_quaternion"
+      }
+    }
+  ],
+  "atol": 1e-09,
+  "rtol": 1e-09,
+  "preserve_input": true
+}

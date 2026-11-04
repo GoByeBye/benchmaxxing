@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -43,13 +44,21 @@ def grade_submission(
     *,
     deadline: float | None = None,
     task_id: str = REFERENCE_ID,
+    progress: Callable[[int, int, CheckResult], None] | None = None,
 ) -> ScoreCard:
     """Run the submitted source in a new container, compare observations on host."""
     if len(source) > budgets.artifact_bytes:
         raise OutputLimitExceeded("Submission exceeds artifact byte limit")
     if task_id != REFERENCE_ID:
         return _grade_pack(
-            source, data_dir, run_id, budgets, cancel_event, deadline, get_definition(task_id)
+            source,
+            data_dir,
+            run_id,
+            budgets,
+            cancel_event,
+            deadline,
+            get_definition(task_id),
+            progress,
         )
     try:
         text = source.decode("utf-8")
@@ -81,6 +90,8 @@ def grade_submission(
                         f"{execution['stderr'][:1000]}",
                     )
                 )
+                if progress:
+                    progress(len(checks), len(CASES), checks[-1])
                 continue
             try:
                 observed = json.loads(execution["stdout"])
@@ -103,6 +114,8 @@ def grade_submission(
                     ),
                 )
             )
+            if progress:
+                progress(len(checks), len(CASES), checks[-1])
     finally:
         environment.close()
     successes = sum(check.passed for check in checks)
@@ -178,6 +191,7 @@ def _grade_pack(
     cancel_event: threading.Event | None,
     deadline: float | None,
     definition: TaskDefinition,
+    progress: Callable[[int, int, CheckResult], None] | None,
 ) -> ScoreCard:
     checks: list[CheckResult] = []
     if definition.kind == "json":
@@ -220,6 +234,8 @@ def _grade_pack(
                     else "Artifact is missing a required field or differs from the rubric",
                 )
             )
+            if progress:
+                progress(len(checks), len(definition.cases), checks[-1])
         return _score(checks, definition)
     try:
         text = source.decode("utf-8")
@@ -278,6 +294,8 @@ def _grade_pack(
                     detail="Expected result and input preservation verified" if passed else detail,
                 )
             )
+            if progress:
+                progress(len(checks), len(definition.cases), checks[-1])
     finally:
         environment.close()
     return _score(checks, definition)

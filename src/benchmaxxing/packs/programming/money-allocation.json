@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "id": "python.money-allocation",
+  "version": "1.0.0",
+  "title": "Exact signed cent allocation by largest remainder",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "integer-arithmetic",
+    "allocation",
+    "tie-breaking"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), with amount (signed integer cents) and weights (objects with unique string id\nand nonnegative integer weight). Allocate abs(amount) proportionally: floor each exact share, then\nassign remaining cents one each to the largest fractional remainders, breaking ties by ID ascending.\nApply the original amount's sign afterwards. Return [{\"id\": id,\"amount\": signed_cents},...] sorted by\nID using Python string ordering. Allocations must sum exactly to amount. Zero-weight recipients get\nzero. If all weights sum to zero, return zero allocations when amount is zero, otherwise return\n{\"error\":\"zero_weight\"}; this includes an empty recipient list. Use integer arithmetic throughout.\nThere are at most 100 recipients; amounts and weights may exceed floating-point exact precision.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"amount\": 4, \"weights\": [{\"id\": \"a\", \"weight\": 1}, {\"id\": \"b\", \"weight\": 1}]}`; output: `[{\"id\": \"a\", \"amount\": 2}, {\"id\": \"b\", \"amount\": 2}]`.\n- Input: `{\"amount\": -7, \"weights\": [{\"id\": \"only\", \"weight\": 5}]}`; output: `[{\"id\": \"only\", \"amount\": -7}]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    entries = sorted(payload['weights'], key=lambda entry: entry['id'])\n    total = sum(entry['weight'] for entry in entries)\n    amount = payload['amount']\n    if total == 0:\n        return [{'id': entry['id'], 'amount': 0} for entry in entries] if amount == 0 else {'error': 'zero_weight'}\n    magnitude = abs(amount)\n    values = [magnitude * entry['weight'] // total for entry in entries]\n    remainders = [magnitude * entry['weight'] % total for entry in entries]\n    remaining = magnitude - sum(values)\n    order = sorted(range(len(entries)), key=lambda i: entries[i]['id'])\n    for index in order[:remaining]:\n        values[index] += 1\n    sign = -1 if amount < 0 else 1\n    return [{'id': entry['id'], 'amount': sign * values[i]} for i, entry in enumerate(entries)]\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"equal\", \"input\": {\"amount\": 4, \"weights\": [{\"id\": \"a\", \"weight\": 1}, {\"id\": \"b\", \"weight\": 1}]}, \"expected\": [{\"id\": \"a\", \"amount\": 2}, {\"id\": \"b\", \"amount\": 2}]}, {\"name\": \"single\", \"input\": {\"amount\": -7, \"weights\": [{\"id\": \"only\", \"weight\": 5}]}, \"expected\": [{\"id\": \"only\", \"amount\": -7}]}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    entries = sorted(payload['weights'], key=lambda entry: entry['id'])\n    total = sum(entry['weight'] for entry in entries)\n    amount = payload['amount']\n    if total == 0:\n        return [{'id': entry['id'], 'amount': 0} for entry in entries] if amount == 0 else {'error': 'zero_weight'}\n    magnitude = abs(amount)\n    values = [magnitude * entry['weight'] // total for entry in entries]\n    remainders = [magnitude * entry['weight'] % total for entry in entries]\n    remaining = magnitude - sum(values)\n    order = sorted(range(len(entries)), key=lambda i: (-remainders[i], entries[i]['id']))\n    for index in order[:remaining]:\n        values[index] += 1\n    sign = -1 if amount < 0 else 1\n    return [{'id': entry['id'], 'amount': sign * values[i]} for i, entry in enumerate(entries)]\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    entries = sorted(payload['weights'], key=lambda entry: entry['id'])\n    total = sum(entry['weight'] for entry in entries)\n    amount = payload['amount']\n    if total == 0:\n        return [{'id': entry['id'], 'amount': 0} for entry in entries] if amount == 0 else {'error': 'zero_weight'}\n    magnitude = abs(amount)\n    values = [magnitude * entry['weight'] // total for entry in entries]\n    remainders = [magnitude * entry['weight'] % total for entry in entries]\n    remaining = magnitude - sum(values)\n    order = sorted(range(len(entries)), key=lambda i: entries[i]['id'])\n    for index in order[:remaining]:\n        values[index] += 1\n    sign = -1 if amount < 0 else 1\n    return [{'id': entry['id'], 'amount': sign * values[i]} for i, entry in enumerate(entries)]\n",
+  "cases": [
+    {
+      "name": "empty_zero",
+      "input": {
+        "amount": 0,
+        "weights": []
+      },
+      "expected": []
+    },
+    {
+      "name": "zero_weight_error",
+      "input": {
+        "amount": 3,
+        "weights": [
+          {
+            "id": "a",
+            "weight": 0
+          }
+        ]
+      },
+      "expected": {
+        "error": "zero_weight"
+      }
+    },
+    {
+      "name": "zero_amount_zero_weights",
+      "input": {
+        "amount": 0,
+        "weights": [
+          {
+            "id": "b",
+            "weight": 0
+          },
+          {
+            "id": "a",
+            "weight": 0
+          }
+        ]
+      },
+      "expected": [
+        {
+          "id": "a",
+          "amount": 0
+        },
+        {
+          "id": "b",
+          "amount": 0
+        }
+      ]
+    },
+    {
+      "name": "equal_remainder_tie",
+      "input": {
+        "amount": 2,
+        "weights": [
+          {
+            "id": "c",
+            "weight": 1
+          },
+          {
+            "id": "b",
+            "weight": 1
+          },
+          {
+            "id": "a",
+            "weight": 1
+          }
+        ]
+      },
+      "expected": [
+        {
+          "id": "a",
+          "amount": 1
+        },
+        {
+          "id": "b",
+          "amount": 1
+        },
+        {
+          "id": "c",
+          "amount": 0
+        }
+      ]
+    },
+    {
+      "name": "largest_not_first",
+      "input": {
+        "amount": 2,
+        "weights": [
+          {
+            "id": "a",
+            "weight": 1
+          },
+          {
+            "id": "b",
+            "weight": 4
+          }
+        ]
+      },
+      "expected": [
+        {
+          "id": "a",
+          "amount": 0
+        },
+        {
+          "id": "b",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "name": "negative_amount",
+      "input": {
+        "amount": -5,
+        "weights": [
+          {
+            "id": "b",
+            "weight": 1
+          },
+          {
+            "id": "a",
+            "weight": 1
+          }
+        ]
+      },
+      "expected": [
+        {
+          "id": "a",
+          "amount": -3
+        },
+        {
+          "id": "b",
+          "amount": -2
+        }
+      ]
+    },
+    {
+      "name": "one_cent_tie",
+      "input": {
+        "amount": 1,
+        "weights": [
+          {
+            "id": "b",
+            "weight": 1
+          },
+          {
+            "id": "a",
+            "weight": 1
+          }
+        ]
+      },
+      "expected": [
+        {
+          "id": "a",
+          "amount": 1
+        },
+        {
+          "id": "b",
+          "amount": 0
+        }
+      ]
+    },
+    {
+      "name": "beyond_float_precision",
+      "input": {
+        "amount": 9007199254740993,
+        "weights": [
+          {
+            "id": "a",
+            "weight": 1
+          },
+          {
+            "id": "b",
+            "weight": 1
+          }
+        ]
+      },
+      "expected": [
+        {
+          "id": "a",
+          "amount": 4503599627370497
+        },
+        {
+          "id": "b",
+          "amount": 4503599627370496
+        }
+      ]
+    },
+    {
+      "name": "zero_weight_and_remainder",
+      "input": {
+        "amount": 2,
+        "weights": [
+          {
+            "id": "a",
+            "weight": 0
+          },
+          {
+            "id": "b",
+            "weight": 2
+          },
+          {
+            "id": "c",
+            "weight": 1
+          }
+        ]
+      },
+      "expected": [
+        {
+          "id": "a",
+          "amount": 0
+        },
+        {
+          "id": "b",
+          "amount": 1
+        },
+        {
+          "id": "c",
+          "amount": 1
+        }
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

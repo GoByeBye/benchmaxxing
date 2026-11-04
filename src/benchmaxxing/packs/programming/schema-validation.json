@@ -1,0 +1,263 @@
+{
+  "schema_version": 1,
+  "id": "python.schema-validation",
+  "version": "1.0.0",
+  "title": "Typed JSON schema subset with error paths",
+  "category": "programming",
+  "difficulty": "hard",
+  "tags": [
+    "validation",
+    "json",
+    "recursive-contracts"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), with schema and value. Every schema has type: object, array, string, integer,\nnumber, boolean or null. Integers and numbers exclude booleans; integer also excludes float values\nsuch as 1.0. An object schema may have properties (key -> schema), required (unique listed property\nnames), and additional (boolean, default true). An array may have items (schema for each element)\nand min_items (nonnegative integer, default 0). A string may have min_length (nonnegative integer,\ndefault 0), measured in Python Unicode code points. Other schema keywords do not occur. All schemas\nare valid and required names occur in properties. Return [{\"path\": JSON_pointer,\"code\": error_code},...]\nsorted by path then code. Codes are type, required, additional, min_items, min_length. A type mismatch\nemits only type at that location; do not descend. Missing required fields get their prospective child\npath. Forbidden extra fields get their own path and are not descended. Array length errors do not\nprevent element validation. Root path is \"\"; escape '~' as '~0' and '/' as '~1' in object keys. Optional\nabsent properties are valid; unspecified array items accept anything. Depth is at most 10 and each\ncontainer has at most 30 members. Valid values return []. This is only the specified subset, not full JSON Schema.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"schema\": {\"type\": \"integer\"}, \"value\": 7}`; output: `[]`.\n- Input: `{\"schema\": {\"type\": \"object\", \"properties\": {\"x\": {\"type\": \"string\"}}, \"required\": [\"x\"]}, \"value\": {}}`; output: `[{\"path\": \"/x\", \"code\": \"required\"}]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    errors = []\n    def pointer(path, key):\n        return path + '/' + str(key).replace('~', '~0').replace('/', '~1')\n    def visit(schema, value, path):\n        kind = schema['type']\n        types = {'object': dict, 'array': list, 'string': str, 'integer': int,\n                 'number': (int, float), 'boolean': bool, 'null': type(None)}\n        valid = isinstance(value, types[kind])\n        if not valid:\n            errors.append({'path': path, 'code': 'type'})\n            return\n        if kind == 'object':\n            properties = schema.get('properties', {})\n            for key in schema.get('required', []):\n                if key not in value:\n                    errors.append({'path': pointer(path, key), 'code': 'required'})\n            for key, child in value.items():\n                if key in properties:\n                    visit(properties[key], child, pointer(path, key))\n                elif not schema.get('additional', True):\n                    errors.append({'path': pointer(path, key), 'code': 'additional'})\n        elif kind == 'array':\n            if len(value) < schema.get('min_items', 0):\n                errors.append({'path': path, 'code': 'min_items'})\n            if 'items' in schema:\n                for index, child in enumerate(value):\n                    visit(schema['items'], child, pointer(path, index))\n        elif kind == 'string' and len(value) < schema.get('min_length', 0):\n            errors.append({'path': path, 'code': 'min_length'})\n    visit(payload['schema'], payload['value'], '')\n    return sorted(errors, key=lambda error: (error['path'], error['code']))\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"valid_integer\", \"input\": {\"schema\": {\"type\": \"integer\"}, \"value\": 7}, \"expected\": []}, {\"name\": \"missing\", \"input\": {\"schema\": {\"type\": \"object\", \"properties\": {\"x\": {\"type\": \"string\"}}, \"required\": [\"x\"]}, \"value\": {}}, \"expected\": [{\"path\": \"/x\", \"code\": \"required\"}]}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    errors = []\n    def pointer(path, key):\n        return path + '/' + str(key).replace('~', '~0').replace('/', '~1')\n    def visit(schema, value, path):\n        kind = schema['type']\n        types = {'object': dict, 'array': list, 'string': str, 'integer': int,\n                 'number': (int, float), 'boolean': bool, 'null': type(None)}\n        valid = isinstance(value, types[kind]) and not (kind in ('integer', 'number') and isinstance(value, bool))\n        if not valid:\n            errors.append({'path': path, 'code': 'type'})\n            return\n        if kind == 'object':\n            properties = schema.get('properties', {})\n            for key in schema.get('required', []):\n                if key not in value:\n                    errors.append({'path': pointer(path, key), 'code': 'required'})\n            for key, child in value.items():\n                if key in properties:\n                    visit(properties[key], child, pointer(path, key))\n                elif not schema.get('additional', True):\n                    errors.append({'path': pointer(path, key), 'code': 'additional'})\n        elif kind == 'array':\n            if len(value) < schema.get('min_items', 0):\n                errors.append({'path': path, 'code': 'min_items'})\n            if 'items' in schema:\n                for index, child in enumerate(value):\n                    visit(schema['items'], child, pointer(path, index))\n        elif kind == 'string' and len(value) < schema.get('min_length', 0):\n            errors.append({'path': path, 'code': 'min_length'})\n    visit(payload['schema'], payload['value'], '')\n    return sorted(errors, key=lambda error: (error['path'], error['code']))\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    errors = []\n    def pointer(path, key):\n        return path + '/' + str(key).replace('~', '~0').replace('/', '~1')\n    def visit(schema, value, path):\n        kind = schema['type']\n        types = {'object': dict, 'array': list, 'string': str, 'integer': int,\n                 'number': (int, float), 'boolean': bool, 'null': type(None)}\n        valid = isinstance(value, types[kind])\n        if not valid:\n            errors.append({'path': path, 'code': 'type'})\n            return\n        if kind == 'object':\n            properties = schema.get('properties', {})\n            for key in schema.get('required', []):\n                if key not in value:\n                    errors.append({'path': pointer(path, key), 'code': 'required'})\n            for key, child in value.items():\n                if key in properties:\n                    visit(properties[key], child, pointer(path, key))\n                elif not schema.get('additional', True):\n                    errors.append({'path': pointer(path, key), 'code': 'additional'})\n        elif kind == 'array':\n            if len(value) < schema.get('min_items', 0):\n                errors.append({'path': path, 'code': 'min_items'})\n            if 'items' in schema:\n                for index, child in enumerate(value):\n                    visit(schema['items'], child, pointer(path, index))\n        elif kind == 'string' and len(value) < schema.get('min_length', 0):\n            errors.append({'path': path, 'code': 'min_length'})\n    visit(payload['schema'], payload['value'], '')\n    return sorted(errors, key=lambda error: (error['path'], error['code']))\n",
+  "cases": [
+    {
+      "name": "empty_optional_object",
+      "input": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "integer"
+            }
+          }
+        },
+        "value": {}
+      },
+      "expected": []
+    },
+    {
+      "name": "boolean_is_not_integer",
+      "input": {
+        "schema": {
+          "type": "integer"
+        },
+        "value": true
+      },
+      "expected": [
+        {
+          "path": "",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "float_is_not_integer",
+      "input": {
+        "schema": {
+          "type": "integer"
+        },
+        "value": 1.0
+      },
+      "expected": [
+        {
+          "path": "",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "root_type_stops_descent",
+      "input": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "a"
+          ]
+        },
+        "value": []
+      },
+      "expected": [
+        {
+          "path": "",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "escaped_additional_paths",
+      "input": {
+        "schema": {
+          "type": "object",
+          "additional": false
+        },
+        "value": {
+          "a/b~": 3,
+          "": 1
+        }
+      },
+      "expected": [
+        {
+          "path": "/",
+          "code": "additional"
+        },
+        {
+          "path": "/a~1b~0",
+          "code": "additional"
+        }
+      ]
+    },
+    {
+      "name": "length_and_element_errors",
+      "input": {
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "min_items": 3
+        },
+        "value": [
+          1,
+          "x"
+        ]
+      },
+      "expected": [
+        {
+          "path": "",
+          "code": "min_items"
+        },
+        {
+          "path": "/1",
+          "code": "type"
+        }
+      ]
+    },
+    {
+      "name": "nested_missing_and_extra",
+      "input": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "user": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "min_length": 2
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additional": false
+            }
+          },
+          "required": [
+            "user"
+          ],
+          "additional": false
+        },
+        "value": {
+          "user": {
+            "extra": 1
+          },
+          "z": 0
+        }
+      },
+      "expected": [
+        {
+          "path": "/user/extra",
+          "code": "additional"
+        },
+        {
+          "path": "/user/name",
+          "code": "required"
+        },
+        {
+          "path": "/z",
+          "code": "additional"
+        }
+      ]
+    },
+    {
+      "name": "unicode_character_length",
+      "input": {
+        "schema": {
+          "type": "string",
+          "min_length": 2
+        },
+        "value": "é"
+      },
+      "expected": [
+        {
+          "path": "",
+          "code": "min_length"
+        }
+      ]
+    },
+    {
+      "name": "valid_mixed_types",
+      "input": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "n": {
+              "type": "number"
+            },
+            "b": {
+              "type": "boolean"
+            },
+            "x": {
+              "type": "null"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "n",
+            "b",
+            "x"
+          ],
+          "additional": false
+        },
+        "value": {
+          "n": 2.5,
+          "b": false,
+          "x": null,
+          "tags": [
+            "",
+            "é"
+          ]
+        }
+      },
+      "expected": []
+    },
+    {
+      "name": "boolean_is_not_number",
+      "input": {
+        "schema": {
+          "type": "number"
+        },
+        "value": false
+      },
+      "expected": [
+        {
+          "path": "",
+          "code": "type"
+        }
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

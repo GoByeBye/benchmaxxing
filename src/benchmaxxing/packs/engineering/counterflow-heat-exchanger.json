@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "id": "engineering.counterflow-heat-exchanger",
+  "version": "1.0.0",
+  "title": "Compute counterflow exchanger effectiveness",
+  "category": "engineering",
+  "difficulty": "hard",
+  "tags": [
+    "thermal",
+    "heat-transfer",
+    "numerics",
+    "units"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) using the counterflow effectiveness-NTU model. hot_capacity_w_per_k and cold_capacity_w_per_k are positive heat capacity rates; ua_w_per_k is nonnegative conductance. inlet_hot_c and inlet_cold_c are temperatures in Celsius; their ordering is unrestricted. Cmin=min(Ch,Cc), Cr=Cmin/max(Ch,Cc), NTU=UA/Cmin. If Cr==1 exactly use effectiveness=NTU/(1+NTU); otherwise e=exp(-NTU*(1-Cr)), effectiveness=(1-e)/(1-Cr*e). Q=effectiveness*Cmin*(Th-Tc), positive from the named hot stream to the named cold stream. Return {\"effectiveness\":...,\"heat_w\":Q,\"outlet_hot_c\":Th-Q/Ch,\"outlet_cold_c\":Tc+Q/Cc}. Nonpositive capacity or negative UA returns {\"error\":\"invalid_exchanger\"}. Input scales avoid overflow; implement small-NTU behaviour without rounding. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 1e-7, relative tolerance 1e-9; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-7, rel_tol=1e-9)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"balanced\\\",\\\"input\\\":{\\\"hot_capacity_w_per_k\\\":100,\\\"cold_capacity_w_per_k\\\":100,\\\"ua_w_per_k\\\":100,\\\"inlet_hot_c\\\":100,\\\"inlet_cold_c\\\":20},\\\"expected\\\":{\\\"effectiveness\\\":0.5,\\\"heat_w\\\":4000,\\\"outlet_hot_c\\\":60,\\\"outlet_cold_c\\\":60}},{\\\"name\\\":\\\"no_conductance\\\",\\\"input\\\":{\\\"hot_capacity_w_per_k\\\":100,\\\"cold_capacity_w_per_k\\\":200,\\\"ua_w_per_k\\\":0,\\\"inlet_hot_c\\\":80,\\\"inlet_cold_c\\\":10},\\\"expected\\\":{\\\"effectiveness\\\":0,\\\"heat_w\\\":0,\\\"outlet_hot_c\\\":80,\\\"outlet_cold_c\\\":10}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import math\n    ch, cc, ua = [payload[k] for k in (\"hot_capacity_w_per_k\", \"cold_capacity_w_per_k\", \"ua_w_per_k\")]\n    if ch <= 0 or cc <= 0 or ua < 0:\n        return {\"error\": \"invalid_exchanger\"}\n    low = min(ch, cc)\n    ratio = low/max(ch, cc)\n    ntu = ua/low\n    if ratio == 1:\n        effectiveness = ntu/(1+ntu)\n    else:\n        one_minus_e = -math.expm1(-ntu*(1-ratio))\n        effectiveness = one_minus_e/((1-ratio)+ratio*one_minus_e)\n    hot, cold = payload[\"inlet_hot_c\"], payload[\"inlet_cold_c\"]\n    heat = effectiveness*low*(hot-cold)\n    return {\"effectiveness\": effectiveness, \"heat_w\": heat, \"outlet_hot_c\": hot-heat/ch, \"outlet_cold_c\": cold+heat/cc}\n",
+  "bad_solution": "def solve(payload):\n    ch, cc = payload[\"hot_capacity_w_per_k\"], payload[\"cold_capacity_w_per_k\"]\n    hot, cold = payload[\"inlet_hot_c\"], payload[\"inlet_cold_c\"]\n    e = payload[\"ua_w_per_k\"]/(payload[\"ua_w_per_k\"]+min(ch, cc))\n    heat = e*min(ch, cc)*(hot-cold)\n    return {\"effectiveness\": e, \"heat_w\": heat, \"outlet_hot_c\": hot-heat/ch, \"outlet_cold_c\": cold+heat/cc}\n",
+  "cases": [
+    {
+      "name": "balanced",
+      "input": {
+        "hot_capacity_w_per_k": 100,
+        "cold_capacity_w_per_k": 100,
+        "ua_w_per_k": 100,
+        "inlet_hot_c": 100,
+        "inlet_cold_c": 20
+      },
+      "expected": {
+        "effectiveness": 0.5,
+        "heat_w": 4000,
+        "outlet_hot_c": 60,
+        "outlet_cold_c": 60
+      }
+    },
+    {
+      "name": "no_conductance",
+      "input": {
+        "hot_capacity_w_per_k": 100,
+        "cold_capacity_w_per_k": 200,
+        "ua_w_per_k": 0,
+        "inlet_hot_c": 80,
+        "inlet_cold_c": 10
+      },
+      "expected": {
+        "effectiveness": 0,
+        "heat_w": 0,
+        "outlet_hot_c": 80,
+        "outlet_cold_c": 10
+      }
+    },
+    {
+      "name": "cold_minimum",
+      "input": {
+        "hot_capacity_w_per_k": 200,
+        "cold_capacity_w_per_k": 100,
+        "ua_w_per_k": 138.62943611198907,
+        "inlet_hot_c": 100,
+        "inlet_cold_c": 20
+      },
+      "expected": {
+        "effectiveness": 0.6666666666666666,
+        "heat_w": 5333.333333333333,
+        "outlet_hot_c": 73.33333333333333,
+        "outlet_cold_c": 73.33333333333333
+      }
+    },
+    {
+      "name": "hot_minimum",
+      "input": {
+        "hot_capacity_w_per_k": 100,
+        "cold_capacity_w_per_k": 200,
+        "ua_w_per_k": 138.62943611198907,
+        "inlet_hot_c": 100,
+        "inlet_cold_c": 20
+      },
+      "expected": {
+        "effectiveness": 0.6666666666666666,
+        "heat_w": 5333.333333333333,
+        "outlet_hot_c": 46.66666666666667,
+        "outlet_cold_c": 46.66666666666667
+      }
+    },
+    {
+      "name": "reverse_heat",
+      "input": {
+        "hot_capacity_w_per_k": 100,
+        "cold_capacity_w_per_k": 100,
+        "ua_w_per_k": 100,
+        "inlet_hot_c": 20,
+        "inlet_cold_c": 100
+      },
+      "expected": {
+        "effectiveness": 0.5,
+        "heat_w": -4000,
+        "outlet_hot_c": 60,
+        "outlet_cold_c": 60
+      }
+    },
+    {
+      "name": "equal_temperatures",
+      "input": {
+        "hot_capacity_w_per_k": 100,
+        "cold_capacity_w_per_k": 100,
+        "ua_w_per_k": 300,
+        "inlet_hot_c": -5,
+        "inlet_cold_c": -5
+      },
+      "expected": {
+        "effectiveness": 0.75,
+        "heat_w": 0,
+        "outlet_hot_c": -5,
+        "outlet_cold_c": -5
+      }
+    },
+    {
+      "name": "large_ntu",
+      "input": {
+        "hot_capacity_w_per_k": 100,
+        "cold_capacity_w_per_k": 200,
+        "ua_w_per_k": 1000000,
+        "inlet_hot_c": 100,
+        "inlet_cold_c": 20
+      },
+      "expected": {
+        "effectiveness": 1,
+        "heat_w": 8000,
+        "outlet_hot_c": 20,
+        "outlet_cold_c": 60
+      }
+    },
+    {
+      "name": "zero_capacity",
+      "input": {
+        "hot_capacity_w_per_k": 0,
+        "cold_capacity_w_per_k": 100,
+        "ua_w_per_k": 100,
+        "inlet_hot_c": 100,
+        "inlet_cold_c": 20
+      },
+      "expected": {
+        "error": "invalid_exchanger"
+      }
+    },
+    {
+      "name": "negative_ua",
+      "input": {
+        "hot_capacity_w_per_k": 100,
+        "cold_capacity_w_per_k": 100,
+        "ua_w_per_k": -1,
+        "inlet_hot_c": 100,
+        "inlet_cold_c": 20
+      },
+      "expected": {
+        "error": "invalid_exchanger"
+      }
+    }
+  ],
+  "atol": 1e-07,
+  "rtol": 1e-09,
+  "preserve_input": true
+}

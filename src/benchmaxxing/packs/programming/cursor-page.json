@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "id": "python.cursor-page",
+  "version": "1.0.0",
+  "title": "Stable paging after a compound cursor",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "pagination",
+    "sorting",
+    "boundaries"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting rows (objects with exactly unique string id and integer score),\nlimit (integer 1..50), and cursor (null or an object with id and score). Sort rows by score descending,\nthen id ascending using Python string ordering. A cursor is an exclusive boundary in that compound\norder: include only rows strictly after it, even if no current row exactly matches the cursor. Return\n{\"items\": first_up_to_limit_eligible_rows, \"next\": cursor_or_null}. next is a copy of the last returned\nrow only when further eligible rows remain; otherwise it is null. No rows means empty items and null\nnext. Input order does not matter. Scores may be negative and at most 200 rows are supplied.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"rows\": [{\"id\": \"b\", \"score\": 1}, {\"id\": \"a\", \"score\": 2}], \"limit\": 1, \"cursor\": null}`; output: `{\"items\": [{\"id\": \"a\", \"score\": 2}], \"next\": {\"id\": \"a\", \"score\": 2}}`.\n- Input: `{\"rows\": [{\"id\": \"a\", \"score\": 2}], \"limit\": 5, \"cursor\": null}`; output: `{\"items\": [{\"id\": \"a\", \"score\": 2}], \"next\": null}`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    key = lambda row: (-row['score'], row['id'])\n    ordered = sorted(payload['rows'], key=key)\n    cursor = payload['cursor']\n    eligible = [row for row in ordered if cursor is None or key(row) >= key(cursor)]\n    selected = eligible[:payload['limit']]\n    next_cursor = dict(selected[-1]) if len(eligible) > len(selected) else None\n    return {'items': [dict(row) for row in selected], 'next': next_cursor}\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"first_page\", \"input\": {\"rows\": [{\"id\": \"b\", \"score\": 1}, {\"id\": \"a\", \"score\": 2}], \"limit\": 1, \"cursor\": null}, \"expected\": {\"items\": [{\"id\": \"a\", \"score\": 2}], \"next\": {\"id\": \"a\", \"score\": 2}}}, {\"name\": \"all_rows\", \"input\": {\"rows\": [{\"id\": \"a\", \"score\": 2}], \"limit\": 5, \"cursor\": null}, \"expected\": {\"items\": [{\"id\": \"a\", \"score\": 2}], \"next\": null}}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    key = lambda row: (-row['score'], row['id'])\n    ordered = sorted(payload['rows'], key=key)\n    cursor = payload['cursor']\n    eligible = [row for row in ordered if cursor is None or key(row) > key(cursor)]\n    selected = eligible[:payload['limit']]\n    next_cursor = dict(selected[-1]) if len(eligible) > len(selected) else None\n    return {'items': [dict(row) for row in selected], 'next': next_cursor}\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    key = lambda row: (-row['score'], row['id'])\n    ordered = sorted(payload['rows'], key=key)\n    cursor = payload['cursor']\n    eligible = [row for row in ordered if cursor is None or key(row) >= key(cursor)]\n    selected = eligible[:payload['limit']]\n    next_cursor = dict(selected[-1]) if len(eligible) > len(selected) else None\n    return {'items': [dict(row) for row in selected], 'next': next_cursor}\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": {
+        "rows": [],
+        "limit": 3,
+        "cursor": null
+      },
+      "expected": {
+        "items": [],
+        "next": null
+      }
+    },
+    {
+      "name": "tie_order",
+      "input": {
+        "rows": [
+          {
+            "id": "c",
+            "score": 10
+          },
+          {
+            "id": "a",
+            "score": 10
+          },
+          {
+            "id": "b",
+            "score": 10
+          }
+        ],
+        "limit": 2,
+        "cursor": null
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "a",
+            "score": 10
+          },
+          {
+            "id": "b",
+            "score": 10
+          }
+        ],
+        "next": {
+          "id": "b",
+          "score": 10
+        }
+      }
+    },
+    {
+      "name": "missing_cursor_between_ids",
+      "input": {
+        "rows": [
+          {
+            "id": "a",
+            "score": 5
+          },
+          {
+            "id": "c",
+            "score": 5
+          },
+          {
+            "id": "e",
+            "score": 5
+          }
+        ],
+        "limit": 2,
+        "cursor": {
+          "id": "b",
+          "score": 5
+        }
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "c",
+            "score": 5
+          },
+          {
+            "id": "e",
+            "score": 5
+          }
+        ],
+        "next": null
+      }
+    },
+    {
+      "name": "missing_cursor_between_scores",
+      "input": {
+        "rows": [
+          {
+            "id": "c",
+            "score": 4
+          },
+          {
+            "id": "a",
+            "score": 10
+          },
+          {
+            "id": "b",
+            "score": 8
+          }
+        ],
+        "limit": 1,
+        "cursor": {
+          "id": "zzz",
+          "score": 9
+        }
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "b",
+            "score": 8
+          }
+        ],
+        "next": {
+          "id": "b",
+          "score": 8
+        }
+      }
+    },
+    {
+      "name": "exclusive_cursor",
+      "input": {
+        "rows": [
+          {
+            "id": "a",
+            "score": 2
+          },
+          {
+            "id": "b",
+            "score": 1
+          },
+          {
+            "id": "c",
+            "score": 0
+          }
+        ],
+        "limit": 2,
+        "cursor": {
+          "id": "b",
+          "score": 1
+        }
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "c",
+            "score": 0
+          }
+        ],
+        "next": null
+      }
+    },
+    {
+      "name": "cursor_at_last",
+      "input": {
+        "rows": [
+          {
+            "id": "a",
+            "score": 1
+          }
+        ],
+        "limit": 1,
+        "cursor": {
+          "id": "a",
+          "score": 1
+        }
+      },
+      "expected": {
+        "items": [],
+        "next": null
+      }
+    },
+    {
+      "name": "unit_limit",
+      "input": {
+        "rows": [
+          {
+            "id": "b",
+            "score": 5
+          },
+          {
+            "id": "a",
+            "score": 9
+          },
+          {
+            "id": "c",
+            "score": 1
+          }
+        ],
+        "limit": 1,
+        "cursor": null
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "a",
+            "score": 9
+          }
+        ],
+        "next": {
+          "id": "a",
+          "score": 9
+        }
+      }
+    },
+    {
+      "name": "negative_scores",
+      "input": {
+        "rows": [
+          {
+            "id": "c",
+            "score": -2
+          },
+          {
+            "id": "b",
+            "score": -1
+          },
+          {
+            "id": "a",
+            "score": -2
+          }
+        ],
+        "limit": 10,
+        "cursor": {
+          "id": "b",
+          "score": -1
+        }
+      },
+      "expected": {
+        "items": [
+          {
+            "id": "a",
+            "score": -2
+          },
+          {
+            "id": "c",
+            "score": -2
+          }
+        ],
+        "next": null
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

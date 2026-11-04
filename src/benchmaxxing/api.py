@@ -18,6 +18,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from benchmaxxing import __version__
 from benchmaxxing.contracts import (
     TERMINAL_STATUSES,
+    ActivitySnapshot,
     DoctorReport,
     RunDetail,
     RunRecord,
@@ -119,6 +120,10 @@ def create_app(
 
         return list_tasks()
 
+    @application.get("/api/v1/activity", response_model=ActivitySnapshot)
+    def activity() -> ActivitySnapshot:
+        return owner.store.activity()
+
     @application.get("/api/v1/runs", response_model=list[RunRecord])
     def list_runs(limit: int = Query(default=1000, ge=1, le=10000)) -> list[RunRecord]:
         return owner.store.list_runs(limit)
@@ -156,18 +161,20 @@ def create_app(
             cursor = after
             heartbeat = time.monotonic()
             while not await request.is_disconnected():
-                batch = owner.store.events(run_id, after=cursor)
+                batch = await asyncio.to_thread(owner.store.events, run_id, after=cursor, limit=64)
                 for event in batch:
                     cursor = event.seq
                     yield f"id: {event.seq}\nevent: run_event\ndata: {event.model_dump_json()}\n\n"
-                if owner.store.get_run(run_id).status in TERMINAL_STATUSES:
+                if len(batch) == 64:
+                    continue
+                record = await asyncio.to_thread(owner.store.get_run, run_id)
+                if record.status in TERMINAL_STATUSES:
                     # Drain events committed just before the terminal state became visible.
-                    remaining = owner.store.events(run_id, after=cursor)
-                    for event in remaining:
-                        yield (
-                            f"id: {event.seq}\nevent: run_event\n"
-                            f"data: {event.model_dump_json()}\n\n"
-                        )
+                    remaining = await asyncio.to_thread(
+                        owner.store.events, run_id, after=cursor, limit=1
+                    )
+                    if remaining:
+                        continue
                     yield "event: complete\ndata: {}\n\n"
                     break
                 if time.monotonic() - heartbeat >= 10:

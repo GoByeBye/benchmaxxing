@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "id": "security.dns-domain-allowlist",
+  "version": "1.0.0",
+  "title": "Evaluate normalized DNS domain policy",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "dns",
+    "normalization",
+    "policy"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload), a purely lexical DNS policy evaluator with no DNS lookups. rules contains {\"domain\":string,\"subdomains\":boolean,\"action\":\"allow\"|\"deny\"}; queries contains strings. Normalize domains by ASCII lowercasing and removing exactly one final dot. A valid normalized domain is 1..253 characters; labels are 1..63 ASCII letters/digits/hyphens, with an alphanumeric first and last character. Empty labels, whitespace, wildcard syntax and Unicode are invalid. A rule matches its exact domain and, only when subdomains=true, names ending in \".\"+domain. Most labels in the matching rule wins; deny wins a tie. No match means deny. Return {\"decisions\":[ \"allow\"|\"deny\"|\"invalid\", ...]} in query order. An invalid rule domain or action returns {\"error\":\"invalid_rule\"} before evaluating queries. Numeric labels are permitted as lexical DNS labels. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 0, relative tolerance 0; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"exact_only\\\",\\\"input\\\":{\\\"rules\\\":[{\\\"domain\\\":\\\"example.test\\\",\\\"subdomains\\\":false,\\\"action\\\":\\\"allow\\\"}],\\\"queries\\\":[\\\"example.test\\\",\\\"www.example.test\\\"]},\\\"expected\\\":{\\\"decisions\\\":[\\\"allow\\\",\\\"deny\\\"]}},{\\\"name\\\":\\\"subdomain_boundary\\\",\\\"input\\\":{\\\"rules\\\":[{\\\"domain\\\":\\\"example.test\\\",\\\"subdomains\\\":true,\\\"action\\\":\\\"allow\\\"}],\\\"queries\\\":[\\\"a.example.test\\\",\\\"otherexample.test\\\",\\\"example.test.attacker.test\\\"]},\\\"expected\\\":{\\\"decisions\\\":[\\\"allow\\\",\\\"deny\\\",\\\"deny\\\"]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import re\n    def normalize(value):\n        if not value.isascii():\n            return None\n        value = value.lower()\n        if value.endswith(\".\"):\n            value = value[:-1]\n        if not 1 <= len(value) <= 253:\n            return None\n        labels = value.split(\".\")\n        if any(not re.fullmatch(r\"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\", label) for label in labels):\n            return None\n        return value\n    rules = []\n    for rule in payload[\"rules\"]:\n        domain = normalize(rule[\"domain\"])\n        if domain is None or rule[\"action\"] not in (\"allow\", \"deny\"):\n            return {\"error\": \"invalid_rule\"}\n        rules.append((domain, rule[\"subdomains\"], rule[\"action\"]))\n    decisions = []\n    for query in payload[\"queries\"]:\n        domain = normalize(query)\n        if domain is None:\n            decisions.append(\"invalid\")\n            continue\n        matches = [(len(base.split(\".\")), action) for base, subdomains, action in rules if domain == base or (subdomains and domain.endswith(\".\"+base))]\n        if not matches:\n            decisions.append(\"deny\")\n        else:\n            level = max(n for n, _ in matches)\n            decisions.append(\"deny\" if any(n == level and action == \"deny\" for n, action in matches) else \"allow\")\n    return {\"decisions\": decisions}\n",
+  "bad_solution": "def solve(payload):\n    return {\"decisions\": [\"allow\" if any(q.endswith(r[\"domain\"]) and r[\"action\"] == \"allow\" for r in payload[\"rules\"]) else \"deny\" for q in payload[\"queries\"]]}\n",
+  "cases": [
+    {
+      "name": "exact_only",
+      "input": {
+        "rules": [
+          {
+            "domain": "example.test",
+            "subdomains": false,
+            "action": "allow"
+          }
+        ],
+        "queries": [
+          "example.test",
+          "www.example.test"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "subdomain_boundary",
+      "input": {
+        "rules": [
+          {
+            "domain": "example.test",
+            "subdomains": true,
+            "action": "allow"
+          }
+        ],
+        "queries": [
+          "a.example.test",
+          "otherexample.test",
+          "example.test.attacker.test"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "specific_exception",
+      "input": {
+        "rules": [
+          {
+            "domain": "example.test",
+            "subdomains": true,
+            "action": "deny"
+          },
+          {
+            "domain": "safe.example.test",
+            "subdomains": true,
+            "action": "allow"
+          }
+        ],
+        "queries": [
+          "safe.example.test",
+          "a.safe.example.test",
+          "other.example.test"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "deny_tie",
+      "input": {
+        "rules": [
+          {
+            "domain": "EXAMPLE.TEST.",
+            "subdomains": true,
+            "action": "allow"
+          },
+          {
+            "domain": "example.test",
+            "subdomains": true,
+            "action": "deny"
+          }
+        ],
+        "queries": [
+          "example.test",
+          "a.example.test"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "deny",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "normalization",
+      "input": {
+        "rules": [
+          {
+            "domain": "Example.TEST.",
+            "subdomains": false,
+            "action": "allow"
+          }
+        ],
+        "queries": [
+          "EXAMPLE.test.",
+          "example.test..",
+          " example.test"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "invalid",
+          "invalid"
+        ]
+      }
+    },
+    {
+      "name": "invalid_labels",
+      "input": {
+        "rules": [],
+        "queries": [
+          "",
+          "a..test",
+          "-a.test",
+          "a-.test",
+          "café.test",
+          "*.test",
+          "K.test"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "invalid",
+          "invalid",
+          "invalid",
+          "invalid",
+          "invalid",
+          "invalid",
+          "invalid"
+        ]
+      }
+    },
+    {
+      "name": "no_rules",
+      "input": {
+        "rules": [],
+        "queries": [
+          "valid.test",
+          "localhost",
+          "1.2.3.4"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "deny",
+          "deny",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "hyphen_valid",
+      "input": {
+        "rules": [
+          {
+            "domain": "a-b.test",
+            "subdomains": true,
+            "action": "allow"
+          }
+        ],
+        "queries": [
+          "a-b.test",
+          "x.a-b.test",
+          "xa-b.test"
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "invalid_rule",
+      "input": {
+        "rules": [
+          {
+            "domain": "bad..test",
+            "subdomains": true,
+            "action": "allow"
+          }
+        ],
+        "queries": [
+          "valid.test"
+        ]
+      },
+      "expected": {
+        "error": "invalid_rule"
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

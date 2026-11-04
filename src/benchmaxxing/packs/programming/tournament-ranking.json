@@ -1,0 +1,383 @@
+{
+  "schema_version": 1,
+  "id": "python.tournament-ranking",
+  "version": "1.0.0",
+  "title": "Tournament table with competition ranks",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "aggregation",
+    "sorting",
+    "ranking"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting teams (distinct string names) and matches ([home,away,home_goals,\naway_goals]). All endpoints are listed, teams never play themselves, and goals are nonnegative integers.\nEvery match row counts, including repeated fixtures. Award 3 points for a win, 1 for a draw, 0 for a loss.\nReturn a record per team with exactly team, played, points, goals_for, goals_against, goal_difference and\nrank. Include teams with no matches. Sort points descending, goal difference descending, goals for\ndescending, then team name ascending. Names use Python string ordering. Sporting ties are equal\npoints/difference/goals_for; tied teams share competition rank, with gaps afterwards (1,1,3), regardless\nof name or played count. There are at most 50 teams and 500 matches. Empty teams gives an empty table.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"teams\": [\"A\", \"B\"], \"matches\": [[\"A\", \"B\", 3, 1]]}`; output: `[{\"team\": \"A\", \"played\": 1, \"points\": 3, \"goals_for\": 3, \"goals_against\": 1, \"goal_difference\": 2, \"rank\": 1}, {\"team\": \"B\", \"played\": 1, \"points\": 0, \"goals_for\": 1, \"goals_against\": 3, \"goal_difference\": -2, \"rank\": 2}]`.\n- Input: `{\"teams\": [\"B\", \"A\"], \"matches\": [[\"A\", \"B\", 0, 0], [\"B\", \"A\", 0, 0]]}`; output: `[{\"team\": \"A\", \"played\": 2, \"points\": 2, \"goals_for\": 0, \"goals_against\": 0, \"goal_difference\": 0, \"rank\": 1}, {\"team\": \"B\", \"played\": 2, \"points\": 2, \"goals_for\": 0, \"goals_against\": 0, \"goal_difference\": 0, \"rank\": 1}]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    rows = {name: {'team': name, 'played': 0, 'points': 0, 'goals_for': 0, 'goals_against': 0} for name in payload['teams']}\n    for home, away, scored, conceded in payload['matches']:\n        a, b = rows[home], rows[away]\n        a['played'] += 1\n        b['played'] += 1\n        a['goals_for'] += scored\n        a['goals_against'] += conceded\n        b['goals_for'] += conceded\n        b['goals_against'] += scored\n        a['points'] += 3 if scored > conceded else 1 if scored == conceded else 0\n        b['points'] += 3 if conceded > scored else 1 if scored == conceded else 0\n    for row in rows.values():\n        row['goal_difference'] = row['goals_for'] - row['goals_against']\n    ordered = sorted(rows.values(), key=lambda row: (-row['points'], -row['goal_difference'], -row['goals_for'], row['team']))\n    previous, rank = None, 0\n    for position, row in enumerate(ordered, 1):\n        sporting = (row['points'], row['goal_difference'], row['goals_for'])\n        if True:\n            rank = position\n        row['rank'] = rank\n        previous = sporting\n    return ordered\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"win\", \"input\": {\"teams\": [\"A\", \"B\"], \"matches\": [[\"A\", \"B\", 3, 1]]}, \"expected\": [{\"team\": \"A\", \"played\": 1, \"points\": 3, \"goals_for\": 3, \"goals_against\": 1, \"goal_difference\": 2, \"rank\": 1}, {\"team\": \"B\", \"played\": 1, \"points\": 0, \"goals_for\": 1, \"goals_against\": 3, \"goal_difference\": -2, \"rank\": 2}]}, {\"name\": \"repeated_draws\", \"input\": {\"teams\": [\"B\", \"A\"], \"matches\": [[\"A\", \"B\", 0, 0], [\"B\", \"A\", 0, 0]]}, \"expected\": [{\"team\": \"A\", \"played\": 2, \"points\": 2, \"goals_for\": 0, \"goals_against\": 0, \"goal_difference\": 0, \"rank\": 1}, {\"team\": \"B\", \"played\": 2, \"points\": 2, \"goals_for\": 0, \"goals_against\": 0, \"goal_difference\": 0, \"rank\": 1}]}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    rows = {name: {'team': name, 'played': 0, 'points': 0, 'goals_for': 0, 'goals_against': 0} for name in payload['teams']}\n    for home, away, scored, conceded in payload['matches']:\n        a, b = rows[home], rows[away]\n        a['played'] += 1\n        b['played'] += 1\n        a['goals_for'] += scored\n        a['goals_against'] += conceded\n        b['goals_for'] += conceded\n        b['goals_against'] += scored\n        a['points'] += 3 if scored > conceded else 1 if scored == conceded else 0\n        b['points'] += 3 if conceded > scored else 1 if scored == conceded else 0\n    for row in rows.values():\n        row['goal_difference'] = row['goals_for'] - row['goals_against']\n    ordered = sorted(rows.values(), key=lambda row: (-row['points'], -row['goal_difference'], -row['goals_for'], row['team']))\n    previous, rank = None, 0\n    for position, row in enumerate(ordered, 1):\n        sporting = (row['points'], row['goal_difference'], row['goals_for'])\n        if sporting != previous:\n            rank = position\n        row['rank'] = rank\n        previous = sporting\n    return ordered\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    rows = {name: {'team': name, 'played': 0, 'points': 0, 'goals_for': 0, 'goals_against': 0} for name in payload['teams']}\n    for home, away, scored, conceded in payload['matches']:\n        a, b = rows[home], rows[away]\n        a['played'] += 1\n        b['played'] += 1\n        a['goals_for'] += scored\n        a['goals_against'] += conceded\n        b['goals_for'] += conceded\n        b['goals_against'] += scored\n        a['points'] += 3 if scored > conceded else 1 if scored == conceded else 0\n        b['points'] += 3 if conceded > scored else 1 if scored == conceded else 0\n    for row in rows.values():\n        row['goal_difference'] = row['goals_for'] - row['goals_against']\n    ordered = sorted(rows.values(), key=lambda row: (-row['points'], -row['goal_difference'], -row['goals_for'], row['team']))\n    previous, rank = None, 0\n    for position, row in enumerate(ordered, 1):\n        sporting = (row['points'], row['goal_difference'], row['goals_for'])\n        if True:\n            rank = position\n        row['rank'] = rank\n        previous = sporting\n    return ordered\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": {
+        "teams": [],
+        "matches": []
+      },
+      "expected": []
+    },
+    {
+      "name": "unplayed",
+      "input": {
+        "teams": [
+          "b",
+          "a"
+        ],
+        "matches": []
+      },
+      "expected": [
+        {
+          "team": "a",
+          "played": 0,
+          "points": 0,
+          "goals_for": 0,
+          "goals_against": 0,
+          "goal_difference": 0,
+          "rank": 1
+        },
+        {
+          "team": "b",
+          "played": 0,
+          "points": 0,
+          "goals_for": 0,
+          "goals_against": 0,
+          "goal_difference": 0,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "name": "draw_ranks",
+      "input": {
+        "teams": [
+          "a",
+          "b"
+        ],
+        "matches": [
+          [
+            "a",
+            "b",
+            1,
+            1
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "team": "a",
+          "played": 1,
+          "points": 1,
+          "goals_for": 1,
+          "goals_against": 1,
+          "goal_difference": 0,
+          "rank": 1
+        },
+        {
+          "team": "b",
+          "played": 1,
+          "points": 1,
+          "goals_for": 1,
+          "goals_against": 1,
+          "goal_difference": 0,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "name": "home_away_accounting",
+      "input": {
+        "teams": [
+          "a",
+          "b"
+        ],
+        "matches": [
+          [
+            "b",
+            "a",
+            0,
+            2
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "team": "a",
+          "played": 1,
+          "points": 3,
+          "goals_for": 2,
+          "goals_against": 0,
+          "goal_difference": 2,
+          "rank": 1
+        },
+        {
+          "team": "b",
+          "played": 1,
+          "points": 0,
+          "goals_for": 0,
+          "goals_against": 2,
+          "goal_difference": -2,
+          "rank": 2
+        }
+      ]
+    },
+    {
+      "name": "equal_cycle",
+      "input": {
+        "teams": [
+          "c",
+          "a",
+          "b"
+        ],
+        "matches": [
+          [
+            "a",
+            "b",
+            1,
+            0
+          ],
+          [
+            "b",
+            "c",
+            1,
+            0
+          ],
+          [
+            "c",
+            "a",
+            1,
+            0
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "team": "a",
+          "played": 2,
+          "points": 3,
+          "goals_for": 1,
+          "goals_against": 1,
+          "goal_difference": 0,
+          "rank": 1
+        },
+        {
+          "team": "b",
+          "played": 2,
+          "points": 3,
+          "goals_for": 1,
+          "goals_against": 1,
+          "goal_difference": 0,
+          "rank": 1
+        },
+        {
+          "team": "c",
+          "played": 2,
+          "points": 3,
+          "goals_for": 1,
+          "goals_against": 1,
+          "goal_difference": 0,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "name": "goal_difference_then_tie",
+      "input": {
+        "teams": [
+          "a",
+          "b",
+          "c"
+        ],
+        "matches": [
+          [
+            "a",
+            "b",
+            2,
+            1
+          ],
+          [
+            "b",
+            "c",
+            3,
+            0
+          ],
+          [
+            "c",
+            "a",
+            2,
+            0
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "team": "b",
+          "played": 2,
+          "points": 3,
+          "goals_for": 4,
+          "goals_against": 2,
+          "goal_difference": 2,
+          "rank": 1
+        },
+        {
+          "team": "a",
+          "played": 2,
+          "points": 3,
+          "goals_for": 2,
+          "goals_against": 3,
+          "goal_difference": -1,
+          "rank": 2
+        },
+        {
+          "team": "c",
+          "played": 2,
+          "points": 3,
+          "goals_for": 2,
+          "goals_against": 3,
+          "goal_difference": -1,
+          "rank": 2
+        }
+      ]
+    },
+    {
+      "name": "goals_for_breaks_difference_tie",
+      "input": {
+        "teams": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "matches": [
+          [
+            "a",
+            "b",
+            2,
+            0
+          ],
+          [
+            "c",
+            "d",
+            3,
+            1
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "team": "c",
+          "played": 1,
+          "points": 3,
+          "goals_for": 3,
+          "goals_against": 1,
+          "goal_difference": 2,
+          "rank": 1
+        },
+        {
+          "team": "a",
+          "played": 1,
+          "points": 3,
+          "goals_for": 2,
+          "goals_against": 0,
+          "goal_difference": 2,
+          "rank": 2
+        },
+        {
+          "team": "d",
+          "played": 1,
+          "points": 0,
+          "goals_for": 1,
+          "goals_against": 3,
+          "goal_difference": -2,
+          "rank": 3
+        },
+        {
+          "team": "b",
+          "played": 1,
+          "points": 0,
+          "goals_for": 0,
+          "goals_against": 2,
+          "goal_difference": -2,
+          "rank": 4
+        }
+      ]
+    },
+    {
+      "name": "competition_rank_gaps",
+      "input": {
+        "teams": [
+          "d",
+          "c",
+          "b",
+          "a"
+        ],
+        "matches": [
+          [
+            "a",
+            "b",
+            1,
+            0
+          ],
+          [
+            "c",
+            "d",
+            1,
+            0
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "team": "a",
+          "played": 1,
+          "points": 3,
+          "goals_for": 1,
+          "goals_against": 0,
+          "goal_difference": 1,
+          "rank": 1
+        },
+        {
+          "team": "c",
+          "played": 1,
+          "points": 3,
+          "goals_for": 1,
+          "goals_against": 0,
+          "goal_difference": 1,
+          "rank": 1
+        },
+        {
+          "team": "b",
+          "played": 1,
+          "points": 0,
+          "goals_for": 0,
+          "goals_against": 1,
+          "goal_difference": -1,
+          "rank": 3
+        },
+        {
+          "team": "d",
+          "played": 1,
+          "points": 0,
+          "goals_for": 0,
+          "goals_against": 1,
+          "goal_difference": -1,
+          "rank": 3
+        }
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

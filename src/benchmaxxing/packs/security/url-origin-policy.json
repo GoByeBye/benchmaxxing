@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "id": "security.url-origin-policy",
+  "version": "1.0.0",
+  "title": "Canonicalize URLs for an exact origin policy",
+  "category": "security",
+  "difficulty": "hard",
+  "tags": [
+    "defensive",
+    "urls",
+    "origins",
+    "normalization"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for allowed_origins and urls (lists of strings), with no network access. Accept only absolute ASCII http/https URLs with a host, no username/password, no backslash, no whitespace/control characters (ASCII <=32 or 127). An authority must be a DNS host or bracketed IPv6 host followed by at most one colon and a nonempty decimal port; extra text after a closing IPv6 bracket is invalid. Ports must be integers 1..65535; absent ports use 80 or 443. Normalize scheme and DNS hostname to lowercase, remove exactly one trailing DNS dot, and omit the default port. DNS labels use letters/digits/hyphens, start/end alphanumeric, length 1..63, total host length 1..253; numeric labels are allowed. Bracketed IPv6 is accepted and normalized to lowercase compressed form; zone identifiers are rejected. Canonical origin is scheme://host[:nondefaultport], with IPv6 brackets preserved. Target paths, queries and fragments do not affect origin. allowed_origins must additionally have path empty or \"/\", and no nonempty query or fragment; any invalid allowlist entry returns {\"error\":\"invalid_origin\"} before checking targets. Return {\"results\":[{\"origin\":canonical_string_or_null,\"allowed\":boolean},...]} in target order; invalid targets get null/false, valid ones require exact canonical origin membership. Empty target lists are valid. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 0, relative tolerance 0; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"default_port\\\",\\\"input\\\":{\\\"allowed_origins\\\":[\\\"HTTPS://EXAMPLE.TEST:443/\\\"],\\\"urls\\\":[\\\"https://example.test/path?q=1#part\\\",\\\"http://example.test/\\\"]},\\\"expected\\\":{\\\"results\\\":[{\\\"origin\\\":\\\"https://example.test\\\",\\\"allowed\\\":true},{\\\"origin\\\":\\\"http://example.test\\\",\\\"allowed\\\":false}]}},{\\\"name\\\":\\\"hostname_boundary\\\",\\\"input\\\":{\\\"allowed_origins\\\":[\\\"https://example.test\\\"],\\\"urls\\\":[\\\"https://example.test.attacker.test/\\\",\\\"https://sub.example.test/\\\",\\\"https://example.test/\\\"]},\\\"expected\\\":{\\\"results\\\":[{\\\"origin\\\":\\\"https://example.test.attacker.test\\\",\\\"allowed\\\":false},{\\\"origin\\\":\\\"https://sub.example.test\\\",\\\"allowed\\\":false},{\\\"origin\\\":\\\"https://example.test\\\",\\\"allowed\\\":true}]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import ipaddress\n    import re\n    from urllib.parse import urlsplit\n    def canonical(value, origin_only=False):\n        if any(ord(ch) <= 32 or ord(ch) >= 127 or ch == \"\\\\\" for ch in value):\n            return None\n        try:\n            parts = urlsplit(value)\n            if parts.scheme not in (\"http\", \"https\") or parts.username is not None or parts.password is not None:\n                return None\n            if origin_only and (parts.path not in (\"\", \"/\") or parts.query or parts.fragment):\n                return None\n            authority_pattern = r\"\\[[^\\]]+\\](?::[0-9]+)?\" if parts.netloc.startswith(\"[\") else r\"[^:]+(?::[0-9]+)?\"\n            if not re.fullmatch(authority_pattern, parts.netloc):\n                return None\n            host = parts.hostname\n            if not host or \"%\" in host:\n                return None\n            port = parts.port\n            if port is not None and not 1 <= port <= 65535:\n                return None\n            if \":\" in host:\n                host = \"[\"+ipaddress.IPv6Address(host).compressed+\"]\"\n            else:\n                host = host.lower()\n                if host.endswith(\".\"):\n                    host = host[:-1]\n                if not 1 <= len(host) <= 253 or any(not re.fullmatch(r\"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\", label) for label in host.split(\".\")):\n                    return None\n            default = 80 if parts.scheme == \"http\" else 443\n            suffix = \"\" if port is None or port == default else \":\"+str(port)\n            return parts.scheme+\"://\"+host+suffix\n        except ValueError:\n            return None\n    allowed = set()\n    for value in payload[\"allowed_origins\"]:\n        origin = canonical(value, True)\n        if origin is None:\n            return {\"error\": \"invalid_origin\"}\n        allowed.add(origin)\n    results = []\n    for value in payload[\"urls\"]:\n        origin = canonical(value)\n        results.append({\"origin\": origin, \"allowed\": origin is not None and origin in allowed})\n    return {\"results\": results}\n",
+  "bad_solution": "def solve(payload):\n    return {\"results\": [{\"origin\": value.split(\"/\",3)[0]+\"//\"+value.split(\"/\")[2], \"allowed\": any(value.startswith(origin) for origin in payload[\"allowed_origins\"])} for value in payload[\"urls\"]]}\n",
+  "cases": [
+    {
+      "name": "default_port",
+      "input": {
+        "allowed_origins": [
+          "HTTPS://EXAMPLE.TEST:443/"
+        ],
+        "urls": [
+          "https://example.test/path?q=1#part",
+          "http://example.test/"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "origin": "https://example.test",
+            "allowed": true
+          },
+          {
+            "origin": "http://example.test",
+            "allowed": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "hostname_boundary",
+      "input": {
+        "allowed_origins": [
+          "https://example.test"
+        ],
+        "urls": [
+          "https://example.test.attacker.test/",
+          "https://sub.example.test/",
+          "https://example.test/"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "origin": "https://example.test.attacker.test",
+            "allowed": false
+          },
+          {
+            "origin": "https://sub.example.test",
+            "allowed": false
+          },
+          {
+            "origin": "https://example.test",
+            "allowed": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "nondefault_port",
+      "input": {
+        "allowed_origins": [
+          "https://example.test:8443"
+        ],
+        "urls": [
+          "https://example.test:8443/a",
+          "https://example.test",
+          "https://example.test:443"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "origin": "https://example.test:8443",
+            "allowed": true
+          },
+          {
+            "origin": "https://example.test",
+            "allowed": false
+          },
+          {
+            "origin": "https://example.test",
+            "allowed": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "reject_credentials",
+      "input": {
+        "allowed_origins": [
+          "https://example.test"
+        ],
+        "urls": [
+          "https://user@example.test/",
+          "https://user:pass@example.test/",
+          "https://@example.test/"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "origin": null,
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "ipv6_normalization",
+      "input": {
+        "allowed_origins": [
+          "http://[2001:db8::1]"
+        ],
+        "urls": [
+          "http://[2001:0DB8:0:0:0:0:0:1]:80/x",
+          "http://[2001:db8::2]/",
+          "http://[fe80::1%25eth0]/"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "origin": "http://[2001:db8::1]",
+            "allowed": true
+          },
+          {
+            "origin": "http://[2001:db8::2]",
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "dns_trailing_dot",
+      "input": {
+        "allowed_origins": [
+          "https://example.test."
+        ],
+        "urls": [
+          "https://EXAMPLE.TEST./",
+          "https://example.test../"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "origin": "https://example.test",
+            "allowed": true
+          },
+          {
+            "origin": null,
+            "allowed": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_targets",
+      "input": {
+        "allowed_origins": [],
+        "urls": [
+          "/relative",
+          "ftp://example.test",
+          "https://example.test:99999/",
+          "https://bad_host.test/",
+          "https://example.test\\x",
+          " https://example.test"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "origin": null,
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_allowlist_path",
+      "input": {
+        "allowed_origins": [
+          "https://example.test/private"
+        ],
+        "urls": []
+      },
+      "expected": {
+        "error": "invalid_origin"
+      }
+    },
+    {
+      "name": "empty_lists",
+      "input": {
+        "allowed_origins": [],
+        "urls": []
+      },
+      "expected": {
+        "results": []
+      }
+    },
+    {
+      "name": "zero_port",
+      "input": {
+        "allowed_origins": [
+          "https://example.test"
+        ],
+        "urls": [
+          "https://example.test:0/"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "origin": null,
+            "allowed": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "malformed_authority",
+      "input": {
+        "allowed_origins": [],
+        "urls": [
+          "https://example.test:",
+          "http://[::1]junk/",
+          "http://[::1]:/"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "origin": null,
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          },
+          {
+            "origin": null,
+            "allowed": false
+          }
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

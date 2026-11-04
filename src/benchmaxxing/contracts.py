@@ -149,6 +149,37 @@ class RunDetail(Contract):
     artifacts: list[ArtifactRecord]
 
 
+class RunActivity(Contract):
+    id: str
+    status: Literal["queued", "running"]
+    task_id: str
+    task_title: str
+    category: str
+    participant: str
+    model: str | None = None
+    created_at: str
+    started_at: str | None = None
+    updated_at: str
+    phase: str = "queued"
+    turn: int = Field(default=0, ge=0)
+    max_turns: int
+    wall_seconds: float
+    elapsed_seconds: float = Field(default=0, ge=0)
+    queue_position: int | None = None
+    last_event_at: str | None = None
+    last_event_seq: int = Field(default=0, ge=0)
+    cancellation_requested: bool = False
+    last_tool: str | None = None
+    checks_done: int = Field(default=0, ge=0)
+    checks_total: int = Field(default=0, ge=0)
+
+
+class ActivitySnapshot(Contract):
+    schema_version: Literal[1] = 1
+    server_time: str
+    runs: list[RunActivity]
+
+
 class SessionInfo(Contract):
     token: str
     version: str

@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity */
+        get: operations["activity_api_v1_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -179,6 +196,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActivitySnapshot */
+        ActivitySnapshot: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version?: 1;
+            /** Server Time */
+            server_time: string;
+            /** Runs */
+            runs: components["schemas"]["RunActivity"][];
+        };
         /** ArtifactRecord */
         ArtifactRecord: {
             /** Id */
@@ -295,6 +325,77 @@ export interface components {
             model: string;
             /** Api Key Env */
             api_key_env?: string | null;
+        };
+        /** RunActivity */
+        RunActivity: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running";
+            /** Task Id */
+            task_id: string;
+            /** Task Title */
+            task_title: string;
+            /** Category */
+            category: string;
+            /** Participant */
+            participant: string;
+            /** Model */
+            model?: string | null;
+            /** Created At */
+            created_at: string;
+            /** Started At */
+            started_at?: string | null;
+            /** Updated At */
+            updated_at: string;
+            /**
+             * Phase
+             * @default queued
+             */
+            phase?: string;
+            /**
+             * Turn
+             * @default 0
+             */
+            turn?: number;
+            /** Max Turns */
+            max_turns: number;
+            /** Wall Seconds */
+            wall_seconds: number;
+            /**
+             * Elapsed Seconds
+             * @default 0
+             */
+            elapsed_seconds?: number;
+            /** Queue Position */
+            queue_position?: number | null;
+            /** Last Event At */
+            last_event_at?: string | null;
+            /**
+             * Last Event Seq
+             * @default 0
+             */
+            last_event_seq?: number;
+            /**
+             * Cancellation Requested
+             * @default false
+             */
+            cancellation_requested?: boolean;
+            /** Last Tool */
+            last_tool?: string | null;
+            /**
+             * Checks Done
+             * @default 0
+             */
+            checks_done?: number;
+            /**
+             * Checks Total
+             * @default 0
+             */
+            checks_total?: number;
         };
         /** RunDetail */
         RunDetail: {
@@ -561,6 +662,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskSpec"][];
+                };
+            };
+        };
+    };
+    activity_api_v1_activity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivitySnapshot"];
                 };
             };
         };

@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "id": "engineering.ac-series-impedance",
+  "version": "1.0.0",
+  "title": "Calculate sinusoidal series RLC response",
+  "category": "engineering",
+  "difficulty": "medium",
+  "tags": [
+    "circuits",
+    "complex-numbers",
+    "phasors",
+    "units"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for sinusoidal steady state. resistance_ohm>=0, inductance_h>=0, capacitance_f is null (no capacitor) or >0, frequency_hz>0, voltage_rms_v>=0. omega=2*pi*f; reactance X=omega*L minus 1/(omega*C) if C is present. Impedance is R+jX. Return {\"impedance_ohm\":[R,X],\"current_rms_a\":V/sqrt(R^2+X^2),\"current_phase_deg\":-atan2(X,R)*180/pi}. The voltage phase is zero; report the defined impedance-based current phase even when voltage is zero. Any invalid input constraint returns {\"error\":\"invalid_component\"}; otherwise if impedance magnitude is zero return {\"error\":\"zero_impedance\"}. No rounding. Component scales avoid overflow and near-zero resonant singularities. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 1e-8, relative tolerance 1e-9; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-8, rel_tol=1e-9)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"pure_resistor\\\",\\\"input\\\":{\\\"resistance_ohm\\\":10,\\\"inductance_h\\\":0,\\\"capacitance_f\\\":null,\\\"frequency_hz\\\":50,\\\"voltage_rms_v\\\":20},\\\"expected\\\":{\\\"impedance_ohm\\\":[10,0],\\\"current_rms_a\\\":2,\\\"current_phase_deg\\\":0}},{\\\"name\\\":\\\"pure_inductor\\\",\\\"input\\\":{\\\"resistance_ohm\\\":0,\\\"inductance_h\\\":1,\\\"capacitance_f\\\":null,\\\"frequency_hz\\\":0.15915494309189535,\\\"voltage_rms_v\\\":2},\\\"expected\\\":{\\\"impedance_ohm\\\":[0,1],\\\"current_rms_a\\\":2,\\\"current_phase_deg\\\":-90}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import math\n    r, l, c, f, voltage = [payload[k] for k in (\"resistance_ohm\", \"inductance_h\", \"capacitance_f\", \"frequency_hz\", \"voltage_rms_v\")]\n    if r < 0 or l < 0 or (c is not None and c <= 0) or f <= 0 or voltage < 0:\n        return {\"error\": \"invalid_component\"}\n    omega = 2*math.pi*f\n    x = omega*l-(1/(omega*c) if c is not None else 0)\n    magnitude = math.hypot(r, x)\n    if magnitude == 0:\n        return {\"error\": \"zero_impedance\"}\n    return {\"impedance_ohm\": [r, x], \"current_rms_a\": voltage/magnitude, \"current_phase_deg\": -math.degrees(math.atan2(x, r))}\n",
+  "bad_solution": "def solve(payload):\n    r = payload[\"resistance_ohm\"]\n    if r <= 0:\n        return {\"error\": \"zero_impedance\"}\n    return {\"impedance_ohm\": [r, 0], \"current_rms_a\": payload[\"voltage_rms_v\"]/r, \"current_phase_deg\": 0}\n",
+  "cases": [
+    {
+      "name": "pure_resistor",
+      "input": {
+        "resistance_ohm": 10,
+        "inductance_h": 0,
+        "capacitance_f": null,
+        "frequency_hz": 50,
+        "voltage_rms_v": 20
+      },
+      "expected": {
+        "impedance_ohm": [
+          10,
+          0
+        ],
+        "current_rms_a": 2,
+        "current_phase_deg": 0
+      }
+    },
+    {
+      "name": "pure_inductor",
+      "input": {
+        "resistance_ohm": 0,
+        "inductance_h": 1,
+        "capacitance_f": null,
+        "frequency_hz": 0.15915494309189535,
+        "voltage_rms_v": 2
+      },
+      "expected": {
+        "impedance_ohm": [
+          0,
+          1
+        ],
+        "current_rms_a": 2,
+        "current_phase_deg": -90
+      }
+    },
+    {
+      "name": "pure_capacitor",
+      "input": {
+        "resistance_ohm": 0,
+        "inductance_h": 0,
+        "capacitance_f": 1,
+        "frequency_hz": 0.15915494309189535,
+        "voltage_rms_v": 1
+      },
+      "expected": {
+        "impedance_ohm": [
+          0,
+          -1
+        ],
+        "current_rms_a": 1,
+        "current_phase_deg": 90
+      }
+    },
+    {
+      "name": "resistive_inductive",
+      "input": {
+        "resistance_ohm": 3,
+        "inductance_h": 4,
+        "capacitance_f": null,
+        "frequency_hz": 0.15915494309189535,
+        "voltage_rms_v": 10
+      },
+      "expected": {
+        "impedance_ohm": [
+          3,
+          4
+        ],
+        "current_rms_a": 2,
+        "current_phase_deg": -53.13010235415598
+      }
+    },
+    {
+      "name": "resonance",
+      "input": {
+        "resistance_ohm": 2,
+        "inductance_h": 1,
+        "capacitance_f": 1,
+        "frequency_hz": 0.15915494309189535,
+        "voltage_rms_v": 10
+      },
+      "expected": {
+        "impedance_ohm": [
+          2,
+          0
+        ],
+        "current_rms_a": 5,
+        "current_phase_deg": 0
+      }
+    },
+    {
+      "name": "zero_voltage",
+      "input": {
+        "resistance_ohm": 0,
+        "inductance_h": 0,
+        "capacitance_f": 2,
+        "frequency_hz": 0.15915494309189535,
+        "voltage_rms_v": 0
+      },
+      "expected": {
+        "impedance_ohm": [
+          0,
+          -0.5
+        ],
+        "current_rms_a": 0,
+        "current_phase_deg": 90
+      }
+    },
+    {
+      "name": "zero_frequency",
+      "input": {
+        "resistance_ohm": 1,
+        "inductance_h": 0,
+        "capacitance_f": null,
+        "frequency_hz": 0,
+        "voltage_rms_v": 1
+      },
+      "expected": {
+        "error": "invalid_component"
+      }
+    },
+    {
+      "name": "invalid_capacitor",
+      "input": {
+        "resistance_ohm": 1,
+        "inductance_h": 0,
+        "capacitance_f": 0,
+        "frequency_hz": 1,
+        "voltage_rms_v": 1
+      },
+      "expected": {
+        "error": "invalid_component"
+      }
+    },
+    {
+      "name": "short_circuit",
+      "input": {
+        "resistance_ohm": 0,
+        "inductance_h": 0,
+        "capacitance_f": null,
+        "frequency_hz": 50,
+        "voltage_rms_v": 1
+      },
+      "expected": {
+        "error": "zero_impedance"
+      }
+    }
+  ],
+  "atol": 1e-08,
+  "rtol": 1e-09,
+  "preserve_input": true
+}

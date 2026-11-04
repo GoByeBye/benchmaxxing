@@ -32,6 +32,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path, nargs="?", default=Path("dist"))
     args = parser.parse_args()
+    package = Path(__file__).resolve().parents[1] / "src" / "benchmaxxing"
+    expected_packs = {
+        "benchmaxxing/" + p.relative_to(package).as_posix()
+        for p in (package / "packs").rglob("*.json")
+    }
     wheels = list(args.directory.glob("*.whl"))
     sources = list(args.directory.glob("*.tar.gz"))
     if not wheels or not sources:
@@ -48,9 +53,10 @@ def main() -> None:
                 for name in names
                 if name.startswith("benchmaxxing/packs/") and name.endswith(".json")
             }
-            if len(packs) != 40:
+            if packs != expected_packs:
                 raise ValueError(
-                    f"Wheel must include all 40 original pack definitions, found {len(packs)}"
+                    f"Wheel pack mismatch: missing={expected_packs - packs}, "
+                    f"unexpected={packs - expected_packs}"
                 )
             print(f"{wheel.name}: {len(names)} verified members")
     for source in sources:
@@ -73,6 +79,8 @@ def main() -> None:
             ):
                 if required not in relative:
                     raise ValueError(f"Source distribution missing {required}")
+            if not {"src/" + name for name in expected_packs}.issubset(relative):
+                raise ValueError("Source distribution missing installed pack definitions")
             print(f"{source.name}: {len(names)} verified members")
 
 

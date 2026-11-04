@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { formatDate, formatTime, isActive, mutate, participantLabel, request, statusLabel } from './api';
+import { formatDate, isActive, mutate, participantLabel, request, statusLabel } from './api';
 import type { Artifact, Doctor, Run, RunDetail, RunEvent, RunSpec, Session, Task } from './api';
 import TaskCatalog, { Coverage } from './TaskCatalog';
 import { categoryLabel, filterTasks, taskIdentity } from './catalog';
+import LiveActivity from './LiveActivity';
+import { useActivity } from './useActivity';
+import RunTrace from './RunTrace';
+import { useRunEvidence } from './useRunEvidence';
+import { mergeRunHistory } from './runHistory';
 
 type IconName = 'grid' | 'play' | 'arrow' | 'clock' | 'check' | 'terminal' | 'download' | 'refresh' | 'stop' | 'file' | 'shield' | 'close';
 
@@ -159,9 +164,9 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
 
 type DetailTab = 'trace' | 'checks' | 'artifacts' | 'configuration';
 
-function RunInspector({ detail, events, selected, session, tasks, streamState, onCancel, onError }: {
+function RunInspector({ detail, events, eventCount, selected, session, tasks, streamState, onCancel, onError }: {
   detail: RunDetail | null; events: RunEvent[]; selected: string | null;
-  tasks: Task[];
+  tasks: Task[]; eventCount: number;
   session: Session | null; streamState: 'connecting' | 'live' | 'complete' | 'reconnecting';
   onCancel: () => void; onError: (message: string) => void;
 }) {
@@ -219,19 +224,11 @@ function RunInspector({ detail, events, selected, session, tasks, streamState, o
       <div className="tabs" role="tablist" aria-label="Run evidence">
         {(['trace', 'checks', 'artifacts', 'configuration'] as DetailTab[]).map(item => <button key={item} id={`tab-${item}`} role="tab" type="button" aria-selected={tab === item} aria-controls={`panel-${item}`} onClick={() => setTab(item)}>
           {item === 'trace' ? 'Trace' : item === 'checks' ? 'Grading' : item === 'artifacts' ? 'Artifacts' : 'Configuration'}
-          {item === 'trace' && <span>{events.length}</span>}{item === 'artifacts' && <span>{detail.artifacts.length}</span>}
+          {item === 'trace' && <span>{eventCount}</span>}{item === 'artifacts' && <span>{detail.artifacts.length}</span>}
         </button>)}
       </div>
       <div className="tab-content" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === 'trace' && <>
-          <div className="trace-toolbar"><span className="eyebrow">SEQUENCED EVENTS</span><span className={`stream-state ${streamState === 'live' ? 'stream-live' : ''}`}><span />{streamState === 'live' ? 'Live' : streamState === 'reconnecting' ? 'Reconnecting' : streamState === 'connecting' ? 'Connecting' : 'Recorded'}</span></div>
-          {events.length === 0 ? <div className="tab-empty"><Icon name="clock" size={24} /><p>{isActive(run.status) ? 'Waiting for the first event…' : 'No events were recorded for this run.'}</p></div> : <div className="event-list">
-            {events.map(event => <details className="event" key={event.seq}>
-              <summary><span className="event-marker" /><span className="event-kind">{event.kind.replaceAll('_', ' ').replaceAll('.', ' / ')}</span><time className="mono" dateTime={event.timestamp}>{formatTime(event.timestamp)}</time><span className="event-seq mono">#{event.seq}</span></summary>
-              <pre>{JSON.stringify(event.data, null, 2)}</pre>
-            </details>)}
-          </div>}
-        </>}
+        {tab === 'trace' && <RunTrace key={run.id} events={events} count={eventCount} streamState={streamState} active={isActive(run.status)} />}
         {tab === 'checks' && (run.score ? <>
           <div className="score-summary"><div><span className="eyebrow">OBJECTIVE CHECKS</span><div className="score-number">{Math.round(run.score.score * 100)}<span>%</span></div></div><div><Badge status={run.score.passed ? 'passed' : 'failed'} /><p className="mono muted">{run.score.grader_version}</p></div></div>
           <div className="checks-list">{run.score.checks?.map((check, index) => <div className="check-row" key={`${check.name}-${index}`}><span className={`check-icon ${check.passed ? 'pass' : 'fail'}`}><Icon name={check.passed ? 'check' : 'close'} size={16} /></span><div><strong>{check.name}</strong>{check.detail && <p>{check.detail}</p>}</div><span className="mono">{check.passed ? 'PASS' : 'FAIL'}</span></div>)}</div>
@@ -256,14 +253,16 @@ export default function App() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>('python.interval-merge');
   const [runs, setRuns] = useState<Run[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [detail, setDetail] = useState<RunDetail | null>(null);
-  const [events, setEvents] = useState<RunEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [streamState, setStreamState] = useState<'connecting' | 'live' | 'complete' | 'reconnecting'>('connecting');
-  const selectedRef = useRef(selected);
-  const statusRef = useRef<string>('queued');
-  selectedRef.current = selected;
+  const [followActive, setFollowActive] = useState(true);
+  const activity = useActivity();
+  const updateRun = useCallback((run: Run) => setRuns(current => mergeRunHistory([run], current)), []);
+  const { detail, events, eventCount, streamState, reload } = useRunEvidence(selected, updateRun, setError);
+  const historyController = useRef<AbortController | null>(null);
+  const activitySignature = activity.report?.runs.map(run => `${run.id}:${run.status}`).join('|');
+  const previousActivity = useRef<string | undefined>(undefined);
+  const activeId = activity.report?.runs.find(run => run.status === 'running')?.id ?? activity.report?.runs[0]?.id;
   const filteredTasks = useMemo(() => filterTasks(tasks, taskCategory, taskSearch), [tasks, taskCategory, taskSearch]);
   const selectedTask = filteredTasks.find(task => task.id === selectedTaskId);
 
@@ -271,10 +270,18 @@ export default function App() {
     setSelectedTaskId(current => filteredTasks.some(task => task.id === current) ? current : filteredTasks.find(task => task.id === 'python.interval-merge')?.id ?? filteredTasks[0]?.id ?? null);
   }, [filteredTasks]);
 
-  const loadRun = useCallback(async (id: string) => {
-    const result = await request<RunDetail>(`/runs/${encodeURIComponent(id)}`);
-    if (selectedRef.current === id) { setDetail(result); statusRef.current = result.run.status; }
-    return result;
+  useEffect(() => { if (followActive && activeId && activeId !== selected) setSelected(activeId); }, [activeId, followActive, selected]);
+
+  const refreshHistory = useCallback(async () => {
+    if (historyController.current) return;
+    const controller = new AbortController();
+    historyController.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const result = await request<Run[]>('/runs?limit=1000', { signal: controller.signal });
+      if (!controller.signal.aborted) setRuns(current => mergeRunHistory(result, current));
+    } catch { /* Keep the last known history; the activity monitor reports connectivity. */ }
+    finally { clearTimeout(timeout); if (historyController.current === controller) historyController.current = null; }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -285,7 +292,7 @@ export default function App() {
     if (results[0].status === 'fulfilled') setSession(results[0].value);
     if (results[1].status === 'fulfilled') setDoctor(results[1].value);
     if (results[2].status === 'fulfilled') setTasks(results[2].value);
-    if (results[3].status === 'fulfilled') { const loadedRuns = results[3].value; setRuns(loadedRuns); setSelected(current => current ?? loadedRuns[0]?.id ?? null); }
+    if (results[3].status === 'fulfilled') { const loadedRuns = results[3].value; setRuns(current => mergeRunHistory(loadedRuns, current)); setSelected(current => current ?? loadedRuns[0]?.id ?? null); }
     const failure = results.find(result => result.status === 'rejected');
     if (failure?.status === 'rejected') setError(errorMessage(failure.reason));
     else setError(null);
@@ -295,73 +302,30 @@ export default function App() {
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
-    let stopped = false;
-    const poll = setInterval(() => {
-      void request<Run[]>('/runs?limit=1000').then(result => { if (!stopped) setRuns(result); }).catch(() => { /* Explicit refresh reports connectivity errors; preserve the last known history. */ });
-    }, 2500);
-    return () => { stopped = true; clearInterval(poll); };
-  }, []);
+    const poll = setInterval(() => void refreshHistory(), 5000);
+    return () => { clearInterval(poll); historyController.current?.abort(); };
+  }, [refreshHistory]);
 
   useEffect(() => {
-    if (!selected) return;
-    let disposed = false;
-    let source: EventSource | null = null;
-    let reconnect: ReturnType<typeof setTimeout> | undefined;
-    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-    let latestSeq = 0;
-    statusRef.current = 'queued';
-    setDetail(null); setEvents([]); setStreamState('connecting');
-    void loadRun(selected).catch(problem => { if (!disposed) setError(errorMessage(problem)); });
+    if (activitySignature === undefined) return;
+    if (previousActivity.current !== undefined && previousActivity.current !== activitySignature) void refreshHistory();
+    previousActivity.current = activitySignature;
+  }, [activitySignature, refreshHistory]);
 
-    async function refreshRun() {
-      try {
-        const result = await loadRun(selected!);
-        const updatedRuns = await request<Run[]>('/runs?limit=1000');
-        if (disposed) return;
-        setRuns(updatedRuns);
-        if (!isActive(result.run.status)) setStreamState('complete');
-      } catch (problem) { if (!disposed) setError(errorMessage(problem)); }
-    }
-
-    function connect() {
-      if (disposed) return;
-      source = new EventSource(`/api/v1/runs/${encodeURIComponent(selected!)}/events?after=${latestSeq}`);
-      source.onopen = () => { if (!disposed) setStreamState(isActive(statusRef.current) ? 'live' : 'complete'); };
-      source.addEventListener('run_event', (message: MessageEvent<string>) => {
-        if (disposed) return;
-        try {
-          const event = JSON.parse(message.data) as RunEvent;
-          if (event.run_id !== selected || event.seq <= latestSeq) return;
-          latestSeq = event.seq;
-          setEvents(current => [...current, event]);
-          clearTimeout(refreshTimer);
-          refreshTimer = setTimeout(() => { void refreshRun(); }, 100);
-        } catch { setError('An event could not be decoded. The stored run is still available.'); }
-      });
-      source.onerror = () => {
-        source?.close();
-        if (disposed) return;
-        if (!isActive(statusRef.current)) { setStreamState('complete'); return; }
-        setStreamState('reconnecting');
-        reconnect = setTimeout(connect, 1500);
-      };
-    }
-    connect();
-    const poll = setInterval(() => { if (isActive(statusRef.current)) void refreshRun(); }, 1500);
-    return () => { disposed = true; source?.close(); clearTimeout(reconnect); clearTimeout(refreshTimer); clearInterval(poll); };
-  }, [selected, loadRun]);
+  function inspectRun(id: string) { setFollowActive(false); setSelected(id); }
 
   async function cancelRun() {
     if (!session || !selected) return;
-    try { await mutate<Run>(`/runs/${encodeURIComponent(selected)}/cancel`, session.token); await loadRun(selected); }
+    try { const run = await mutate<Run>(`/runs/${encodeURIComponent(selected)}/cancel`, session.token); updateRun(run); reload(); }
     catch (problem) { setError(errorMessage(problem)); }
   }
 
   const finished = runs.filter(run => !isActive(run.status));
   const passed = runs.filter(run => run.status === 'passed').length;
-  const active = runs.filter(run => isActive(run.status)).length;
-  const queued = runs.filter(run => run.status === 'queued').length;
-  const running = runs.filter(run => run.status === 'running').length;
+  const currentRuns = activity.report?.runs ?? runs;
+  const active = currentRuns.filter(run => isActive(run.status)).length;
+  const queued = currentRuns.filter(run => run.status === 'queued').length;
+  const running = currentRuns.filter(run => run.status === 'running').length;
   const recordedChecks = runs.reduce((total, run) => total + (run.score?.checks?.length ?? 0), 0);
 
   return <div className="app-shell">
@@ -373,20 +337,21 @@ export default function App() {
       <div className="sidebar-bottom"><div className="local-card"><Icon name="shield" size={20} /><strong>Your machine.<br />Your evidence.</strong><p>Runs and artifacts stay in your local workspace.</p><span><span className="status-dot" />LOCAL STORAGE</span></div><div className="sidebar-footer"><span>AGPL-3.0</span><span>01 / FOUNDATION</span></div></div>
     </aside>
     <main id="workspace">
-      <header className="topbar"><div className="breadcrumb"><span>Workspace</span><span>/</span><strong>Overview</strong></div><div className="topbar-right"><span className={`connection ${session ? 'connected' : ''}`}><span />{session ? 'Local service connected' : 'Connecting to service'}</span><button className={`icon-button ${refreshing ? 'refreshing' : ''}`} aria-label="Refresh workspace" onClick={() => void refresh()} disabled={refreshing}><Icon name="refresh" /></button></div></header>
+      <header className="topbar"><div className="breadcrumb"><span>Workspace</span><span>/</span><strong>Overview</strong></div><div className="topbar-right"><span className={`connection ${activity.connection === 'live' ? 'connected' : ''}`}><span />{activity.connection === 'live' ? 'Local service connected' : activity.connection === 'stale' ? 'Activity updates delayed' : activity.connection === 'reconnecting' ? 'Reconnecting to service' : 'Connecting to service'}</span><button className={`icon-button ${refreshing ? 'refreshing' : ''}`} aria-label="Refresh workspace" onClick={() => void refresh()} disabled={refreshing}><Icon name="refresh" /></button></div></header>
       <div className="main-content">
         <section className="page-intro"><div><span className="eyebrow">LOCAL EVALUATION LAB</span><h1>Every run, <span>inspectable.</span></h1><p>Run controlled experiments. Follow the trace. Verify the result.</p></div><div className="intro-stamp"><span className="stamp-line" /><span>REPRODUCIBLE<br />BY DESIGN</span><span className="stamp-plus">+</span></div></section>
         {error && <div className="alert alert-error" role="alert"><div><strong>Something needs attention</strong><p>{error}</p></div><button className="icon-button" aria-label="Dismiss error" onClick={() => setError(null)}><Icon name="close" /></button></div>}
         {doctor && !doctor.ready && <div className="alert alert-prepare" role="status"><span className="alert-icon"><Icon name="terminal" size={22} /></span><div><strong>Prepare your task environment</strong><p>Run <code>benchmaxxing prepare</code> in your terminal, then refresh this workspace.</p><details className="diagnostics"><summary>View environment checks</summary><pre>{JSON.stringify(doctor.checks, null, 2)}</pre></details></div><button className="button button-quiet" onClick={() => void refresh()} disabled={refreshing}><Icon name="refresh" size={16} />Recheck</button></div>}
+        <LiveActivity {...activity} following={followActive} selected={selected} onFollow={setFollowActive} onInspect={inspectRun} />
         <section className="metrics" aria-label="Workspace statistics"><div className="metric"><span>Loaded attempts</span><strong>{runs.length.toString().padStart(2, '0')}</strong><small>{runs.length >= 1000 ? 'Latest 1,000 runs' : 'Across loaded run history'}</small><Icon name="terminal" /></div><div className="metric"><span>Passed attempts</span><strong>{passed.toString().padStart(2, '0')}<em className="metric-divider">/</em><em>{finished.length.toString().padStart(2, '0')}</em></strong><small>Of loaded finished attempts</small><Icon name="check" /></div><div className="metric"><span>Grading checks</span><strong>{recordedChecks.toString().padStart(2, '0')}</strong><small>Recorded with evidence</small><Icon name="shield" /></div><div className="metric"><span>Run queue</span><strong>{queued.toString().padStart(2, '0')}<span className={`activity-dot ${active ? 'is-active' : ''}`} /></strong><small>{queued} queued · {running} running</small><Icon name="clock" /></div></section>
         <Coverage tasks={tasks} runs={runs} category={taskCategory} onCategory={setTaskCategory} />
         <TaskCatalog tasks={tasks} filtered={filteredTasks} selected={selectedTask} category={taskCategory} search={taskSearch} onCategory={setTaskCategory} onSearch={setTaskSearch} onSelect={setSelectedTaskId} />
         <div className="workbench-grid">
-          <RunComposer session={session} doctor={doctor} task={selectedTask} filteredTasks={filteredTasks} onError={setError} onCreated={(run, inspect) => { setError(null); setRuns(current => [run, ...current.filter(item => item.id !== run.id)]); if (inspect) setSelected(run.id); }} />
-          <RunInspector detail={detail} events={events} selected={selected} session={session} tasks={tasks} streamState={streamState} onCancel={() => void cancelRun()} onError={setError} />
+          <RunComposer session={session} doctor={doctor} task={selectedTask} filteredTasks={filteredTasks} onError={setError} onCreated={(run, inspect) => { setError(null); updateRun(run); if (inspect) { setFollowActive(true); setSelected(run.id); } }} />
+          <RunInspector detail={detail} events={events} eventCount={eventCount} selected={selected} session={session} tasks={tasks} streamState={streamState} onCancel={() => void cancelRun()} onError={setError} />
         </div>
         <section className="panel history" id="history" aria-labelledby="history-heading"><div className="panel-heading"><div><span className="eyebrow">EXPERIMENT LOG</span><h2 id="history-heading">Run history</h2></div><span className="history-count mono">{runs.length} {runs.length === 1 ? 'run' : 'runs'}</span></div>
-          {runs.length === 0 ? <div className="empty-history"><span className="empty-history-dash">—</span><p>No runs yet. Your experiments will be recorded here.</p></div> : <div className="table-scroll"><table><thead><tr><th>Run / participant</th><th>Task</th><th>Status</th><th>Score</th><th>Started</th><th><span className="sr-only">Inspect</span></th></tr></thead><tbody>{runs.map(run => <tr key={run.id} className={run.id === selected ? 'selected' : ''}><td><button className="run-link" onClick={() => setSelected(run.id)}><strong>{participantLabel(run)}</strong><span className="mono">{run.id.slice(0, 12)}</span></button></td><td><span className="task-cell">{taskIdentity(run, tasks).title}</span><span className="table-subtext">{categoryLabel(taskIdentity(run, tasks).category)}</span></td><td><Badge status={run.status} /></td><td><span className={`table-score ${run.score?.passed ? 'score-passed' : ''}`}>{run.score ? `${Math.round(run.score.score * 100)}%` : '—'}</span></td><td className="table-date">{formatDate(run.created_at)}</td><td><button className="icon-button" aria-label={`Inspect run ${run.id}`} onClick={() => setSelected(run.id)}><Icon name="arrow" size={16} /></button></td></tr>)}</tbody></table></div>}
+          {runs.length === 0 ? <div className="empty-history"><span className="empty-history-dash">—</span><p>No runs yet. Your experiments will be recorded here.</p></div> : <div className="table-scroll"><table><thead><tr><th>Run / participant</th><th>Task</th><th>Status</th><th>Score</th><th>Started</th><th><span className="sr-only">Inspect</span></th></tr></thead><tbody>{runs.map(run => <tr key={run.id} className={run.id === selected ? 'selected' : ''}><td><button className="run-link" onClick={() => inspectRun(run.id)}><strong>{participantLabel(run)}</strong><span className="mono">{run.id.slice(0, 12)}</span></button></td><td><span className="task-cell">{taskIdentity(run, tasks).title}</span><span className="table-subtext">{categoryLabel(taskIdentity(run, tasks).category)}</span></td><td><Badge status={run.status} /></td><td><span className={`table-score ${run.score?.passed ? 'score-passed' : ''}`}>{run.score ? `${Math.round(run.score.score * 100)}%` : '—'}</span></td><td className="table-date">{formatDate(run.created_at)}</td><td><button className="icon-button" aria-label={`Inspect run ${run.id}`} onClick={() => inspectRun(run.id)}><Icon name="arrow" size={16} /></button></td></tr>)}</tbody></table></div>}
         </section>
         <footer className="page-footer"><span><span className="footer-dot" />Local execution. Versioned evidence.</span><span>BENCHMAXXING <span className="muted">/</span> FOUNDATION</span></footer>
       </div>

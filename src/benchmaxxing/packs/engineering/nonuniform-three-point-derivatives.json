@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "id": "engineering.nonuniform-three-point-derivatives",
+  "version": "1.0.0",
+  "title": "Differentiate nonuniform three-point samples",
+  "category": "engineering",
+  "difficulty": "medium",
+  "tags": [
+    "numerics",
+    "finite-differences",
+    "interpolation"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for x_m and y, each with exactly three samples. x_m is measured in metres and must be strictly increasing. Fit the unique quadratic through all three points and return its first and second derivatives at the middle coordinate: {\"first_per_m\":...,\"second_per_m2\":...}. y has dimensionless units. Let h0=x1-x0, h1=x2-x1, s0=(y1-y0)/h0 and s1=(y2-y1)/h1; the first derivative is (h1*s0+h0*s1)/(h0+h1), and the second is 2*(s1-s0)/(h0+h1). Do not assume uniform spacing. Nonincreasing x returns {\"error\":\"x_order\"}. Exactly three valid finite samples are always supplied. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 1e-9, relative tolerance 1e-9; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-9, rel_tol=1e-9)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"uniform_square\\\",\\\"input\\\":{\\\"x_m\\\":[0,1,2],\\\"y\\\":[0,1,4]},\\\"expected\\\":{\\\"first_per_m\\\":2,\\\"second_per_m2\\\":2}},{\\\"name\\\":\\\"nonuniform_square\\\",\\\"input\\\":{\\\"x_m\\\":[0,1,3],\\\"y\\\":[0,1,9]},\\\"expected\\\":{\\\"first_per_m\\\":2,\\\"second_per_m2\\\":2}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    x, y = payload[\"x_m\"], payload[\"y\"]\n    h0, h1 = x[1]-x[0], x[2]-x[1]\n    if h0 <= 0 or h1 <= 0:\n        return {\"error\": \"x_order\"}\n    s0, s1 = (y[1]-y[0])/h0, (y[2]-y[1])/h1\n    return {\"first_per_m\": (h1*s0+h0*s1)/(h0+h1), \"second_per_m2\": 2*(s1-s0)/(h0+h1)}\n",
+  "bad_solution": "def solve(payload):\n    x, y = payload[\"x_m\"], payload[\"y\"]\n    h = x[1]-x[0]\n    return {\"first_per_m\": (y[2]-y[0])/(2*h), \"second_per_m2\": (y[2]-2*y[1]+y[0])/(h*h)}\n",
+  "cases": [
+    {
+      "name": "uniform_square",
+      "input": {
+        "x_m": [
+          0,
+          1,
+          2
+        ],
+        "y": [
+          0,
+          1,
+          4
+        ]
+      },
+      "expected": {
+        "first_per_m": 2,
+        "second_per_m2": 2
+      }
+    },
+    {
+      "name": "nonuniform_square",
+      "input": {
+        "x_m": [
+          0,
+          1,
+          3
+        ],
+        "y": [
+          0,
+          1,
+          9
+        ]
+      },
+      "expected": {
+        "first_per_m": 2,
+        "second_per_m2": 2
+      }
+    },
+    {
+      "name": "reversed_spacing_sizes",
+      "input": {
+        "x_m": [
+          -2,
+          0,
+          1
+        ],
+        "y": [
+          4,
+          0,
+          1
+        ]
+      },
+      "expected": {
+        "first_per_m": 0,
+        "second_per_m2": 2
+      }
+    },
+    {
+      "name": "affine",
+      "input": {
+        "x_m": [
+          1,
+          3,
+          7
+        ],
+        "y": [
+          5,
+          11,
+          23
+        ]
+      },
+      "expected": {
+        "first_per_m": 3,
+        "second_per_m2": 0
+      }
+    },
+    {
+      "name": "constant",
+      "input": {
+        "x_m": [
+          0,
+          0.25,
+          2
+        ],
+        "y": [
+          7,
+          7,
+          7
+        ]
+      },
+      "expected": {
+        "first_per_m": 0,
+        "second_per_m2": 0
+      }
+    },
+    {
+      "name": "concave_quadratic",
+      "input": {
+        "x_m": [
+          0,
+          2,
+          5
+        ],
+        "y": [
+          1,
+          1,
+          -14
+        ]
+      },
+      "expected": {
+        "first_per_m": -2,
+        "second_per_m2": -2
+      }
+    },
+    {
+      "name": "small_spacing",
+      "input": {
+        "x_m": [
+          0,
+          0.1,
+          0.3
+        ],
+        "y": [
+          0,
+          0.01,
+          0.09
+        ]
+      },
+      "expected": {
+        "first_per_m": 0.2,
+        "second_per_m2": 2
+      }
+    },
+    {
+      "name": "duplicate_coordinate",
+      "input": {
+        "x_m": [
+          0,
+          0,
+          1
+        ],
+        "y": [
+          1,
+          1,
+          2
+        ]
+      },
+      "expected": {
+        "error": "x_order"
+      }
+    },
+    {
+      "name": "descending",
+      "input": {
+        "x_m": [
+          2,
+          1,
+          0
+        ],
+        "y": [
+          4,
+          1,
+          0
+        ]
+      },
+      "expected": {
+        "error": "x_order"
+      }
+    }
+  ],
+  "atol": 1e-09,
+  "rtol": 1e-09,
+  "preserve_input": true
+}

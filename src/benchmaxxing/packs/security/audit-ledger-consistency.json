@@ -1,0 +1,297 @@
+{
+  "schema_version": 1,
+  "id": "security.audit-ledger-consistency",
+  "version": "1.0.0",
+  "title": "Detect continuity defects in an audit ledger",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "audit-logs",
+    "integrity",
+    "event-order"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) to check a local structural audit ledger. start_sequence is an integer, initial_previous_id is a string or null, and records contains {\"sequence\":integer,\"id\":string,\"previous_id\":string_or_null,\"time_s\":number}. At index i require sequence=start_sequence+i, previous_id=initial_previous_id for i=0 or the immediately preceding supplied record's id for i>0, globally unique id, and time_s >= the immediately preceding supplied record's time_s. Equal times are allowed; there is no timestamp constraint on the first record. Report every violated condition per record in this fixed order: \"sequence\",\"previous_id\",\"duplicate_id\",\"time_regression\". Return {\"valid\":boolean,\"violations\":[{\"index\":i,\"issues\":[...]}]} for records with issues in input order. Continue checking against supplied predecessors even after earlier defects. Empty records are valid. This is structural consistency checking, not proof of cryptographic authenticity. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 0, relative tolerance 0; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"valid_chain\\\",\\\"input\\\":{\\\"start_sequence\\\":10,\\\"initial_previous_id\\\":null,\\\"records\\\":[{\\\"sequence\\\":10,\\\"id\\\":\\\"a\\\",\\\"previous_id\\\":null,\\\"time_s\\\":1},{\\\"sequence\\\":11,\\\"id\\\":\\\"b\\\",\\\"previous_id\\\":\\\"a\\\",\\\"time_s\\\":2}]},\\\"expected\\\":{\\\"valid\\\":true,\\\"violations\\\":[]}},{\\\"name\\\":\\\"sequence_gap\\\",\\\"input\\\":{\\\"start_sequence\\\":10,\\\"initial_previous_id\\\":null,\\\"records\\\":[{\\\"sequence\\\":10,\\\"id\\\":\\\"a\\\",\\\"previous_id\\\":null,\\\"time_s\\\":1},{\\\"sequence\\\":12,\\\"id\\\":\\\"b\\\",\\\"previous_id\\\":\\\"a\\\",\\\"time_s\\\":2}]},\\\"expected\\\":{\\\"valid\\\":false,\\\"violations\\\":[{\\\"index\\\":1,\\\"issues\\\":[\\\"sequence\\\"]}]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    seen = set()\n    violations = []\n    previous_id = payload[\"initial_previous_id\"]\n    previous_time = None\n    for index, record in enumerate(payload[\"records\"]):\n        issues = []\n        if record[\"sequence\"] != payload[\"start_sequence\"]+index:\n            issues.append(\"sequence\")\n        if record[\"previous_id\"] != previous_id:\n            issues.append(\"previous_id\")\n        if record[\"id\"] in seen:\n            issues.append(\"duplicate_id\")\n        if previous_time is not None and record[\"time_s\"] < previous_time:\n            issues.append(\"time_regression\")\n        if issues:\n            violations.append({\"index\": index, \"issues\": issues})\n        seen.add(record[\"id\"])\n        previous_id = record[\"id\"]\n        previous_time = record[\"time_s\"]\n    return {\"valid\": not violations, \"violations\": violations}\n",
+  "bad_solution": "def solve(payload):\n    violations = []\n    for index, record in enumerate(payload[\"records\"]):\n        if record[\"sequence\"] != payload[\"start_sequence\"]+index:\n            violations.append({\"index\": index, \"issues\": [\"sequence\"]})\n    return {\"valid\": not violations, \"violations\": violations}\n",
+  "cases": [
+    {
+      "name": "valid_chain",
+      "input": {
+        "start_sequence": 10,
+        "initial_previous_id": null,
+        "records": [
+          {
+            "sequence": 10,
+            "id": "a",
+            "previous_id": null,
+            "time_s": 1
+          },
+          {
+            "sequence": 11,
+            "id": "b",
+            "previous_id": "a",
+            "time_s": 2
+          }
+        ]
+      },
+      "expected": {
+        "valid": true,
+        "violations": []
+      }
+    },
+    {
+      "name": "sequence_gap",
+      "input": {
+        "start_sequence": 10,
+        "initial_previous_id": null,
+        "records": [
+          {
+            "sequence": 10,
+            "id": "a",
+            "previous_id": null,
+            "time_s": 1
+          },
+          {
+            "sequence": 12,
+            "id": "b",
+            "previous_id": "a",
+            "time_s": 2
+          }
+        ]
+      },
+      "expected": {
+        "valid": false,
+        "violations": [
+          {
+            "index": 1,
+            "issues": [
+              "sequence"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "broken_link",
+      "input": {
+        "start_sequence": 0,
+        "initial_previous_id": "seed",
+        "records": [
+          {
+            "sequence": 0,
+            "id": "a",
+            "previous_id": "seed",
+            "time_s": 1
+          },
+          {
+            "sequence": 1,
+            "id": "b",
+            "previous_id": "wrong",
+            "time_s": 2
+          }
+        ]
+      },
+      "expected": {
+        "valid": false,
+        "violations": [
+          {
+            "index": 1,
+            "issues": [
+              "previous_id"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "reused_identifier",
+      "input": {
+        "start_sequence": 0,
+        "initial_previous_id": null,
+        "records": [
+          {
+            "sequence": 0,
+            "id": "a",
+            "previous_id": null,
+            "time_s": 1
+          },
+          {
+            "sequence": 1,
+            "id": "a",
+            "previous_id": "a",
+            "time_s": 2
+          }
+        ]
+      },
+      "expected": {
+        "valid": false,
+        "violations": [
+          {
+            "index": 1,
+            "issues": [
+              "duplicate_id"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "clock_rollback",
+      "input": {
+        "start_sequence": 0,
+        "initial_previous_id": null,
+        "records": [
+          {
+            "sequence": 0,
+            "id": "a",
+            "previous_id": null,
+            "time_s": 5
+          },
+          {
+            "sequence": 1,
+            "id": "b",
+            "previous_id": "a",
+            "time_s": 4
+          },
+          {
+            "sequence": 2,
+            "id": "c",
+            "previous_id": "b",
+            "time_s": 4.5
+          }
+        ]
+      },
+      "expected": {
+        "valid": false,
+        "violations": [
+          {
+            "index": 1,
+            "issues": [
+              "time_regression"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "all_defects",
+      "input": {
+        "start_sequence": 0,
+        "initial_previous_id": null,
+        "records": [
+          {
+            "sequence": 0,
+            "id": "a",
+            "previous_id": null,
+            "time_s": 1
+          },
+          {
+            "sequence": 99,
+            "id": "a",
+            "previous_id": "wrong",
+            "time_s": 0
+          }
+        ]
+      },
+      "expected": {
+        "valid": false,
+        "violations": [
+          {
+            "index": 1,
+            "issues": [
+              "sequence",
+              "previous_id",
+              "duplicate_id",
+              "time_regression"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "equal_timestamps",
+      "input": {
+        "start_sequence": 4,
+        "initial_previous_id": "prior",
+        "records": [
+          {
+            "sequence": 4,
+            "id": "a",
+            "previous_id": "prior",
+            "time_s": 3
+          },
+          {
+            "sequence": 5,
+            "id": "b",
+            "previous_id": "a",
+            "time_s": 3
+          }
+        ]
+      },
+      "expected": {
+        "valid": true,
+        "violations": []
+      }
+    },
+    {
+      "name": "empty",
+      "input": {
+        "start_sequence": 7,
+        "initial_previous_id": "prior",
+        "records": []
+      },
+      "expected": {
+        "valid": true,
+        "violations": []
+      }
+    },
+    {
+      "name": "check_supplied_predecessor",
+      "input": {
+        "start_sequence": 1,
+        "initial_previous_id": null,
+        "records": [
+          {
+            "sequence": 9,
+            "id": "a",
+            "previous_id": null,
+            "time_s": 0
+          },
+          {
+            "sequence": 2,
+            "id": "b",
+            "previous_id": "a",
+            "time_s": 1
+          },
+          {
+            "sequence": 3,
+            "id": "c",
+            "previous_id": "b",
+            "time_s": 2
+          }
+        ]
+      },
+      "expected": {
+        "valid": false,
+        "violations": [
+          {
+            "index": 0,
+            "issues": [
+              "sequence"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

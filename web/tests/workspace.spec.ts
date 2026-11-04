@@ -46,7 +46,7 @@ async function mockWorkspace(page: Page, options: { ready?: boolean; initial?: R
       requests.after.push(after);
       if (options.reconnect && after === '1' && run) { run = { ...run, status: 'passed', score: makeRun().score }; }
       const items = options.reconnect ? [event(after === '0' ? 1 : 2, after === '0' ? 'run.started' : 'run.completed')] : [event(1, 'run.started'), event(2, 'run.completed')];
-      return route.fulfill({ status: 200, contentType: 'text/event-stream', body: stream(items) });
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', body: stream(items) + (run && !['queued', 'running'].includes(run.status) ? 'event: complete\ndata: {}\n\n' : '') });
     }
     if (path.includes('/artifacts/')) return route.fulfill({ contentType: 'text/plain', body: '<script>window.injected = true</script>\ndef merge_intervals(items):\n    return []\n' });
     if (path === '/api/v1/runs/run-test-001') return json({ run, artifacts: [{ id: 'artifact-001', run_id: 'run-test-001', name: 'solution.py', media_type: 'text/plain', size: 42, sha256: 'b'.repeat(64) }] });

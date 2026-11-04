@@ -1,0 +1,360 @@
+{
+  "schema_version": 1,
+  "id": "engineering.point-mass-inertia",
+  "version": "1.0.0",
+  "title": "Compute centre of mass and full inertia tensor",
+  "category": "engineering",
+  "difficulty": "hard",
+  "tags": [
+    "mechanics",
+    "3d",
+    "mass-properties"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) where particles is a list of {\"mass_kg\":m,\"position_m\":[x,y,z]}. Return {\"mass_kg\":M,\"center_m\":[cx,cy,cz],\"inertia_kg_m2\":[[Ixx,Ixy,Ixz],[Iyx,Iyy,Iyz],[Izx,Izy,Izz]]} about the centre of mass, aligned with world axes. M=sum(m), c=sum(m*r)/M, I=sum(m*((r-c) dot (r-c)*identity - outer(r-c,r-c))). Off-diagonal entries have a minus sign. Zero masses are allowed but ignored. If any mass is negative return {\"error\":\"negative_mass\"}; otherwise if total mass is zero, including empty particles, return {\"error\":\"zero_mass\"}. Positions have magnitude <=1e6. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 1e-8, relative tolerance 1e-9; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-8, rel_tol=1e-9)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"single_mass\\\",\\\"input\\\":{\\\"particles\\\":[{\\\"mass_kg\\\":3,\\\"position_m\\\":[4,5,6]}]},\\\"expected\\\":{\\\"mass_kg\\\":3,\\\"center_m\\\":[4,5,6],\\\"inertia_kg_m2\\\":[[0,0,0],[0,0,0],[0,0,0]]}},{\\\"name\\\":\\\"two_x\\\",\\\"input\\\":{\\\"particles\\\":[{\\\"mass_kg\\\":2,\\\"position_m\\\":[-1,0,0]},{\\\"mass_kg\\\":2,\\\"position_m\\\":[1,0,0]}]},\\\"expected\\\":{\\\"mass_kg\\\":4,\\\"center_m\\\":[0,0,0],\\\"inertia_kg_m2\\\":[[0,0,0],[0,4,0],[0,0,4]]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    ps = payload[\"particles\"]\n    if any(p[\"mass_kg\"] < 0 for p in ps):\n        return {\"error\": \"negative_mass\"}\n    total = sum(p[\"mass_kg\"] for p in ps)\n    if total == 0:\n        return {\"error\": \"zero_mass\"}\n    center = [sum(p[\"mass_kg\"]*p[\"position_m\"][i] for p in ps)/total for i in range(3)]\n    tensor = [[0.0]*3 for _ in range(3)]\n    for p in ps:\n        d = [p[\"position_m\"][i]-center[i] for i in range(3)]\n        d2 = sum(x*x for x in d)\n        for i in range(3):\n            for j in range(3):\n                tensor[i][j] += p[\"mass_kg\"]*((d2 if i == j else 0)-d[i]*d[j])\n    return {\"mass_kg\": total, \"center_m\": center, \"inertia_kg_m2\": tensor}\n",
+  "bad_solution": "def solve(payload):\n    ps = payload[\"particles\"]\n    total = sum(p[\"mass_kg\"] for p in ps)\n    if not total:\n        return {\"error\": \"zero_mass\"}\n    center = [sum(p[\"position_m\"][i] for p in ps)/len(ps) for i in range(3)]\n    return {\"mass_kg\": total, \"center_m\": center, \"inertia_kg_m2\": [[0,0,0],[0,0,0],[0,0,0]]}\n",
+  "cases": [
+    {
+      "name": "single_mass",
+      "input": {
+        "particles": [
+          {
+            "mass_kg": 3,
+            "position_m": [
+              4,
+              5,
+              6
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "mass_kg": 3,
+        "center_m": [
+          4,
+          5,
+          6
+        ],
+        "inertia_kg_m2": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "name": "two_x",
+      "input": {
+        "particles": [
+          {
+            "mass_kg": 2,
+            "position_m": [
+              -1,
+              0,
+              0
+            ]
+          },
+          {
+            "mass_kg": 2,
+            "position_m": [
+              1,
+              0,
+              0
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "mass_kg": 4,
+        "center_m": [
+          0,
+          0,
+          0
+        ],
+        "inertia_kg_m2": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            4,
+            0
+          ],
+          [
+            0,
+            0,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "name": "unequal_weights",
+      "input": {
+        "particles": [
+          {
+            "mass_kg": 1,
+            "position_m": [
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "mass_kg": 3,
+            "position_m": [
+              4,
+              0,
+              0
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "mass_kg": 4,
+        "center_m": [
+          3,
+          0,
+          0
+        ],
+        "inertia_kg_m2": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            12,
+            0
+          ],
+          [
+            0,
+            0,
+            12
+          ]
+        ]
+      }
+    },
+    {
+      "name": "cross_terms",
+      "input": {
+        "particles": [
+          {
+            "mass_kg": 1,
+            "position_m": [
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "mass_kg": 1,
+            "position_m": [
+              -1,
+              -2,
+              -3
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "mass_kg": 2,
+        "center_m": [
+          0,
+          0,
+          0
+        ],
+        "inertia_kg_m2": [
+          [
+            26,
+            -4,
+            -6
+          ],
+          [
+            -4,
+            20,
+            -12
+          ],
+          [
+            -6,
+            -12,
+            10
+          ]
+        ]
+      }
+    },
+    {
+      "name": "translated_y",
+      "input": {
+        "particles": [
+          {
+            "mass_kg": 1,
+            "position_m": [
+              10,
+              19,
+              30
+            ]
+          },
+          {
+            "mass_kg": 1,
+            "position_m": [
+              10,
+              21,
+              30
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "mass_kg": 2,
+        "center_m": [
+          10,
+          20,
+          30
+        ],
+        "inertia_kg_m2": [
+          [
+            2,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ]
+        ]
+      }
+    },
+    {
+      "name": "zero_mass_ignored",
+      "input": {
+        "particles": [
+          {
+            "mass_kg": 0,
+            "position_m": [
+              100,
+              200,
+              300
+            ]
+          },
+          {
+            "mass_kg": 2,
+            "position_m": [
+              1,
+              2,
+              3
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "mass_kg": 2,
+        "center_m": [
+          1,
+          2,
+          3
+        ],
+        "inertia_kg_m2": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "name": "empty",
+      "input": {
+        "particles": []
+      },
+      "expected": {
+        "error": "zero_mass"
+      }
+    },
+    {
+      "name": "all_zero",
+      "input": {
+        "particles": [
+          {
+            "mass_kg": 0,
+            "position_m": [
+              1,
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "error": "zero_mass"
+      }
+    },
+    {
+      "name": "negative",
+      "input": {
+        "particles": [
+          {
+            "mass_kg": -1,
+            "position_m": [
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "mass_kg": 2,
+            "position_m": [
+              0,
+              0,
+              0
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "error": "negative_mass"
+      }
+    }
+  ],
+  "atol": 1e-08,
+  "rtol": 1e-09,
+  "preserve_input": true
+}

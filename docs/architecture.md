@@ -27,6 +27,15 @@ cursor. Artifact files use generated IDs, exclusive creation and SHA-256 checks.
 Exports are allowed only after a run finishes and include a checksum manifest,
 run.json, events.jsonl, artifact metadata, and immutable artifact bytes.
 
+Each event transaction also updates a compact `run_progress` projection. The
+`/api/v1/activity` endpoint reads only queued/running records and this projection,
+without loading model conversations. Actual start time excludes time spent queued;
+model turns and completed grading checks come from execution events. The UI polls
+this snapshot about once per second while resuming the selected trace by sequence.
+SSE reads bounded batches off the asynchronous server loop and drains all committed
+events before sending completion. The projection is additive to existing databases;
+run records and event traces remain the authoritative evidence.
+
 On startup, unfinished runs become interrupted. Cleanup only targets containers
 with both Benchmaxxing's managed label and the exact workspace identity. Failed
 recovery is retried before accepting a new run. Cancellation stops execution;

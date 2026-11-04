@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "id": "engineering.stable-real-quadratic",
+  "version": "1.0.0",
+  "title": "Solve real quadratics without cancellation",
+  "category": "engineering",
+  "difficulty": "hard",
+  "tags": [
+    "numerics",
+    "polynomials",
+    "floating-point"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) with finite coefficients a,b,c for a*x^2+b*x+c=0. Return {\"kind\":\"roots\",\"roots\":[...]} with real roots sorted ascending and repeated roots represented once; {\"kind\":\"none\",\"roots\":[]} for no real solution; or {\"kind\":\"all\",\"roots\":[]} when a=b=c=0. If a=0 solve the linear equation exactly according to the same categories. Test coefficients have magnitude at most 1e12; nonzero discriminants are separated from zero. Avoid catastrophic cancellation for roots of widely different magnitudes: for positive discriminant use q=-0.5*(b+copysign(sqrt(b*b-4*a*c),b)), roots q/a and c/q. For zero discriminant return -b/(2*a). Treat +0 and -0 as equal. Numeric tolerance is intentionally tight enough to distinguish losing a small root. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 1e-15, relative tolerance 1e-10; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-15, rel_tol=1e-10)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"two_roots\\\",\\\"input\\\":{\\\"a\\\":1,\\\"b\\\":-3,\\\"c\\\":2},\\\"expected\\\":{\\\"kind\\\":\\\"roots\\\",\\\"roots\\\":[1,2]}},{\\\"name\\\":\\\"repeated\\\",\\\"input\\\":{\\\"a\\\":1,\\\"b\\\":2,\\\"c\\\":1},\\\"expected\\\":{\\\"kind\\\":\\\"roots\\\",\\\"roots\\\":[-1]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import math\n    a, b, c = [payload[k] for k in (\"a\", \"b\", \"c\")]\n    if a == 0:\n        if b != 0:\n            return {\"kind\": \"roots\", \"roots\": [-c/b]}\n        return {\"kind\": \"all\" if c == 0 else \"none\", \"roots\": []}\n    d = b*b-4*a*c\n    if d < 0:\n        return {\"kind\": \"none\", \"roots\": []}\n    if d == 0:\n        return {\"kind\": \"roots\", \"roots\": [-b/(2*a)]}\n    q = -0.5*(b+math.copysign(math.sqrt(d), b))\n    return {\"kind\": \"roots\", \"roots\": sorted([q/a, c/q])}\n",
+  "bad_solution": "def solve(payload):\n    import math\n    a, b, c = [payload[k] for k in (\"a\", \"b\", \"c\")]\n    if a == 0:\n        return {\"kind\": \"none\", \"roots\": []}\n    d = b*b-4*a*c\n    if d < 0:\n        return {\"kind\": \"none\", \"roots\": []}\n    return {\"kind\": \"roots\", \"roots\": sorted(set([(-b-math.sqrt(d))/(2*a), (-b+math.sqrt(d))/(2*a)]))}\n",
+  "cases": [
+    {
+      "name": "two_roots",
+      "input": {
+        "a": 1,
+        "b": -3,
+        "c": 2
+      },
+      "expected": {
+        "kind": "roots",
+        "roots": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "repeated",
+      "input": {
+        "a": 1,
+        "b": 2,
+        "c": 1
+      },
+      "expected": {
+        "kind": "roots",
+        "roots": [
+          -1
+        ]
+      }
+    },
+    {
+      "name": "cancellation_positive_b",
+      "input": {
+        "a": 1,
+        "b": 1000000000000,
+        "c": 1
+      },
+      "expected": {
+        "kind": "roots",
+        "roots": [
+          -1000000000000,
+          -1e-12
+        ]
+      }
+    },
+    {
+      "name": "cancellation_negative_b",
+      "input": {
+        "a": 1,
+        "b": -1000000000000,
+        "c": 1
+      },
+      "expected": {
+        "kind": "roots",
+        "roots": [
+          1e-12,
+          1000000000000
+        ]
+      }
+    },
+    {
+      "name": "negative_leading",
+      "input": {
+        "a": -1,
+        "b": 3,
+        "c": -2
+      },
+      "expected": {
+        "kind": "roots",
+        "roots": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "zero_constant",
+      "input": {
+        "a": 2,
+        "b": -6,
+        "c": 0
+      },
+      "expected": {
+        "kind": "roots",
+        "roots": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "name": "linear",
+      "input": {
+        "a": 0,
+        "b": 4,
+        "c": -10
+      },
+      "expected": {
+        "kind": "roots",
+        "roots": [
+          2.5
+        ]
+      }
+    },
+    {
+      "name": "all_reals",
+      "input": {
+        "a": 0,
+        "b": 0,
+        "c": 0
+      },
+      "expected": {
+        "kind": "all",
+        "roots": []
+      }
+    },
+    {
+      "name": "inconsistent",
+      "input": {
+        "a": 0,
+        "b": 0,
+        "c": 2
+      },
+      "expected": {
+        "kind": "none",
+        "roots": []
+      }
+    },
+    {
+      "name": "complex_pair",
+      "input": {
+        "a": 1,
+        "b": 0,
+        "c": 1
+      },
+      "expected": {
+        "kind": "none",
+        "roots": []
+      }
+    }
+  ],
+  "atol": 1e-15,
+  "rtol": 1e-10,
+  "preserve_input": true
+}

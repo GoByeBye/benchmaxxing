@@ -17,7 +17,9 @@ from typing import Any
 
 from benchmaxxing.contracts import (
     TERMINAL_STATUSES,
+    ActivitySnapshot,
     ArtifactRecord,
+    RunActivity,
     RunEvent,
     RunRecord,
     RunSpec,
@@ -57,6 +59,15 @@ class Store:
                     timestamp TEXT NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS events_run ON events(run_id, seq);
+                CREATE INDEX IF NOT EXISTS runs_status ON runs(json_extract(record, '$.status'));
+                CREATE TABLE IF NOT EXISTS run_progress (
+                    run_id TEXT PRIMARY KEY REFERENCES runs(id),
+                    phase TEXT NOT NULL DEFAULT 'queued', started_at TEXT,
+                    turn INTEGER NOT NULL DEFAULT 0, last_tool TEXT,
+                    last_event_seq INTEGER NOT NULL DEFAULT 0, last_event_at TEXT,
+                    cancellation_requested INTEGER NOT NULL DEFAULT 0,
+                    checks_done INTEGER NOT NULL DEFAULT 0, checks_total INTEGER NOT NULL DEFAULT 0
+                );
                 CREATE TABLE IF NOT EXISTS artifacts (
                     id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id),
                     record TEXT NOT NULL
@@ -108,6 +119,114 @@ class Store:
             ).fetchall()
         return [RunRecord.model_validate_json(row["record"]) for row in rows]
 
+    @staticmethod
+    def _progress(
+        db: sqlite3.Connection,
+        run_id: str,
+        seq: int,
+        timestamp: str,
+        kind: str,
+        data: dict[str, Any],
+    ) -> None:
+        """Update a small projection atomically with its authoritative event."""
+        db.execute("INSERT OR IGNORE INTO run_progress(run_id) VALUES (?)", (run_id,))
+        values: dict[str, Any] = {"last_event_seq": seq, "last_event_at": timestamp}
+        phases = {"preflight", "environment", "participant", "collect", "grade", "cleanup"}
+        if kind == "run.started":
+            values.update(started_at=timestamp, phase="preflight")
+        elif kind == "phase" and isinstance(data.get("phase"), str) and data["phase"] in phases:
+            values["phase"] = data["phase"]
+        elif kind == "model.request":
+            values["phase"] = "inference"
+            turn = data.get("turn")
+            if isinstance(turn, int) and not isinstance(turn, bool) and 0 <= turn <= 256:
+                values["turn"] = turn
+        elif kind == "tool.started":
+            values["phase"] = "tool"
+            tool = data.get("tool")
+            values["last_tool"] = (
+                tool
+                if isinstance(tool, str)
+                and tool in {"read_file", "write_file", "execute", "submit"}
+                else "unknown"
+            )
+        elif kind == "tool.result":
+            values["phase"] = "participant"
+        elif kind == "grading.check":
+            done, total = data.get("completed"), data.get("total")
+            if type(done) is int and type(total) is int and 0 <= done <= total <= 128:
+                values.update(phase="grade", checks_done=done, checks_total=total)
+        elif kind == "cancellation_requested":
+            values["cancellation_requested"] = 1
+        elif kind in {"run.finished", "cancelled", "interrupted", "infrastructure_error"}:
+            values["phase"] = str(data.get("status", kind))[:32]
+        assignments = ", ".join(f"{name}=?" for name in values)
+        db.execute(
+            f"UPDATE run_progress SET {assignments} WHERE run_id=?", [*values.values(), run_id]
+        )
+
+    def activity(self) -> ActivitySnapshot:
+        """Read active progress without replaying large prompts or scanning run history."""
+        from benchmaxxing.task import get_task
+
+        now = datetime.now(UTC)
+        with self._connect() as db:
+            rows = db.execute("""
+                SELECT r.record, p.* FROM runs r LEFT JOIN run_progress p ON p.run_id=r.id
+                WHERE json_extract(r.record, '$.status') IN ('queued','running')
+                ORDER BY CASE json_extract(r.record, '$.status') WHEN 'running' THEN 0 ELSE 1 END,
+                    r.rowid
+            """).fetchall()
+        activities: list[RunActivity] = []
+        position = 0
+        for row in rows:
+            run = RunRecord.model_validate_json(row["record"])
+            saved_task = run.metadata.get("task")
+            if not isinstance(saved_task, dict):
+                try:
+                    saved_task = get_task(run.spec.task_id).model_dump()
+                except ValueError:
+                    saved_task = {}
+            queued = run.status == "queued"
+            if queued:
+                position += 1
+            started = row["started_at"]
+            elapsed = 0.0
+            if started is not None and not queued:
+                try:
+                    elapsed = max(0.0, (now - datetime.fromisoformat(started)).total_seconds())
+                except (ValueError, TypeError):
+                    started = None
+            activities.append(
+                RunActivity(
+                    id=run.id,
+                    status="queued" if queued else "running",
+                    task_id=run.spec.task_id,
+                    task_title=str(saved_task.get("title", run.spec.task_id)),
+                    category=str(saved_task.get("category", "unknown")),
+                    participant=run.spec.participant,
+                    model=run.spec.inference.model
+                    if run.spec.inference
+                    else f"scripted/{run.spec.scripted_variant}",
+                    created_at=run.created_at,
+                    updated_at=run.updated_at,
+                    started_at=started,
+                    phase="queued" if queued else (row["phase"] or "preflight"),
+                    turn=row["turn"] or 0,
+                    max_turns=run.spec.budgets.max_turns,
+                    wall_seconds=run.spec.budgets.wall_seconds,
+                    elapsed_seconds=elapsed,
+                    queue_position=position if queued else None,
+                    last_event_at=row["last_event_at"],
+                    last_event_seq=row["last_event_seq"] or 0,
+                    cancellation_requested=bool(row["cancellation_requested"]),
+                    last_tool=row["last_tool"],
+                    checks_done=row["checks_done"] or 0,
+                    checks_total=row["checks_total"] or 0,
+                )
+            )
+        return ActivitySnapshot(server_time=now.isoformat(), runs=activities)
+
     def update_run(
         self,
         run_id: str,
@@ -139,9 +258,13 @@ class Store:
             record.updated_at = utc_now()
             db.execute("UPDATE runs SET record=? WHERE id=?", (record.model_dump_json(), run_id))
             if event_kind is not None:
-                db.execute(
+                cursor = db.execute(
                     "INSERT INTO events(run_id,timestamp,kind,data) VALUES (?,?,?,?)",
                     (run_id, record.updated_at, event_kind, json.dumps(event_data or {})),
+                )
+                assert cursor.lastrowid is not None
+                self._progress(
+                    db, run_id, cursor.lastrowid, record.updated_at, event_kind, event_data or {}
                 )
         return record
 
@@ -154,13 +277,14 @@ class Store:
             )
             seq = cursor.lastrowid
             assert seq is not None
+            self._progress(db, run_id, seq, timestamp, kind, data)
         return RunEvent(seq=seq, run_id=run_id, timestamp=timestamp, kind=kind, data=data)
 
-    def events(self, run_id: str, after: int = 0) -> list[RunEvent]:
+    def events(self, run_id: str, after: int = 0, *, limit: int | None = None) -> list[RunEvent]:
         with self._connect() as db:
             rows = db.execute(
-                "SELECT * FROM events WHERE run_id=? AND seq>? ORDER BY seq",
-                (run_id, after),
+                "SELECT * FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT ?",
+                (run_id, after, -1 if limit is None else limit),
             ).fetchall()
         return [
             RunEvent(

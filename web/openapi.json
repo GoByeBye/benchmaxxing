@@ -85,6 +85,24 @@
         }
       }
     },
+    "/api/v1/activity": {
+      "get": {
+        "summary": "Activity",
+        "operationId": "activity_api_v1_activity_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivitySnapshot"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/runs": {
       "get": {
         "summary": "List Runs",
@@ -379,6 +397,34 @@
   },
   "components": {
     "schemas": {
+      "ActivitySnapshot": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "server_time": {
+            "type": "string",
+            "title": "Server Time"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunActivity"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "server_time",
+          "runs"
+        ],
+        "title": "ActivitySnapshot"
+      },
       "ArtifactRecord": {
         "properties": {
           "id": {
@@ -609,6 +655,164 @@
           "model"
         ],
         "title": "InferenceProfile"
+      },
+      "RunActivity": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running"
+            ],
+            "title": "Status"
+          },
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "task_title": {
+            "type": "string",
+            "title": "Task Title"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "participant": {
+            "type": "string",
+            "title": "Participant"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "phase": {
+            "type": "string",
+            "title": "Phase",
+            "default": "queued"
+          },
+          "turn": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Turn",
+            "default": 0
+          },
+          "max_turns": {
+            "type": "integer",
+            "title": "Max Turns"
+          },
+          "wall_seconds": {
+            "type": "number",
+            "title": "Wall Seconds"
+          },
+          "elapsed_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Elapsed Seconds",
+            "default": 0
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "last_event_seq": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Last Event Seq",
+            "default": 0
+          },
+          "cancellation_requested": {
+            "type": "boolean",
+            "title": "Cancellation Requested",
+            "default": false
+          },
+          "last_tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Tool"
+          },
+          "checks_done": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Checks Done",
+            "default": 0
+          },
+          "checks_total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Checks Total",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "task_id",
+          "task_title",
+          "category",
+          "participant",
+          "created_at",
+          "updated_at",
+          "max_turns",
+          "wall_seconds"
+        ],
+        "title": "RunActivity"
       },
       "RunDetail": {
         "properties": {

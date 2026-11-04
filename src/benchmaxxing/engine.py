@@ -334,6 +334,7 @@ def execute_run(
                 raise ParticipantStopped("Participant ended without calling submit")
             for call in response.tool_calls:
                 checkpoint()
+                event("tool.started", {"turn": turns, "tool_call_id": call.id, "tool": call.name})
                 try:
                     result = _run_tool(environment, call)
                 except (ValueError, ToolOperationError) as exc:
@@ -386,6 +387,15 @@ def execute_run(
             cancellation,
             deadline=deadline,
             task_id=spec.task_id,
+            progress=lambda completed, total, check: event(
+                "grading.check",
+                {
+                    "completed": completed,
+                    "total": total,
+                    "name": check.name,
+                    "passed": check.passed,
+                },
+            ),
         )
         checkpoint()
         status = "passed" if score.passed else "failed"

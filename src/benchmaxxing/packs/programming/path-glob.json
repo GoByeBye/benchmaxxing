@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "id": "python.path-glob",
+  "version": "1.0.0",
+  "title": "Segment-aware glob matching",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "patterns",
+    "text",
+    "dynamic-programming"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), with pattern (string) and paths (list of strings). Return matching booleans in\npath order. Paths are normalized relative slash-separated segments; no segment is empty, '.' or '..'.\nThe empty string represents zero segments. Pattern segments use '*' for zero or more characters and\n'?' for exactly one Unicode code point within one segment. A complete segment '**' matches zero or\nmore whole segments. Consecutive '**' segments are allowed; '**' never appears inside another segment.\nEvery other character, including brackets, dots and backslashes, is literal. No escape syntax or\ncharacter classes exist. Match the whole path, case-sensitively; '*' and '?' never cross '/'. Pattern\nand paths each have at most 30 segments and at most 200 characters. Empty pattern matches only empty path.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"pattern\": \"*.py\", \"paths\": [\"a.py\", \"a.txt\", \"dir/a.py\"]}`; output: `[true, false, false]`.\n- Input: `{\"pattern\": \"a?\", \"paths\": [\"ab\", \"a\", \"abc\"]}`; output: `[true, false, false]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport re\nfrom functools import lru_cache\n\ndef solve(payload):\n    pattern = payload['pattern'].split('/') if payload['pattern'] else []\n    def one(path):\n        parts = path.split('/') if path else []\n        @lru_cache(None)\n        def matches(i, j):\n            if i == len(pattern):\n                return j == len(parts)\n            if pattern[i] == '**':\n                return j < len(parts) and (matches(i + 1, j + 1) or matches(i, j + 1))\n            if j == len(parts):\n                return False\n            regex = re.escape(pattern[i]).replace(r'\\*', '.*').replace(r'\\?', '.')\n            return re.fullmatch(regex, parts[j], flags=re.DOTALL) is not None and matches(i + 1, j + 1)\n        return matches(0, 0)\n    return [one(path) for path in payload['paths']]\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"suffix\", \"input\": {\"pattern\": \"*.py\", \"paths\": [\"a.py\", \"a.txt\", \"dir/a.py\"]}, \"expected\": [true, false, false]}, {\"name\": \"one_char\", \"input\": {\"pattern\": \"a?\", \"paths\": [\"ab\", \"a\", \"abc\"]}, \"expected\": [true, false, false]}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport re\nfrom functools import lru_cache\n\ndef solve(payload):\n    pattern = payload['pattern'].split('/') if payload['pattern'] else []\n    def one(path):\n        parts = path.split('/') if path else []\n        @lru_cache(None)\n        def matches(i, j):\n            if i == len(pattern):\n                return j == len(parts)\n            if pattern[i] == '**':\n                return matches(i + 1, j) or (j < len(parts) and matches(i, j + 1))\n            if j == len(parts):\n                return False\n            regex = re.escape(pattern[i]).replace(r'\\*', '.*').replace(r'\\?', '.')\n            return re.fullmatch(regex, parts[j], flags=re.DOTALL) is not None and matches(i + 1, j + 1)\n        return matches(0, 0)\n    return [one(path) for path in payload['paths']]\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport re\nfrom functools import lru_cache\n\ndef solve(payload):\n    pattern = payload['pattern'].split('/') if payload['pattern'] else []\n    def one(path):\n        parts = path.split('/') if path else []\n        @lru_cache(None)\n        def matches(i, j):\n            if i == len(pattern):\n                return j == len(parts)\n            if pattern[i] == '**':\n                return j < len(parts) and (matches(i + 1, j + 1) or matches(i, j + 1))\n            if j == len(parts):\n                return False\n            regex = re.escape(pattern[i]).replace(r'\\*', '.*').replace(r'\\?', '.')\n            return re.fullmatch(regex, parts[j], flags=re.DOTALL) is not None and matches(i + 1, j + 1)\n        return matches(0, 0)\n    return [one(path) for path in payload['paths']]\n",
+  "cases": [
+    {
+      "name": "no_paths",
+      "input": {
+        "pattern": "**",
+        "paths": []
+      },
+      "expected": []
+    },
+    {
+      "name": "empty_pattern",
+      "input": {
+        "pattern": "",
+        "paths": [
+          "",
+          "a"
+        ]
+      },
+      "expected": [
+        true,
+        false
+      ]
+    },
+    {
+      "name": "globstar_zero_and_many",
+      "input": {
+        "pattern": "**",
+        "paths": [
+          "",
+          "a",
+          "a/b"
+        ]
+      },
+      "expected": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "middle_globstar",
+      "input": {
+        "pattern": "src/**/test?.py",
+        "paths": [
+          "src/test1.py",
+          "src/pkg/test2.py",
+          "src/a/b/testx.py",
+          "src/test12.py"
+        ]
+      },
+      "expected": [
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    {
+      "name": "star_stays_in_segment",
+      "input": {
+        "pattern": "a/*/c",
+        "paths": [
+          "a/b/c",
+          "a/b/d/c",
+          "a/c"
+        ]
+      },
+      "expected": [
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "unicode_question",
+      "input": {
+        "pattern": "?",
+        "paths": [
+          "é",
+          "🙂",
+          "ab",
+          ""
+        ]
+      },
+      "expected": [
+        true,
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "literal_brackets",
+      "input": {
+        "pattern": "[ab].txt",
+        "paths": [
+          "[ab].txt",
+          "a.txt",
+          "b.txt"
+        ]
+      },
+      "expected": [
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "name": "consecutive_globstars",
+      "input": {
+        "pattern": "**/**/a",
+        "paths": [
+          "a",
+          "x/a",
+          "x/y/a",
+          "a/x"
+        ]
+      },
+      "expected": [
+        true,
+        true,
+        true,
+        false
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

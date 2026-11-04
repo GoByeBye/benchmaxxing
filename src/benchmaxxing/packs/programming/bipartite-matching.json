@@ -1,0 +1,335 @@
+{
+  "schema_version": 1,
+  "id": "python.bipartite-matching",
+  "version": "1.0.0",
+  "title": "Canonical maximum bipartite matching",
+  "category": "programming",
+  "difficulty": "hard",
+  "tags": [
+    "graphs",
+    "matching",
+    "tie-breaking"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload). Input has left and right (distinct string labels within each side) and edges\n([left_label,right_label] pairs whose endpoints exist). Labels on opposite sides may be identical.\nChoose the largest set of edges sharing no endpoint. Return {\"size\": count, \"pairs\": [[left,right],...]}.\nSort each matching's pairs by left label, then right label. If several maximum matchings exist,\nchoose the lexicographically smallest complete sorted pair list, using Python string ordering.\nDuplicate edges count once. Either side may be empty. Each side contains at most 12 vertices.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"left\": [\"a\", \"b\"], \"right\": [\"x\", \"y\"], \"edges\": [[\"a\", \"x\"], [\"b\", \"y\"]]}`; output: `{\"size\": 2, \"pairs\": [[\"a\", \"x\"], [\"b\", \"y\"]]}`.\n- Input: `{\"left\": [\"a\", \"b\"], \"right\": [\"x\"], \"edges\": [[\"b\", \"x\"]]}`; output: `{\"size\": 1, \"pairs\": [[\"b\", \"x\"]]}`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    used, pairs = set(), []\n    for left in sorted(payload['left']):\n        candidates = sorted({b for a, b in payload['edges'] if a == left and b not in used})\n        if candidates:\n            used.add(candidates[0])\n            pairs.append([left, candidates[0]])\n    return {'size': len(pairs), 'pairs': pairs}\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"independent\", \"input\": {\"left\": [\"a\", \"b\"], \"right\": [\"x\", \"y\"], \"edges\": [[\"a\", \"x\"], [\"b\", \"y\"]]}, \"expected\": {\"size\": 2, \"pairs\": [[\"a\", \"x\"], [\"b\", \"y\"]]}}, {\"name\": \"unmatched\", \"input\": {\"left\": [\"a\", \"b\"], \"right\": [\"x\"], \"edges\": [[\"b\", \"x\"]]}, \"expected\": {\"size\": 1, \"pairs\": [[\"b\", \"x\"]]}}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nfrom functools import lru_cache\n\ndef solve(payload):\n    left = sorted(payload['left'])\n    right = sorted(payload['right'])\n    positions = {name: i for i, name in enumerate(right)}\n    neighbors = {name: set() for name in left}\n    for a, b in payload['edges']:\n        neighbors[a].add(b)\n    @lru_cache(None)\n    def best(index, used):\n        if index == len(left):\n            return ()\n        choices = [best(index + 1, used)]\n        for target in sorted(neighbors[left[index]]):\n            bit = 1 << positions[target]\n            if not used & bit:\n                choices.append(((left[index], target),) + best(index + 1, used | bit))\n        return min(choices, key=lambda pairs: (-len(pairs), pairs))\n    pairs = best(0, 0)\n    return {'size': len(pairs), 'pairs': [list(pair) for pair in pairs]}\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    used, pairs = set(), []\n    for left in sorted(payload['left']):\n        candidates = sorted({b for a, b in payload['edges'] if a == left and b not in used})\n        if candidates:\n            used.add(candidates[0])\n            pairs.append([left, candidates[0]])\n    return {'size': len(pairs), 'pairs': pairs}\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": {
+        "left": [],
+        "right": [],
+        "edges": []
+      },
+      "expected": {
+        "size": 0,
+        "pairs": []
+      }
+    },
+    {
+      "name": "reroute_needed",
+      "input": {
+        "left": [
+          "a",
+          "b"
+        ],
+        "right": [
+          "x",
+          "y"
+        ],
+        "edges": [
+          [
+            "a",
+            "x"
+          ],
+          [
+            "a",
+            "y"
+          ],
+          [
+            "b",
+            "x"
+          ]
+        ]
+      },
+      "expected": {
+        "size": 2,
+        "pairs": [
+          [
+            "a",
+            "y"
+          ],
+          [
+            "b",
+            "x"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "canonical_perfect",
+      "input": {
+        "left": [
+          "b",
+          "a"
+        ],
+        "right": [
+          "y",
+          "x"
+        ],
+        "edges": [
+          [
+            "b",
+            "y"
+          ],
+          [
+            "a",
+            "y"
+          ],
+          [
+            "b",
+            "x"
+          ],
+          [
+            "a",
+            "x"
+          ]
+        ]
+      },
+      "expected": {
+        "size": 2,
+        "pairs": [
+          [
+            "a",
+            "x"
+          ],
+          [
+            "b",
+            "y"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "earlier_left_wins_tie",
+      "input": {
+        "left": [
+          "b",
+          "a"
+        ],
+        "right": [
+          "x"
+        ],
+        "edges": [
+          [
+            "b",
+            "x"
+          ],
+          [
+            "a",
+            "x"
+          ]
+        ]
+      },
+      "expected": {
+        "size": 1,
+        "pairs": [
+          [
+            "a",
+            "x"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "duplicate_edges",
+      "input": {
+        "left": [
+          "a"
+        ],
+        "right": [
+          "x",
+          "y"
+        ],
+        "edges": [
+          [
+            "a",
+            "y"
+          ],
+          [
+            "a",
+            "y"
+          ]
+        ]
+      },
+      "expected": {
+        "size": 1,
+        "pairs": [
+          [
+            "a",
+            "y"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "disconnected_vertices",
+      "input": {
+        "left": [
+          "c",
+          "a",
+          "b"
+        ],
+        "right": [
+          "z",
+          "x",
+          "y"
+        ],
+        "edges": [
+          [
+            "c",
+            "z"
+          ],
+          [
+            "a",
+            "y"
+          ]
+        ]
+      },
+      "expected": {
+        "size": 2,
+        "pairs": [
+          [
+            "a",
+            "y"
+          ],
+          [
+            "c",
+            "z"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "three_vertex_reroute",
+      "input": {
+        "left": [
+          "a",
+          "b",
+          "c"
+        ],
+        "right": [
+          "x",
+          "y",
+          "z"
+        ],
+        "edges": [
+          [
+            "a",
+            "x"
+          ],
+          [
+            "a",
+            "y"
+          ],
+          [
+            "b",
+            "y"
+          ],
+          [
+            "b",
+            "z"
+          ],
+          [
+            "c",
+            "x"
+          ]
+        ]
+      },
+      "expected": {
+        "size": 3,
+        "pairs": [
+          [
+            "a",
+            "y"
+          ],
+          [
+            "b",
+            "z"
+          ],
+          [
+            "c",
+            "x"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "codepoint_order",
+      "input": {
+        "left": [
+          "b",
+          "A"
+        ],
+        "right": [
+          "z",
+          "Y"
+        ],
+        "edges": [
+          [
+            "b",
+            "Y"
+          ],
+          [
+            "b",
+            "z"
+          ],
+          [
+            "A",
+            "z"
+          ],
+          [
+            "A",
+            "Y"
+          ]
+        ]
+      },
+      "expected": {
+        "size": 2,
+        "pairs": [
+          [
+            "A",
+            "Y"
+          ],
+          [
+            "b",
+            "z"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "empty_right",
+      "input": {
+        "left": [
+          "a"
+        ],
+        "right": [],
+        "edges": []
+      },
+      "expected": {
+        "size": 0,
+        "pairs": []
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

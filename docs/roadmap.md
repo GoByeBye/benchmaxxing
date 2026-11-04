@@ -1,9 +1,20 @@
 # Project roadmap
 
-Milestone 1 is implemented. Milestone 2 now includes 41 original tasks, schema
-validation, serial repeated attempts, catalog search/filtering and category coverage.
+Milestone 1 is implemented. Milestone 2 now includes 81 original tasks with 666
+grading checks: 27 programming, 20 numerical engineering, 14 defensive security,
+12 terminal and 8 synthetic policy/refusal tasks. It includes schema validation,
+serial repeated attempts, catalog search/filtering, category coverage and live
+activity monitoring with resumable traces and pinned run inspection.
 Bounded parallel workers and richer category comparisons remain open. Later
 milestones are agreed direction, not claims of features already available.
+
+Recent packs add matching and exact allocation, 3D quaternion/mesh/inertia math,
+electrical and thermal models, dependency and network policy audits, SQLite reports,
+checksum analysis and explicit consent/scope decisions. The mathematical 3D tasks
+do not fulfill the Blender scene/render and CAD artifact milestone. The live monitor
+reports observed phases and grading checks; time and turn budgets do not imply a
+completion percentage. See [task packs](task-packs.md) for scope and monitoring
+details, and [validation](validation.md) for recorded test results.
 
 | Milestone | Deliverable and exit condition |
 | --- | --- |

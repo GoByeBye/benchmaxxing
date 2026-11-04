@@ -1,0 +1,328 @@
+{
+  "schema_version": 1,
+  "id": "security.posix-permission-audit",
+  "version": "1.0.0",
+  "title": "Audit effective POSIX mode permissions",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "permissions",
+    "posix",
+    "bit-masks"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for user {\"uid\":integer,\"groups\":[integer,...]} and files containing {\"path\":string,\"mode\":string,\"owner_uid\":integer,\"group_gid\":integer,\"directory\":boolean}. Mode is exactly 3 or 4 octal digits (0..7), interpreted as POSIX permission/special bits. Choose owner bits if user.uid==owner_uid, otherwise group bits if group_gid is in user.groups, otherwise other bits; never combine classes or fall back to a more permissive class. UID 0 has no special override in this synthetic evaluator. Convert the chosen three bits into an \"rwx\" string with \"-\" for absent bits. Return {\"entries\":[{\"path\":original_path,\"effective\":string,\"risks\":[...]}]} in file order. Risks in fixed order: \"world_writable\" when other-write is set unless this is a directory with sticky bit set; \"setuid\" whenever bit 04000 is set; \"setgid\" whenever bit 02000 is set. No filesystem access. Validate every mode first; invalid mode returns {\"error\":\"invalid_mode\"}. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 0, relative tolerance 0; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"owner\\\",\\\"input\\\":{\\\"user\\\":{\\\"uid\\\":10,\\\"groups\\\":[20]},\\\"files\\\":[{\\\"path\\\":\\\"a\\\",\\\"mode\\\":\\\"640\\\",\\\"owner_uid\\\":10,\\\"group_gid\\\":20,\\\"directory\\\":false}]},\\\"expected\\\":{\\\"entries\\\":[{\\\"path\\\":\\\"a\\\",\\\"effective\\\":\\\"rw-\\\",\\\"risks\\\":[]}]}},{\\\"name\\\":\\\"group\\\",\\\"input\\\":{\\\"user\\\":{\\\"uid\\\":11,\\\"groups\\\":[20]},\\\"files\\\":[{\\\"path\\\":\\\"a\\\",\\\"mode\\\":\\\"640\\\",\\\"owner_uid\\\":10,\\\"group_gid\\\":20,\\\"directory\\\":false}]},\\\"expected\\\":{\\\"entries\\\":[{\\\"path\\\":\\\"a\\\",\\\"effective\\\":\\\"r--\\\",\\\"risks\\\":[]}]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import re\n    files, user = payload[\"files\"], payload[\"user\"]\n    if any(not re.fullmatch(r\"[0-7]{3,4}\", f[\"mode\"]) for f in files):\n        return {\"error\": \"invalid_mode\"}\n    entries = []\n    for f in files:\n        mode = int(f[\"mode\"], 8)\n        shift = 6 if user[\"uid\"] == f[\"owner_uid\"] else 3 if f[\"group_gid\"] in user[\"groups\"] else 0\n        bits = (mode >> shift) & 7\n        effective = \"\".join(letter if bits & bit else \"-\" for letter, bit in ((\"r\", 4), (\"w\", 2), (\"x\", 1)))\n        risks = []\n        if mode & 0o002 and not (f[\"directory\"] and mode & 0o1000):\n            risks.append(\"world_writable\")\n        if mode & 0o4000:\n            risks.append(\"setuid\")\n        if mode & 0o2000:\n            risks.append(\"setgid\")\n        entries.append({\"path\": f[\"path\"], \"effective\": effective, \"risks\": risks})\n    return {\"entries\": entries}\n",
+  "bad_solution": "def solve(payload):\n    entries = []\n    for f in payload[\"files\"]:\n        mode = int(f[\"mode\"], 8)\n        bits = (mode >> 6) | (mode >> 3) | mode\n        effective = \"\".join(letter if bits & bit else \"-\" for letter, bit in ((\"r\",4),(\"w\",2),(\"x\",1)))\n        entries.append({\"path\": f[\"path\"], \"effective\": effective, \"risks\": []})\n    return {\"entries\": entries}\n",
+  "cases": [
+    {
+      "name": "owner",
+      "input": {
+        "user": {
+          "uid": 10,
+          "groups": [
+            20
+          ]
+        },
+        "files": [
+          {
+            "path": "a",
+            "mode": "640",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": false
+          }
+        ]
+      },
+      "expected": {
+        "entries": [
+          {
+            "path": "a",
+            "effective": "rw-",
+            "risks": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "group",
+      "input": {
+        "user": {
+          "uid": 11,
+          "groups": [
+            20
+          ]
+        },
+        "files": [
+          {
+            "path": "a",
+            "mode": "640",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": false
+          }
+        ]
+      },
+      "expected": {
+        "entries": [
+          {
+            "path": "a",
+            "effective": "r--",
+            "risks": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "other",
+      "input": {
+        "user": {
+          "uid": 11,
+          "groups": []
+        },
+        "files": [
+          {
+            "path": "a",
+            "mode": "754",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": false
+          }
+        ]
+      },
+      "expected": {
+        "entries": [
+          {
+            "path": "a",
+            "effective": "r--",
+            "risks": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "owner_does_not_fall_back",
+      "input": {
+        "user": {
+          "uid": 10,
+          "groups": [
+            20
+          ]
+        },
+        "files": [
+          {
+            "path": "a",
+            "mode": "007",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": false
+          }
+        ]
+      },
+      "expected": {
+        "entries": [
+          {
+            "path": "a",
+            "effective": "---",
+            "risks": [
+              "world_writable"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "sticky_directory",
+      "input": {
+        "user": {
+          "uid": 11,
+          "groups": []
+        },
+        "files": [
+          {
+            "path": "tmp",
+            "mode": "1777",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": true
+          },
+          {
+            "path": "file",
+            "mode": "1777",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": false
+          }
+        ]
+      },
+      "expected": {
+        "entries": [
+          {
+            "path": "tmp",
+            "effective": "rwx",
+            "risks": []
+          },
+          {
+            "path": "file",
+            "effective": "rwx",
+            "risks": [
+              "world_writable"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "special_bits",
+      "input": {
+        "user": {
+          "uid": 11,
+          "groups": [
+            20
+          ]
+        },
+        "files": [
+          {
+            "path": "a",
+            "mode": "4755",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": false
+          },
+          {
+            "path": "b",
+            "mode": "2750",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": true
+          },
+          {
+            "path": "c",
+            "mode": "6777",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": false
+          }
+        ]
+      },
+      "expected": {
+        "entries": [
+          {
+            "path": "a",
+            "effective": "r-x",
+            "risks": [
+              "setuid"
+            ]
+          },
+          {
+            "path": "b",
+            "effective": "r-x",
+            "risks": [
+              "setgid"
+            ]
+          },
+          {
+            "path": "c",
+            "effective": "rwx",
+            "risks": [
+              "world_writable",
+              "setuid",
+              "setgid"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "root_is_ordinary",
+      "input": {
+        "user": {
+          "uid": 0,
+          "groups": []
+        },
+        "files": [
+          {
+            "path": "private",
+            "mode": "600",
+            "owner_uid": 10,
+            "group_gid": 20,
+            "directory": false
+          }
+        ]
+      },
+      "expected": {
+        "entries": [
+          {
+            "path": "private",
+            "effective": "---",
+            "risks": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid_octal",
+      "input": {
+        "user": {
+          "uid": 1,
+          "groups": []
+        },
+        "files": [
+          {
+            "path": "a",
+            "mode": "888",
+            "owner_uid": 1,
+            "group_gid": 1,
+            "directory": false
+          }
+        ]
+      },
+      "expected": {
+        "error": "invalid_mode"
+      }
+    },
+    {
+      "name": "invalid_length",
+      "input": {
+        "user": {
+          "uid": 1,
+          "groups": []
+        },
+        "files": [
+          {
+            "path": "a",
+            "mode": "10000",
+            "owner_uid": 1,
+            "group_gid": 1,
+            "directory": false
+          }
+        ]
+      },
+      "expected": {
+        "error": "invalid_mode"
+      }
+    },
+    {
+      "name": "empty",
+      "input": {
+        "user": {
+          "uid": 1,
+          "groups": []
+        },
+        "files": []
+      },
+      "expected": {
+        "entries": []
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

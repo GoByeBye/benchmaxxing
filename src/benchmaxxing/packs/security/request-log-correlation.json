@@ -1,0 +1,310 @@
+{
+  "schema_version": 1,
+  "id": "security.request-log-correlation",
+  "version": "1.0.0",
+  "title": "Correlate request lifecycles and anomalies",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "logs",
+    "correlation",
+    "state-machine"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for events containing {\"time_s\":number,\"kind\":\"open\"|\"close\",\"id\":string} and slow_after_s>=0. Track active requests by id. An open for an inactive id records its time; a duplicate open emits {\"index\":i,\"id\":id,\"code\":\"duplicate_open\"} and leaves the original start unchanged. A close for an active id removes it and appends {\"id\":id,\"duration_s\":close-start,\"slow\":duration>slow_after_s} to completed in close order; an unmatched close emits code \"unmatched_close\". IDs can be reused after a successful close. Return {\"completed\":[...],\"anomalies\":[...],\"pending\":[sorted active ids]}. Anomalies are in event order. Validate before processing: negative slow_after_s -> {\"error\":\"invalid_policy\"}; then any unknown event kind -> {\"error\":\"invalid_kind\"}; then any negative or decreasing event time -> {\"error\":\"time_order\"}. Equal times and zero durations are valid. Any numeric inputs are finite; inputs have the documented shapes; unspecified validation is out of scope. Do not mutate payload or any nested value. Numeric absolute tolerance 0, relative tolerance 0; strings, booleans, errors and collection shapes must match exactly.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to TASK.md.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"one_request\\\",\\\"input\\\":{\\\"slow_after_s\\\":5,\\\"events\\\":[{\\\"time_s\\\":0,\\\"kind\\\":\\\"open\\\",\\\"id\\\":\\\"a\\\"},{\\\"time_s\\\":3,\\\"kind\\\":\\\"close\\\",\\\"id\\\":\\\"a\\\"}]},\\\"expected\\\":{\\\"completed\\\":[{\\\"id\\\":\\\"a\\\",\\\"duration_s\\\":3,\\\"slow\\\":false}],\\\"anomalies\\\":[],\\\"pending\\\":[]}},{\\\"name\\\":\\\"threshold_is_strict\\\",\\\"input\\\":{\\\"slow_after_s\\\":5,\\\"events\\\":[{\\\"time_s\\\":0,\\\"kind\\\":\\\"open\\\",\\\"id\\\":\\\"a\\\"},{\\\"time_s\\\":5,\\\"kind\\\":\\\"close\\\",\\\"id\\\":\\\"a\\\"}]},\\\"expected\\\":{\\\"completed\\\":[{\\\"id\\\":\\\"a\\\",\\\"duration_s\\\":5,\\\"slow\\\":false}],\\\"anomalies\\\":[],\\\"pending\\\":[]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    events = payload[\"events\"]\n    if payload[\"slow_after_s\"] < 0:\n        return {\"error\": \"invalid_policy\"}\n    if any(e[\"kind\"] not in (\"open\", \"close\") for e in events):\n        return {\"error\": \"invalid_kind\"}\n    if any(e[\"time_s\"] < 0 or (i and e[\"time_s\"] < events[i-1][\"time_s\"]) for i, e in enumerate(events)):\n        return {\"error\": \"time_order\"}\n    active, completed, anomalies = {}, [], []\n    for index, event in enumerate(events):\n        key, now = event[\"id\"], event[\"time_s\"]\n        if event[\"kind\"] == \"open\":\n            if key in active:\n                anomalies.append({\"index\": index, \"id\": key, \"code\": \"duplicate_open\"})\n            else:\n                active[key] = now\n        elif key not in active:\n            anomalies.append({\"index\": index, \"id\": key, \"code\": \"unmatched_close\"})\n        else:\n            duration = now-active.pop(key)\n            completed.append({\"id\": key, \"duration_s\": duration, \"slow\": duration > payload[\"slow_after_s\"]})\n    return {\"completed\": completed, \"anomalies\": anomalies, \"pending\": sorted(active)}\n",
+  "bad_solution": "def solve(payload):\n    active, completed = {}, []\n    for event in payload[\"events\"]:\n        if event[\"kind\"] == \"open\":\n            active[event[\"id\"]] = event[\"time_s\"]\n        elif event[\"id\"] in active:\n            duration = event[\"time_s\"]-active.pop(event[\"id\"])\n            completed.append({\"id\": event[\"id\"], \"duration_s\": duration, \"slow\": duration >= payload[\"slow_after_s\"]})\n    return {\"completed\": completed, \"anomalies\": [], \"pending\": sorted(active)}\n",
+  "cases": [
+    {
+      "name": "one_request",
+      "input": {
+        "slow_after_s": 5,
+        "events": [
+          {
+            "time_s": 0,
+            "kind": "open",
+            "id": "a"
+          },
+          {
+            "time_s": 3,
+            "kind": "close",
+            "id": "a"
+          }
+        ]
+      },
+      "expected": {
+        "completed": [
+          {
+            "id": "a",
+            "duration_s": 3,
+            "slow": false
+          }
+        ],
+        "anomalies": [],
+        "pending": []
+      }
+    },
+    {
+      "name": "threshold_is_strict",
+      "input": {
+        "slow_after_s": 5,
+        "events": [
+          {
+            "time_s": 0,
+            "kind": "open",
+            "id": "a"
+          },
+          {
+            "time_s": 5,
+            "kind": "close",
+            "id": "a"
+          }
+        ]
+      },
+      "expected": {
+        "completed": [
+          {
+            "id": "a",
+            "duration_s": 5,
+            "slow": false
+          }
+        ],
+        "anomalies": [],
+        "pending": []
+      }
+    },
+    {
+      "name": "interleaved",
+      "input": {
+        "slow_after_s": 2,
+        "events": [
+          {
+            "time_s": 0,
+            "kind": "open",
+            "id": "a"
+          },
+          {
+            "time_s": 1,
+            "kind": "open",
+            "id": "b"
+          },
+          {
+            "time_s": 2,
+            "kind": "close",
+            "id": "b"
+          },
+          {
+            "time_s": 4,
+            "kind": "close",
+            "id": "a"
+          }
+        ]
+      },
+      "expected": {
+        "completed": [
+          {
+            "id": "b",
+            "duration_s": 1,
+            "slow": false
+          },
+          {
+            "id": "a",
+            "duration_s": 4,
+            "slow": true
+          }
+        ],
+        "anomalies": [],
+        "pending": []
+      }
+    },
+    {
+      "name": "duplicate_keeps_start",
+      "input": {
+        "slow_after_s": 3,
+        "events": [
+          {
+            "time_s": 0,
+            "kind": "open",
+            "id": "a"
+          },
+          {
+            "time_s": 2,
+            "kind": "open",
+            "id": "a"
+          },
+          {
+            "time_s": 4,
+            "kind": "close",
+            "id": "a"
+          }
+        ]
+      },
+      "expected": {
+        "completed": [
+          {
+            "id": "a",
+            "duration_s": 4,
+            "slow": true
+          }
+        ],
+        "anomalies": [
+          {
+            "index": 1,
+            "id": "a",
+            "code": "duplicate_open"
+          }
+        ],
+        "pending": []
+      }
+    },
+    {
+      "name": "orphan_and_pending",
+      "input": {
+        "slow_after_s": 1,
+        "events": [
+          {
+            "time_s": 0,
+            "kind": "close",
+            "id": "missing"
+          },
+          {
+            "time_s": 1,
+            "kind": "open",
+            "id": "z"
+          },
+          {
+            "time_s": 2,
+            "kind": "open",
+            "id": "a"
+          }
+        ]
+      },
+      "expected": {
+        "completed": [],
+        "anomalies": [
+          {
+            "index": 0,
+            "id": "missing",
+            "code": "unmatched_close"
+          }
+        ],
+        "pending": [
+          "a",
+          "z"
+        ]
+      }
+    },
+    {
+      "name": "reuse_and_equal_time",
+      "input": {
+        "slow_after_s": 0,
+        "events": [
+          {
+            "time_s": 0,
+            "kind": "open",
+            "id": "a"
+          },
+          {
+            "time_s": 0,
+            "kind": "close",
+            "id": "a"
+          },
+          {
+            "time_s": 1,
+            "kind": "open",
+            "id": "a"
+          },
+          {
+            "time_s": 2,
+            "kind": "close",
+            "id": "a"
+          }
+        ]
+      },
+      "expected": {
+        "completed": [
+          {
+            "id": "a",
+            "duration_s": 0,
+            "slow": false
+          },
+          {
+            "id": "a",
+            "duration_s": 1,
+            "slow": true
+          }
+        ],
+        "anomalies": [],
+        "pending": []
+      }
+    },
+    {
+      "name": "empty",
+      "input": {
+        "slow_after_s": 1,
+        "events": []
+      },
+      "expected": {
+        "completed": [],
+        "anomalies": [],
+        "pending": []
+      }
+    },
+    {
+      "name": "backwards_time",
+      "input": {
+        "slow_after_s": 1,
+        "events": [
+          {
+            "time_s": 2,
+            "kind": "open",
+            "id": "a"
+          },
+          {
+            "time_s": 1,
+            "kind": "close",
+            "id": "a"
+          }
+        ]
+      },
+      "expected": {
+        "error": "time_order"
+      }
+    },
+    {
+      "name": "invalid_kind",
+      "input": {
+        "slow_after_s": 1,
+        "events": [
+          {
+            "time_s": 0,
+            "kind": "delete",
+            "id": "a"
+          }
+        ]
+      },
+      "expected": {
+        "error": "invalid_kind"
+      }
+    },
+    {
+      "name": "invalid_policy",
+      "input": {
+        "slow_after_s": -1,
+        "events": []
+      },
+      "expected": {
+        "error": "invalid_policy"
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}
