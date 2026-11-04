@@ -252,8 +252,7 @@ def test_cybench_catalog_uses_upstream_difficulty_without_rewriting_records(tmp_
     catalog.write_text(json.dumps(old_projection), encoding="utf-8")
 
     listed = {
-        task.upstream_id.rsplit("/", 1)[-1]: task
-        for task in registry.list_public_tasks(tmp_path)
+        task.upstream_id.rsplit("/", 1)[-1]: task for task in registry.list_public_tasks(tmp_path)
     }
     assert {name: task.difficulty for name, task in listed.items()} == labels
     assert {task.id: registry.public_task(tmp_path, task).difficulty for task in tasks} == {
