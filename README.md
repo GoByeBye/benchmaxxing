@@ -34,7 +34,8 @@ the 250 GB cache cap, full-source downloads, runtimes and offline constraints.
 | Context retrieval | 36 | Seeded 32/128/512 KiB contexts, absent needles and distractors; 216 checks |
 
 Browse and search the catalog in the UI, choose a task or filtered batch, and
-repeat each task up to five times. Runs execute sequentially through one controller.
+repeat each task up to five times. One controller executes up to eight attempts
+in parallel, with a saved concurrency limit that defaults to one.
 Coverage shows distinct graded tasks and attempt outcomes within loaded history;
 it is not an overall model-quality score. See [task pack authoring](docs/task-packs.md).
 
@@ -144,7 +145,7 @@ harness**, not an independently supplied agent.
 | `run` | Execute a run specification; attach to the UI service or run headlessly. |
 | `tasks --category engineering` | List task IDs, descriptions and grading rubrics; no Docker needed. |
 | `validate-packs` | Validate installed pack schemas, asset paths and grading definitions. |
-| `suite --category programming --repeat 2` | Queue independent attempts using one shared participant configuration. |
+| `suite --category programming --repeat 2` | Queue independent attempts; repeat `--config` to test several models and set `--parallel 2` to run them concurrently. |
 | `serve` | Start the loopback-only UI and API on port 8123. |
 | `export RUN_ID -o result.zip` | Export a finished run with traces, artifacts and checksums. Existing files are never overwritten. |
 
@@ -165,6 +166,20 @@ before emitting their text and tool events; Chat Completions supports live SSE.
 Encrypted reasoning replay is optional for Responses servers that support
 `reasoning.encrypted_content`; leave its checkbox off for servers that do not.
 
+Set **Max parallel runs** in the composer to test models from different endpoints,
+or several models on the same endpoint, concurrently. The saved limit (1–8)
+applies to the controller's entire queue, including CLI submissions. Reducing it
+lets running attempts finish before starting more. Each attempt has independent
+budgets, cancellation, artifacts and grading; concurrent attempts share host and
+inference-server resources. The live monitor lists every running attempt.
+
+For vLLM, set the optional **vLLM priority** on a saved endpoint or custom model
+profile, or add `vllm_priority = -1` under `[inference]` in a run configuration.
+Lower integers have higher priority; zero is an explicit priority. Leave it blank
+for other servers: the `priority` request field is omitted when unset. Nonzero
+priorities require vLLM to run with `--scheduling-policy priority`. This controls
+inference-server scheduling, independently of the benchmark concurrency limit.
+
 For mixed-category batches, add the current task or the filtered task set to
 **My task selection**, change catalog filters, and add more. The composer shows
 the resulting task × model × repeat count before queueing. Each attempt keeps
@@ -176,6 +191,7 @@ The comparison panel graphs category pass rates for two model profiles over
 matching task versions, hashes, harnesses, graders, generation settings, budgets,
 API styles, images, and network conditions. It shows coverage and excluded attempts; it does
 not combine unlike tasks into an overall score.
+Matching also accounts for request priority and the recorded concurrency limit.
 Time to completion is recorded as `metadata.elapsed_seconds` in each run and
 export. The history and comparison graphs show it separately from correctness.
 Timing medians include only passed attempts with recorded elapsed time; queue
@@ -185,6 +201,8 @@ wait and failed attempts are excluded from those medians.
 benchmaxxing run --task python.shortest-route --config examples/strata-qwen.toml
 benchmaxxing suite --category engineering --config examples/strata-qwen.toml
 benchmaxxing suite --task terminal.log-triage --task security.acl-specificity --repeat 3
+benchmaxxing suite --category programming --config examples/local-model.toml --config examples/api-model.toml --parallel 2
+benchmaxxing run --config examples/local-model.toml --vllm-priority -1
 ```
 
 `suite` with no category/task selection runs the entire installed catalog. With no
@@ -236,12 +254,12 @@ isolation and recovery. The [roadmap](docs/roadmap.md) prioritizes software,
 isolated cybersecurity labs, frontend UI design, offline world-knowledge retention
 and needle-in-haystack retrieval, while retaining numerical engineering.
 
-The 126-task original core catalog, nine original frontend briefs, serial repeated
+The 126-task original core catalog, nine original frontend briefs, parallel repeated
 trials, live activity monitoring and category coverage are implemented. Knowledge
 and retrieval profiles have deterministic exact-answer grading; frontend briefs
 have functional browser checks and separate unscored visual review artifacts.
 The numerical geometry tasks use JSON inputs and outputs. Application security labs remain archived pending a complete
-isolation and runtime review. External agents, broader task packs, parallel workers
+isolation and runtime review. External agents, broader task packs, distributed workers
 and richer comparisons remain future milestones. There is no shared hosting,
 distributed worker farm, managed inference runtime or universal leaderboard.
 

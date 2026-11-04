@@ -242,6 +242,7 @@ class Store:
         score: ScoreCard | None = None,
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
+        execution_limit: int | None = None,
         refusal: str | None = None,
         event_kind: str | None = None,
         event_data: dict[str, Any] | None = None,
@@ -259,7 +260,26 @@ class Store:
             if error is not None:
                 record.error = error
             if metadata is not None:
+                # Execution workers retain metadata snapshots while the controller
+                # may raise the shared limit. Preserve that run's highest limit.
+                previous_execution = record.metadata.get("execution")
                 record.metadata.update(metadata)
+                execution = record.metadata.get("execution")
+                if isinstance(previous_execution, dict) and isinstance(execution, dict):
+                    previous_limit = previous_execution.get("max_parallel_runs")
+                    limit = execution.get("max_parallel_runs")
+                    if type(previous_limit) is int and type(limit) is int:
+                        record.metadata["execution"] = {
+                            **execution,
+                            "max_parallel_runs": max(previous_limit, limit),
+                        }
+            if execution_limit is not None and record.status not in TERMINAL_STATUSES:
+                current_execution = record.metadata.get("execution", {})
+                current_limit = current_execution.get("max_parallel_runs", 1)
+                record.metadata["execution"] = {
+                    **current_execution,
+                    "max_parallel_runs": max(current_limit, execution_limit),
+                }
             if refusal is not None:
                 record.refusal = refusal
             record.updated_at = utc_now()

@@ -10,6 +10,7 @@ export type EndpointInput = {
   api_key_env: string | null;
   api_style: 'chat_completions' | 'responses';
   responses_reasoning: boolean;
+  vllm_priority?: number | null;
   model_ids: string[];
 };
 export type SavedEndpoint = EndpointInput & { id: string };
@@ -17,7 +18,7 @@ export type ModelTarget = { endpoint: SavedEndpoint; model: string };
 
 const empty: EndpointInput = {
   name: '', mode: 'offline', base_url: 'http://127.0.0.1:8080/v1',
-  api_key_env: null, api_style: 'chat_completions', responses_reasoning: false, model_ids: [],
+  api_key_env: null, api_style: 'chat_completions', responses_reasoning: false, vllm_priority: null, model_ids: [],
 };
 
 function message(problem: unknown) {
@@ -55,10 +56,11 @@ export default function EndpointManager({ session, onChange }: {
 
   const persist = useCallback(async (value: SavedEndpoint) => {
     if (!session) return;
-    const updated = await request<SavedEndpoint>(`/endpoints/${encodeURIComponent(value.id)}`, {
+    const { id, ...input } = value;
+    const updated = await request<SavedEndpoint>(`/endpoints/${encodeURIComponent(id)}`, {
       method: 'PUT', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'X-Benchmaxxing-Token': session.token },
-      body: JSON.stringify(value),
+      body: JSON.stringify(input),
     });
     setEndpoints(items => items.map(item => item.id === updated.id ? updated : item));
   }, [session]);
@@ -80,7 +82,8 @@ export default function EndpointManager({ session, onChange }: {
     try {
       const name = draft.name.trim();
       if (!name) throw new Error('Enter an endpoint name.');
-      const value: EndpointInput = { ...draft, name, base_url: draft.base_url.trim(), api_key_env: draft.api_key_env?.trim() || null };
+      if (draft.vllm_priority != null && (!Number.isInteger(draft.vllm_priority) || draft.vllm_priority < -2147483648 || draft.vllm_priority > 2147483647)) throw new Error('vLLM priority must be a whole number between -2,147,483,648 and 2,147,483,647.');
+      const value: EndpointInput = { name, mode: draft.mode, base_url: draft.base_url.trim(), api_key_env: draft.api_key_env?.trim() || null, api_style: draft.api_style, responses_reasoning: draft.responses_reasoning, vllm_priority: draft.vllm_priority ?? null, model_ids: draft.model_ids };
       const endpoint = editingId
         ? await request<SavedEndpoint>(`/endpoints/${encodeURIComponent(editingId)}`, {
           method: 'PUT', credentials: 'same-origin',
@@ -151,6 +154,8 @@ export default function EndpointManager({ session, onChange }: {
       <label htmlFor="saved-endpoint-style">API style</label><select id="saved-endpoint-style" value={draft.api_style} onChange={event => setDraft(current => ({ ...current, api_style: event.target.value as EndpointInput['api_style'] }))}><option value="chat_completions">Chat Completions</option><option value="responses">Responses</option></select>
       {draft.api_style === 'responses' && <label className="endpoint-model endpoint-reasoning"><input type="checkbox" checked={draft.responses_reasoning} onChange={event => setDraft(current => ({ ...current, responses_reasoning: event.target.checked }))} /><span>Request encrypted reasoning replay (supported servers only)</span></label>}
       <label htmlFor="saved-endpoint-key">API key environment variable <span className="optional">optional</span></label><input id="saved-endpoint-key" value={draft.api_key_env ?? ''} onChange={event => setDraft(current => ({ ...current, api_key_env: event.target.value }))} placeholder="BENCHMAXXING_API_KEY" spellCheck={false} />
+      <label htmlFor="saved-endpoint-priority">vLLM priority <span className="optional">optional</span></label><input id="saved-endpoint-priority" type="number" min={-2147483648} max={2147483647} step={1} value={draft.vllm_priority ?? ''} onChange={event => setDraft(current => ({ ...current, vllm_priority: event.target.value === '' ? null : Number(event.target.value) }))} placeholder="Server default" />
+      <p className="field-hint">Applies to this endpoint’s selected models. Lower numbers run first. Leave blank for other providers; nonzero values require vLLM’s priority scheduling policy.</p>
       <div className="endpoint-editor-actions"><button className="button button-primary" type="button" disabled={!session || working} onClick={() => void save()}>{working ? 'Saving…' : editingId ? 'Save changes' : 'Save and discover models'}</button><button className="button button-quiet" type="button" onClick={() => { setFormOpen(false); setEditingId(null); }}>Cancel</button></div>
       <p className="field-hint">Only the environment variable name is saved. The server address must include its API prefix, such as /v1.</p>
     </div>}

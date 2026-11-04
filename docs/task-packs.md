@@ -26,8 +26,11 @@ benchmaxxing suite --category engineering --repeat 2 --config examples/strata-qw
 
 Stop the local service before preparation. Omit `--no-pull` only when explicitly
 preparing an image from a registry. Neither execution nor validation installs
-dependencies. A suite submits individual run records; one worker executes them
-sequentially. Each trial gets its own trace, result, artifacts and export. Ctrl+C
+dependencies. A suite submits individual run records through the shared controller.
+Set `--parallel 2` to execute two attempts concurrently (1–8, default one), and
+repeat `--config` to test several models on each task. The concurrency limit is
+saved for the data directory and applies to CLI and UI submissions. Each trial
+gets its own trace, result, artifacts and export. Ctrl+C
 cancels queued suite attempts and requests cancellation of active work.
 
 The UI searches task titles, IDs, tags and descriptions; filters by category;
@@ -45,7 +48,8 @@ It includes queue positions, phase, model turn, last tool, last activity time,
 cancellation state and completed/total grading checks. It does not replay full
 prompts or traces to calculate the activity panel.
 
-Enable **Follow active run** to move inspection to each new active attempt.
+The activity panel lists all running attempts when parallel execution is enabled.
+Enable **Follow active run** to move inspection to the current active attempt.
 Selecting a run from history or the activity panel pins that inspection; enable
 follow again to resume automatic selection. The activity panel continues updating
 while inspection is pinned and identifies delayed or reconnecting snapshots.

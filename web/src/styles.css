@@ -215,6 +215,7 @@ tbody tr:has(.status-failed) .table-score,
 .follow-control { display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--text-secondary); cursor: pointer; }
 .follow-control input { accent-color: var(--accent); margin: 0; width: 13px; height: 13px; }
 .monitor-current { display: flex; gap: 24px; align-items: center; justify-content: space-between; margin-top: 19px; }
+.monitor-current + .monitor-current { padding-top: 15px; border-top: 1px solid var(--border); }
 .monitor-task { min-width: 0; flex: 1; }
 .monitor-task button { display: flex; gap: 10px; align-items: center; text-align: left; border: 0; padding: 0; background: none; color: var(--text); font-size: 14px; font-weight: 500; line-height: 1.6; }
 .monitor-task button > span { color: var(--accent-light); font-size: 13px; }

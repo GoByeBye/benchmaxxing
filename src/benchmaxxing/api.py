@@ -20,6 +20,7 @@ from benchmaxxing.contracts import (
     TERMINAL_STATUSES,
     ActivitySnapshot,
     DoctorReport,
+    ExecutionSettings,
     RunDetail,
     RunRecord,
     RunSpec,
@@ -122,6 +123,14 @@ def create_app(
     @application.get("/api/v1/session", response_model=SessionInfo)
     def session() -> SessionInfo:
         return SessionInfo(token=owner.token, version=__version__)
+
+    @application.get("/api/v1/execution/settings", response_model=ExecutionSettings)
+    def execution_settings() -> ExecutionSettings:
+        return owner.settings
+
+    @application.put("/api/v1/execution/settings", response_model=ExecutionSettings)
+    def set_execution_settings(value: ExecutionSettings) -> ExecutionSettings:
+        return owner.configure(value)
 
     @application.get("/api/v1/doctor", response_model=DoctorReport)
     def doctor() -> DoctorReport:

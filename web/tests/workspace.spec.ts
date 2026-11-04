@@ -13,14 +13,24 @@ const makeRun = (spec: RunSpec = {}): Run => ({
   metadata: { harness_version: 'benchmaxxing-tools/1' },
 });
 
-async function mockWorkspace(page: Page, options: { ready?: boolean; initial?: Run; reconnect?: boolean; failStart?: boolean; tasks?: Task[] } = {}) {
+async function mockWorkspace(page: Page, options: { ready?: boolean; initial?: Run; reconnect?: boolean; failStart?: boolean; tasks?: Task[]; parallel?: number; failSettings?: boolean } = {}) {
   let run = options.initial;
-  const requests: { started: RunSpec[]; tokens: string[]; after: string[]; cancelled: number } = { started: [], tokens: [], after: [], cancelled: 0 };
+  const requests: { started: RunSpec[]; tokens: string[]; after: string[]; cancelled: number; settings: number[]; order: string[] } = { started: [], tokens: [], after: [], cancelled: 0, settings: [], order: [] };
   await page.route('**/api/v1/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (path.endsWith('/execution/settings')) {
+      if (request.method() === 'PUT') {
+        expect(request.headers()['x-benchmaxxing-token']).toBe('local-test-token');
+        requests.settings.push(request.postDataJSON().max_parallel_runs);
+        requests.order.push('settings');
+        if (options.failSettings) return json({ detail: 'Unable to save execution settings.' }, 409);
+        return json(request.postDataJSON());
+      }
+      return json({ max_parallel_runs: options.parallel ?? 1 });
+    }
     if (path.endsWith('/session')) return json({ token: 'local-test-token', version: '0.1.0' });
     if (path.endsWith('/doctor')) return json({ ready: options.ready ?? true, checks: { docker: { ready: true }, prepared: { ready: options.ready ?? true } } });
     if (path.endsWith('/tasks')) return json(options.tasks ?? [task]);
@@ -28,6 +38,7 @@ async function mockWorkspace(page: Page, options: { ready?: boolean; initial?: R
       if (request.method() === 'POST') {
         if (options.failStart) return json({ detail: 'The task image is not prepared.' }, 409);
         const spec = request.postDataJSON() as RunSpec;
+        requests.order.push('run');
         requests.started.push(spec);
         requests.tokens.push(request.headers()['x-benchmaxxing-token']);
         run = makeRun(spec);
@@ -99,22 +110,24 @@ test('model profiles submit endpoint settings and key variable names', async ({ 
   await page.getByLabel('Max output tokens').fill('0');
   await expect(page.getByRole('button', { name: 'Start benchmark' })).toBeDisabled();
   await page.getByLabel('Max output tokens').fill('8192');
+  await page.getByLabel('vLLM priority').fill('0');
   await page.getByRole('button', { name: 'Start benchmark' }).click();
   await expect.poll(() => requests.started.length).toBe(1);
-  expect(requests.started[0]).toMatchObject({ participant: 'openai', inference: { mode: 'api', base_url: 'https://example.invalid/v1', model: 'test-model', api_key_env: 'TEST_MODEL_KEY' }, generation: { max_tokens: 8192 }, budgets: { max_turns: 10 } });
+  expect(requests.started[0]).toMatchObject({ participant: 'openai', inference: { mode: 'api', base_url: 'https://example.invalid/v1', model: 'test-model', api_key_env: 'TEST_MODEL_KEY', vllm_priority: 0 }, generation: { max_tokens: 8192 }, budgets: { max_turns: 10 } });
   await expect(page.locator('.run-summary p')).toContainText('API inference');
 });
 
 test('recent model runs prefill the next endpoint without fixing a machine-specific default', async ({ page }) => {
   const previous = makeRun({
     participant: 'openai',
-    inference: { mode: 'offline', base_url: 'http://127.0.0.1:8081/v1', model: 'qwen3.8-27b', api_key_env: null },
+    inference: { mode: 'offline', base_url: 'http://127.0.0.1:8081/v1', model: 'qwen3.8-27b', api_key_env: null, vllm_priority: -3 },
   });
   const requests = await mockWorkspace(page, { initial: previous });
   await page.goto('/');
   await expect(page.getByLabel('Participant', { exact: true })).toHaveValue('openai');
   await expect(page.getByLabel('Endpoint URL')).toHaveValue('http://127.0.0.1:8081/v1');
   await expect(page.getByLabel('Model identifier')).toHaveValue('qwen3.8-27b');
+  await expect(page.getByLabel('vLLM priority')).toHaveValue('-3');
   await page.getByRole('button', { name: 'Start benchmark' }).click();
   await expect.poll(() => requests.started.length).toBe(1);
   expect(requests.started[0].inference).toMatchObject({
@@ -143,6 +156,7 @@ test('saves an endpoint, discovers models, and queues only checked models', asyn
       return json({ endpoint_id: 'saved-1', model_ids: ['qwen-a', 'qwen-b'] });
     }
     if (url.pathname.endsWith('/saved-1') && req.method() === 'PUT') {
+      expect(req.postDataJSON()).not.toHaveProperty('id');
       mutations.push(req.headers()['x-benchmaxxing-token']);
       const value = { ...req.postDataJSON(), id: 'saved-1' };
       saved = [value];
@@ -157,6 +171,7 @@ test('saves an endpoint, discovers models, and queues only checked models', asyn
   await page.getByLabel('Endpoint name').fill('Local Qwen');
   await page.getByLabel('Server URL').fill('http://127.0.0.1:8081/v1');
   await page.getByLabel('API style').selectOption('responses');
+  await page.getByLabel('vLLM priority').fill('-5');
   await page.getByRole('button', { name: 'Save and discover models' }).click();
   await expect(page.getByRole('group', { name: 'Local Qwen models' }).getByRole('checkbox')).toHaveCount(2);
   await page.getByRole('group', { name: 'Local Qwen models' }).getByRole('checkbox', { name: 'qwen-b' }).uncheck();
@@ -164,15 +179,15 @@ test('saves an endpoint, discovers models, and queues only checked models', asyn
   await page.getByRole('button', { name: 'Start benchmark' }).click();
   await expect.poll(() => requests.started.length).toBe(1);
   expect(requests.started[0].inference).toMatchObject({
-    base_url: 'http://127.0.0.1:8081/v1', model: 'qwen-a', api_style: 'responses',
+    base_url: 'http://127.0.0.1:8081/v1', model: 'qwen-a', api_style: 'responses', vllm_priority: -5,
   });
   expect(mutations).toEqual(['local-test-token', 'local-test-token', 'local-test-token', 'local-test-token']);
 });
 
-test('selected saved endpoints queue a run for every checked model', async ({ page }) => {
-  const requests = await mockWorkspace(page);
+test('parallel testing combines multiple models from one provider and another provider', async ({ page }) => {
+  const requests = await mockWorkspace(page, { parallel: 2 });
   const endpoints = [
-    { id: 'one', name: 'First server', mode: 'offline', base_url: 'http://127.0.0.1:8081/v1', api_key_env: null, api_style: 'chat_completions', model_ids: ['model-a', 'model-b'] },
+    { id: 'one', name: 'First server', mode: 'offline', base_url: 'http://127.0.0.1:8081/v1', api_key_env: null, api_style: 'chat_completions', vllm_priority: -2, model_ids: ['model-a', 'model-b'] },
     { id: 'two', name: 'Second server', mode: 'api', base_url: 'https://example.invalid/v1', api_key_env: 'TEST_KEY', api_style: 'responses', model_ids: ['model-c'] },
   ];
   await page.route('**/api/v1/endpoints', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(endpoints) }));
@@ -180,11 +195,57 @@ test('selected saved endpoints queue a run for every checked model', async ({ pa
   await page.getByLabel('Participant', { exact: true }).selectOption('openai');
   await expect(page.getByLabel('Model source')).toHaveValue('saved');
   await page.getByRole('checkbox', { name: /Second server/ }).check();
+  await expect(page.getByLabel('Max parallel runs')).toHaveValue('2');
+  await page.getByLabel('Max parallel runs').fill('3');
   await expect(page.getByText('3 attempts · 1 task · 3 models')).toBeVisible();
   await page.getByRole('button', { name: 'Queue 3 runs' }).click();
   await expect.poll(() => requests.started.length).toBe(3);
   expect(requests.started.map(item => item.inference?.model)).toEqual(['model-a', 'model-b', 'model-c']);
+  expect(requests.settings).toEqual([3]);
+  expect(requests.order).toEqual(['settings', 'run', 'run', 'run']);
+  expect(requests.started.map(item => item.inference?.vllm_priority)).toEqual([-2, -2, null]);
   expect(requests.started[2].inference).toMatchObject({ mode: 'api', api_style: 'responses', api_key_env: 'TEST_KEY' });
+});
+
+test('invalid parallel limits and vLLM priorities block queueing', async ({ page }) => {
+  const requests = await mockWorkspace(page);
+  await page.goto('/');
+  await page.getByLabel('Participant', { exact: true }).selectOption('openai');
+  await page.getByLabel('Model identifier').fill('test-model');
+  const start = page.getByRole('button', { name: 'Start benchmark' });
+  await page.getByLabel('Max parallel runs').fill('9');
+  await expect(start).toBeDisabled();
+  await page.getByLabel('Max parallel runs').fill('2');
+  await page.getByLabel('vLLM priority').fill('1.5');
+  await expect(start).toBeDisabled();
+  await page.getByLabel('vLLM priority').fill('2147483648');
+  await expect(start).toBeDisabled();
+  await page.getByLabel('vLLM priority').fill('');
+  await expect(start).toBeEnabled();
+  expect(requests.started).toEqual([]);
+});
+
+test('a settings save failure queues no attempts and leaves the form usable', async ({ page }) => {
+  const requests = await mockWorkspace(page, { failSettings: true });
+  await page.goto('/');
+  await page.getByLabel('Max parallel runs').fill('2');
+  await page.getByRole('button', { name: 'Start benchmark' }).click();
+  await expect(page.getByRole('alert')).toContainText('Unable to save execution settings.');
+  await expect(page.getByRole('button', { name: 'Start benchmark' })).toBeEnabled();
+  expect(requests.started).toEqual([]);
+});
+
+test('execution settings load failures can be retried before queueing', async ({ page }) => {
+  await mockWorkspace(page);
+  let failed = true;
+  await page.route('**/api/v1/execution/settings', route => route.fulfill({ status: failed ? 503 : 200, contentType: 'application/json', body: JSON.stringify(failed ? { detail: 'Settings temporarily unavailable.' } : { max_parallel_runs: 4 }) }));
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Start benchmark' })).toBeDisabled();
+  await expect(page.getByRole('alert')).toContainText('Settings temporarily unavailable.');
+  failed = false;
+  await page.getByRole('button', { name: 'Retry settings' }).click();
+  await expect(page.getByLabel('Max parallel runs')).toHaveValue('4');
+  await expect(page.getByRole('button', { name: 'Start benchmark' })).toBeEnabled();
 });
 
 test('a task selection spans catalog filters and combines with checked models', async ({ page }) => {

@@ -23,7 +23,7 @@ export default function ModelComparison({ runs }: { runs: Run[] }) {
   const labels = new Map(models);
   return <section className="panel model-comparison" id="comparison" aria-labelledby="comparison-heading">
     <div className="panel-heading"><div><span className="eyebrow">MATCHED EXPERIMENTS</span><h2 id="comparison-heading">Compare model results</h2></div></div>
-    <p className="comparison-explanation">Category pass rates use only matching task IDs, versions, hashes, harnesses, graders, generation settings, budgets, API styles, images and network conditions. Scripted references are excluded. Results describe the loaded history, not an overall model ranking.</p>
+    <p className="comparison-explanation">Category pass rates use only matching task IDs, versions, hashes, harnesses, graders, generation settings, budgets, API styles, vLLM priorities, recorded concurrency limits, images and network conditions. Scripted references are excluded. Results describe the loaded history, not an overall model ranking.</p>
     {overview.length > 0 && <div className="comparison-overview" aria-label="Category scores by model">
       <h3>Category scores by model</h3>
       <p>Each bar uses that model's graded attempts in the category. Task coverage is shown beside it; bars with different task sets are descriptive, not a head-to-head result.</p>

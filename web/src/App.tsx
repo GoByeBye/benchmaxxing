@@ -65,6 +65,11 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
   const [keyEnv, setKeyEnv] = useState('');
   const [apiStyle, setApiStyle] = useState<'chat_completions' | 'responses'>('chat_completions');
   const [responsesReasoning, setResponsesReasoning] = useState(false);
+  const [vllmPriority, setVllmPriority] = useState('');
+  const [maxParallel, setMaxParallel] = useState('1');
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsReload, setSettingsReload] = useState(0);
   const [endpointSource, setEndpointSource] = useState<'custom' | 'saved'>('custom');
   const [modelTargets, setModelTargets] = useState<ModelTarget[]>([]);
   const sourceTouched = useRef(false);
@@ -78,6 +83,17 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
   const [progress, setProgress] = useState({ queued: 0, total: 0 });
   const profileTouched = useRef(false);
   useEffect(() => {
+    let cancelled = false;
+    setSettingsReady(false);
+    setSettingsError('');
+    request<{ max_parallel_runs: number }>('/execution/settings').then(settings => {
+      if (cancelled) return;
+      setMaxParallel(String(settings.max_parallel_runs));
+      setSettingsReady(true);
+    }).catch(error => { if (!cancelled) setSettingsError(errorMessage(error)); });
+    return () => { cancelled = true; };
+  }, [settingsReload]);
+  useEffect(() => {
     if (profileTouched.current || !recentInference) return;
     profileTouched.current = true;
     setParticipant('openai');
@@ -87,6 +103,7 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
     setKeyEnv(recentInference.api_key_env ?? '');
     setApiStyle(recentInference.api_style ?? 'chat_completions');
     setResponsesReasoning(recentInference.responses_reasoning ?? false);
+    setVllmPriority(recentInference.vllm_priority == null ? '' : String(recentInference.vllm_priority));
   }, [recentInference]);
   useEffect(() => {
     if (modelTargets.length && !sourceTouched.current) {
@@ -97,7 +114,11 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
   const targets = scope === 'filtered' ? filteredTasks : scope === 'batch' ? batchTasks : task ? [task] : [];
   const modelCount = participant === 'openai' && endpointSource === 'saved' ? modelTargets.length : 1;
   const queueCount = targets.length * repeats * modelCount;
-  const validation = participant === 'openai' && (!maxTokens.trim() || !Number.isInteger(Number(maxTokens)) || Number(maxTokens) < 1 || Number(maxTokens) > 32768)
+  const validation = !Number.isInteger(Number(maxParallel)) || Number(maxParallel) < 1 || Number(maxParallel) > 8
+    ? 'Max parallel runs must be a whole number between 1 and 8.'
+    : participant === 'openai' && endpointSource === 'custom' && vllmPriority.trim() !== '' && (!Number.isInteger(Number(vllmPriority)) || Number(vllmPriority) < -2147483648 || Number(vllmPriority) > 2147483647)
+    ? 'vLLM priority must be a whole number between -2,147,483,648 and 2,147,483,647.'
+    : participant === 'openai' && (!maxTokens.trim() || !Number.isInteger(Number(maxTokens)) || Number(maxTokens) < 1 || Number(maxTokens) > 32768)
     ? 'Max output tokens must be a whole number between 1 and 32,768.'
     : !Number.isInteger(Number(turns)) || Number(turns) < 1 || Number(turns) > 256
       ? 'Max turns must be a whole number between 1 and 256.'
@@ -114,7 +135,7 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
   const hasNative = targets.some(item => item.kind === 'native');
   const unprepared = targets.filter(item => isArchivedTask(item) || (item.kind === 'native' ? item.prepared !== true : !doctor?.ready)).length;
   useEffect(() => { if (hasNative) setParticipant('openai'); }, [hasNative]);
-  const canSubmit = Boolean(session && !unprepared && targets.length && !validation && !submitting && (!hasNative || participant === 'openai'));
+  const canSubmit = Boolean(session && settingsReady && !unprepared && targets.length && !validation && !submitting && (!hasNative || participant === 'openai'));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -124,8 +145,8 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
     const taskIds = Array.from({ length: repeats }, () => targets.map(item => item.id!)).flat();
     const profiles = participant === 'openai'
       ? endpointSource === 'saved'
-        ? modelTargets.map(({ endpoint: saved, model: selectedModel }) => ({ mode: saved.mode, base_url: saved.base_url, model: selectedModel, api_key_env: saved.api_key_env, api_style: saved.api_style, responses_reasoning: saved.responses_reasoning }))
-        : [{ mode, base_url: endpoint.trim(), model: model.trim(), api_key_env: keyEnv.trim() || null, api_style: apiStyle, responses_reasoning: responsesReasoning }]
+        ? modelTargets.map(({ endpoint: saved, model: selectedModel }) => ({ mode: saved.mode, base_url: saved.base_url, model: selectedModel, api_key_env: saved.api_key_env, api_style: saved.api_style, responses_reasoning: saved.responses_reasoning, vllm_priority: saved.vllm_priority ?? null }))
+        : [{ mode, base_url: endpoint.trim(), model: model.trim(), api_key_env: keyEnv.trim() || null, api_style: apiStyle, responses_reasoning: responsesReasoning, vllm_priority: vllmPriority.trim() === '' ? null : Number(vllmPriority) }]
       : [null];
     const attempts = taskIds.flatMap(taskId => profiles.map(inference => ({ task_id: taskId, inference })));
     setProgress({ queued: 0, total: attempts.length });
@@ -138,6 +159,10 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
     };
     let queued = 0;
     try {
+      await request('/execution/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Benchmaxxing-Token': session.token },
+        body: JSON.stringify({ max_parallel_runs: Number(maxParallel) }),
+      });
       for (const attempt of attempts) {
         const run = await mutate<Run>('/runs', session.token, { ...configuration, task_id: attempt.task_id, ...(attempt.inference ? { inference: attempt.inference } : {}) });
         onCreated(run, queued === 0);
@@ -195,6 +220,9 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
         <label htmlFor="key-env">API key environment variable <span className="optional">optional</span></label>
         <input id="key-env" value={keyEnv} onChange={event => { profileTouched.current = true; setKeyEnv(event.target.value); }} placeholder="BENCHMAXXING_API_KEY" autoComplete="off" spellCheck={false} />
         <p className="field-hint">Enter the variable name, not the secret. Model access is separate from the isolated task network.</p>
+        <label htmlFor="vllm-priority">vLLM priority <span className="optional">optional</span></label>
+        <input id="vllm-priority" type="number" min={-2147483648} max={2147483647} step={1} value={vllmPriority} onChange={event => setVllmPriority(event.target.value)} placeholder="Server default" />
+        <p className="field-hint">Lower numbers run first. Leave blank for other providers. Nonzero values require vLLM’s priority scheduling policy.</p>
         </>}
       </>}
       <div className="form-row">
@@ -204,8 +232,12 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
       {participant === 'openai' && <><label htmlFor="max-output-tokens">Max output tokens <span className="optional">per model turn</span></label><input id="max-output-tokens" type="number" required min={1} max={32768} step={1} value={maxTokens} onChange={event => setMaxTokens(event.target.value)} /><p className="field-hint">Caps each model response. This is separate from the task's 30-minute wall budget and max turns.</p></>}
       <label htmlFor="repeats">Attempts per task</label>
       <select id="repeats" value={repeats} onChange={event => setRepeats(Number(event.target.value))}>{[1, 2, 3, 4, 5].map(count => <option key={count} value={count}>{count} {count === 1 ? 'attempt' : 'attempts'}</option>)}</select>
+      <label htmlFor="max-parallel-runs">Max parallel runs</label>
+      <input id="max-parallel-runs" type="number" required min={1} max={8} step={1} value={maxParallel} disabled={!settingsReady} onChange={event => setMaxParallel(event.target.value)} />
+      <p className="field-hint">Applies to the entire queue when you start. Choose 1 for serial testing. Parallel attempts share host resources and inference capacity.</p>
       </fieldset>
-      <div className="queue-summary"><strong>{queueCount} {queueCount === 1 ? 'attempt' : 'attempts'} · {targets.length} {targets.length === 1 ? 'task' : 'tasks'}{participant === 'openai' && endpointSource === 'saved' ? ` · ${modelCount} models` : ''}</strong><span>Runs execute sequentially. Budgets apply to each attempt.</span></div>
+      <div className="queue-summary"><strong>{queueCount} {queueCount === 1 ? 'attempt' : 'attempts'} · {targets.length} {targets.length === 1 ? 'task' : 'tasks'}{participant === 'openai' && endpointSource === 'saved' ? ` · ${modelCount} models` : ''}</strong><span>Up to {maxParallel} {Number(maxParallel) === 1 ? 'run' : 'runs'} at once. Budgets apply to each attempt.</span></div>
+      {settingsError && <p className="field-hint" role="alert">Execution settings: {settingsError} <button className="button button-quiet" type="button" onClick={() => setSettingsReload(value => value + 1)}>Retry settings</button></p>}
       {validation && <p className="field-hint validation-hint" role="status">{validation}</p>}
       <button className="button button-primary start-button" type="submit" disabled={!canSubmit}>
         <Icon name="play" size={16} />{submitting ? `Queueing ${progress.queued} / ${progress.total}…` : queueCount > 1 ? `Queue ${queueCount} runs` : 'Start benchmark'}<span className="button-tail"><Icon name="arrow" size={17} /></span>

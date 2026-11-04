@@ -31,6 +31,7 @@ async function mockCatalog(page: Page, options: { initial?: Run[]; failAt?: numb
     const url = new URL(request.url());
     const path = url.pathname;
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (path.endsWith('/execution/settings')) return json({ max_parallel_runs: 1 });
     if (path.endsWith('/session')) return json({ token: 'catalog-token', version: '0.1.0' });
     if (path.endsWith('/doctor')) return json({ ready: true, checks: {} });
     if (path.endsWith('/tasks')) return json(tasks);

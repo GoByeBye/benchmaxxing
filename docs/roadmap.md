@@ -14,7 +14,7 @@ knowledge tasks with 64 checks and 36 context-retrieval tasks with 216 checks.
 Nine original frontend-design briefs are two separate provider suites; they enter
 the local task catalog after explicit bundled-source fetches and become runnable
 after Chromium preparation.
-Catalog search, serial repeated attempts,
+Catalog search, bounded parallel model attempts,
 coverage, live activity and resumable inspection are implemented. Provider
 integrations have separate published, imported and prepared counts; a catalog
 entry or source download does not establish a working native runtime. See
@@ -29,7 +29,7 @@ and [validation](validation.md) for evidence and limitations.
 | World-knowledge retention | Eight original closed-book tasks contain 64 exact-answer checks with dated source references. Broaden topic and language coverage through newly versioned, reviewed questions. |
 | Needle-in-haystack retrieval | Thirty-six deterministic profiles contain 216 checks across 32/128/512 KiB contexts and five profile families. Add separately graded evidence-location targets and token-aware coverage without relabeling bytes as tokens. |
 | Numerical engineering | Retain existing math tasks and expand unit-aware physical/numerical models with explicit tolerances, conservation checks and good/bad fixtures. |
-| Platform maturity | Add bounded parallel workers, external-agent adapters, comparison dashboards, versioned regrading and transferable pack/result bundles as working integrations. Preserve Windows/Linux support; macOS remains unverified future work. |
+| Platform maturity | Bounded parallel workers and model comparisons are implemented. Add external-agent adapters, versioned regrading and transferable pack/result bundles as working integrations. Preserve Windows/Linux support; macOS remains unverified future work. |
 
 The knowledge and retrieval packs use the shared CLI/HTTP run core and require
 explicit local preparation. The frontend briefs require an additional prepared

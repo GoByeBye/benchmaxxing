@@ -49,6 +49,7 @@ async function fixture(page: Page, options: { burst?: boolean; burstCount?: numb
       if (measure) inflight--;
       return failActivity ? json({ detail: 'Connection interrupted' }, 503) : json(report);
     }
+    if (path.endsWith('/execution/settings')) return json({ max_parallel_runs: 1 });
     if (path.endsWith('/session')) return json({ token: 'monitor-token', version: '0.1.0' });
     if (path.endsWith('/doctor')) { calls.doctor++; return json({ ready: true, checks: {} }); }
     if (path.endsWith('/tasks')) return json([{ id: 'python.alpha', title: 'alpha task', category: 'programming', description: 'Solve alpha.', version: '1.0.0', task_hash: 'alpha', image: 'prepared' }]);
@@ -129,6 +130,20 @@ test('follow active advances with the queue and manual history selection stays p
   await expect(page.locator('.monitor-note')).toContainText('Inspection pinned');
   await page.getByLabel('Follow active run').check();
   await expect(page.locator('.run-summary-title > .mono')).toHaveText('run-gamma');
+});
+
+test('parallel attempts each expose their phase and inspect their own evidence', async ({ page }) => {
+  const state = await fixture(page);
+  state.setReport({ schema_version: 1, server_time: now, runs: [activityRun('alpha'), { ...activityRun('beta'), model: 'second-model', phase: 'grade', checks_done: 2, checks_total: 5 }] });
+  await page.goto('/');
+  const monitor = page.locator('.live-monitor');
+  await expect(monitor).toContainText('2 running');
+  await expect(monitor.locator('.monitor-current')).toHaveCount(2);
+  await expect(monitor.locator('.monitor-current').nth(1)).toContainText('second-model');
+  await expect(monitor.locator('.monitor-current').nth(1)).toContainText('2 / 5 checks');
+  await page.getByRole('button', { name: 'Inspect active run run-beta', exact: true }).click();
+  await expect(page.locator('.run-summary-title > .mono')).toHaveText('run-beta');
+  await expect(page.getByLabel('Follow active run')).not.toBeChecked();
 });
 
 test('burst traces stay bounded, resume by sequence, preserve reading position and expanded evidence', async ({ page }) => {

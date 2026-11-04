@@ -17,6 +17,7 @@ async function install(page: Page, options: { tasks?: Task[]; runs?: Run[]; fini
   await page.route('**/api/v1/**', async route => {
     const request = route.request(); const path = new URL(request.url()).pathname;
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (path.endsWith('/execution/settings')) return json({ max_parallel_runs: 1 });
     if (path.endsWith('/session')) return json({ token: 'provider-token', version: '0.1' });
     if (path.endsWith('/doctor')) return json({ ready: true, checks: {} });
     if (path.endsWith('/run-progress')) return json({ schema_version: 1, server_time: now, runs: [] });

@@ -5,6 +5,9 @@ participant = "openai"
 mode = "offline"
 base_url = "http://127.0.0.1:8080/v1"
 model = "replace-with-your-local-model-id"
+# Optional vLLM extension; lower values run first. Nonzero values require
+# vLLM --scheduling-policy priority. Leave unset for other servers.
+# vllm_priority = -1
 
 [generation]
 temperature = 0

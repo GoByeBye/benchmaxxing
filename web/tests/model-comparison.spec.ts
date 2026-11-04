@@ -27,6 +27,8 @@ test('hash, harness, budget, network, generation, API style and grader differenc
     (b: Run) => { b.spec.generation = { temperature: 0.8 }; },
     (b: Run) => { b.spec.inference!.api_style = 'responses'; },
     (b: Run) => { b.spec.inference!.responses_reasoning = true; },
+    (b: Run) => { b.spec.inference!.vllm_priority = -1; },
+    (b: Run) => { b.metadata!.execution = { max_parallel_runs: 2 }; },
     (b: Run) => { b.score!.grader_version = 'grader/2'; },
   ];
   for (const change of variants) {
@@ -34,6 +36,13 @@ test('hash, harness, budget, network, generation, API style and grader differenc
     const result = compareModels([a, b], modelKey(a)!, modelKey(b)!);
     expect(result.rows.every(row => row.shared === 0)).toBe(true);
   }
+});
+
+test('historical serial results match explicit serial execution and unset priority', () => {
+  const a = run('1', 'A'), b = run('2', 'B');
+  b.metadata!.execution = { max_parallel_runs: 1 };
+  b.spec.inference!.vllm_priority = null;
+  expect(compareModels([a, b], modelKey(a)!, modelKey(b)!).rows[0].shared).toBe(1);
 });
 
 test('keeps ungraded, cancelled, active and missing provenance outside pass rates', () => {

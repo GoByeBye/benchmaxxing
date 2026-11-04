@@ -1,4 +1,4 @@
-"""One controller and one execution worker per data directory."""
+"""One controller and a bounded execution pool per data directory."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import json
 import os
 import secrets
 import threading
+from collections import deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -14,7 +15,7 @@ from typing import Any
 from filelock import FileLock, Timeout
 
 from benchmaxxing import __version__
-from benchmaxxing.contracts import TERMINAL_STATUSES, RunRecord, RunSpec
+from benchmaxxing.contracts import TERMINAL_STATUSES, ExecutionSettings, RunRecord, RunSpec
 from benchmaxxing.storage import Store
 
 Execute = Callable[[Store, str, threading.Event | None], RunRecord]
@@ -54,8 +55,11 @@ class Controller:
         self.descriptor = self.store.data_dir / "controller.json"
         self.executor: ThreadPoolExecutor | None = None
         self.cancellations: dict[str, threading.Event] = {}
-        self.active_id: str | None = None
+        self.active_ids: set[str] = set()
+        self.pending: deque[str] = deque()
         self.guard = threading.Lock()
+        self.settings_path = self.store.data_dir / "execution-settings.json"
+        self._settings = ExecutionSettings()
         self.execute = execute
         self.cleanup = cleanup
         self.started = False
@@ -70,6 +74,10 @@ class Controller:
         except Timeout as exc:
             raise ControllerBusy("A controller already owns this data directory") from exc
         try:
+            if self.settings_path.exists():
+                self._settings = ExecutionSettings.model_validate_json(
+                    self.settings_path.read_text(encoding="utf-8")
+                )
             self.store.mark_interrupted()
             try:
                 self.cleanup(self.store.data_dir)
@@ -90,11 +98,47 @@ class Controller:
             if os.name != "nt":
                 temporary.chmod(0o600)
             temporary.replace(self.descriptor)
-            self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="benchmark")
+            self.executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="benchmark")
+            self.stopping = False
             self.started = True
         except BaseException:
             self.lock.release()
             raise
+
+    @property
+    def settings(self) -> ExecutionSettings:
+        with self.guard:
+            return self._settings.model_copy()
+
+    def configure(self, settings: ExecutionSettings) -> ExecutionSettings:
+        """Persist a new limit; running attempts finish when the limit is reduced."""
+        value = ExecutionSettings.model_validate(settings.model_dump())
+        with self.guard:
+            if not self.started or self.stopping:
+                raise RuntimeError("Controller is not accepting configuration changes")
+            temporary = self.settings_path.with_suffix(".tmp")
+            temporary.write_text(value.model_dump_json(), encoding="utf-8")
+            temporary.replace(self.settings_path)
+            self._settings = value
+            for run_id in self.active_ids:
+                self.store.update_run(run_id, execution_limit=value.max_parallel_runs)
+            self._dispatch()
+            return value.model_copy()
+
+    def _dispatch(self) -> None:
+        """Admit FIFO attempts while holding guard, never blocking a pool worker."""
+        if self.stopping or self.executor is None:
+            return
+        while self.pending and len(self.active_ids) < self._settings.max_parallel_runs:
+            run_id = self.pending.popleft()
+            cancel = self.cancellations[run_id]
+            record = self.store.get_run(run_id)
+            if record.status in TERMINAL_STATUSES:
+                self.cancellations.pop(run_id, None)
+                continue
+            self.store.update_run(run_id, execution_limit=self._settings.max_parallel_runs)
+            self.active_ids.add(run_id)
+            self.executor.submit(self._run, run_id, cancel)
 
     def submit(self, spec: RunSpec) -> RunRecord:
         from benchmaxxing.task import get_task
@@ -118,7 +162,8 @@ class Controller:
             record = self.store.create_run(spec)
             cancel = threading.Event()
             self.cancellations[record.id] = cancel
-            self.executor.submit(self._run, record.id, cancel)
+            self.pending.append(record.id)
+            self._dispatch()
             return record
 
     def _run(self, run_id: str, cancel: threading.Event) -> None:
@@ -133,22 +178,22 @@ class Controller:
                             event_data={"phase": "queue"},
                         )
                     return
-                self.active_id = run_id
             self.execute(self.store, run_id, cancel)
         except Exception:
             # Preserve a reliable terminal record even if an adapter unexpectedly fails.
-            self.store.update_run(
-                run_id,
-                status="infrastructure_error",
-                error="Execution worker failed",
-                event_kind="infrastructure_error",
-                event_data={"reason": "worker_failure"},
-            )
+            if self.store.get_run(run_id).status not in TERMINAL_STATUSES:
+                self.store.update_run(
+                    run_id,
+                    status="infrastructure_error",
+                    error="Execution worker failed",
+                    event_kind="infrastructure_error",
+                    event_data={"reason": "worker_failure"},
+                )
         finally:
             with self.guard:
-                if self.active_id == run_id:
-                    self.active_id = None
+                self.active_ids.discard(run_id)
                 self.cancellations.pop(run_id, None)
+                self._dispatch()
 
     def cancel(self, run_id: str) -> RunRecord:
         with self.guard:
@@ -158,7 +203,10 @@ class Controller:
             event = self.cancellations.get(run_id)
             if event is not None:
                 event.set()
-            if self.active_id != run_id and record.status == "queued":
+            if run_id not in self.active_ids and record.status == "queued":
+                if run_id in self.pending:
+                    self.pending.remove(run_id)
+                    self.cancellations.pop(run_id, None)
                 return self.store.update_run(
                     run_id,
                     status="cancelled",
@@ -175,6 +223,16 @@ class Controller:
             self.stopping = True
             for cancel in self.cancellations.values():
                 cancel.set()
+            while self.pending:
+                run_id = self.pending.popleft()
+                self.cancellations.pop(run_id, None)
+                if self.store.get_run(run_id).status not in TERMINAL_STATUSES:
+                    self.store.update_run(
+                        run_id,
+                        status="cancelled",
+                        event_kind="cancelled",
+                        event_data={"phase": "queue"},
+                    )
         if self.executor is not None:
             self.executor.shutdown(wait=True)
         try:

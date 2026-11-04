@@ -45,6 +45,60 @@
         }
       }
     },
+    "/api/v1/execution/settings": {
+      "get": {
+        "summary": "Execution Settings",
+        "operationId": "execution_settings_api_v1_execution_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionSettings"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Set Execution Settings",
+        "operationId": "set_execution_settings_api_v1_execution_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/doctor": {
       "get": {
         "summary": "Doctor",
@@ -1186,6 +1240,19 @@
             "title": "Responses Reasoning",
             "default": false
           },
+          "vllm_priority": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2147483647.0,
+                "minimum": -2147483648.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vllm Priority"
+          },
           "model_ids": {
             "items": {
               "type": "string"
@@ -1256,6 +1323,19 @@
             "title": "Responses Reasoning",
             "default": false
           },
+          "vllm_priority": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2147483647.0,
+                "minimum": -2147483648.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vllm Priority"
+          },
           "model_ids": {
             "items": {
               "type": "string"
@@ -1271,6 +1351,20 @@
           "name"
         ],
         "title": "EndpointInput"
+      },
+      "ExecutionSettings": {
+        "properties": {
+          "max_parallel_runs": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Max Parallel Runs",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ExecutionSettings"
       },
       "FetchRequest": {
         "properties": {
@@ -1448,6 +1542,20 @@
             "type": "boolean",
             "title": "Responses Reasoning",
             "default": false
+          },
+          "vllm_priority": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2147483647.0,
+                "minimum": -2147483648.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vllm Priority",
+            "description": "Optional vLLM request priority; lower values are scheduled first."
           }
         },
         "additionalProperties": false,
