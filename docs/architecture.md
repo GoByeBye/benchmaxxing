@@ -11,8 +11,10 @@ and built web assets. React/TypeScript is a frontend, not a second scheduler.
 RunSpec, TaskSpec, RunEvent, ScoreCard and artifact records are typed, versioned
 Pydantic contracts. Model configuration is validated before persistence. The
 foundation implements the scripted fixture and an OpenAI-compatible model using
-the versioned built-in harness. `benchmaxxing-tools/2` adds task-aware instructions
-and designated Python/JSON submissions; old `/1` results retain their identity.
+the versioned built-in harness. `benchmaxxing-tools/2` added task-aware instructions
+and designated Python/JSON submissions. `/3` requests streamed inference and uses
+unbuffered Python command output for the live session. Older results retain their
+original identities; new defaults do not rewrite existing attempts.
 External-agent contracts will be introduced
 with an executable integration in milestone 3, rather than shipped as unused stubs.
 
@@ -28,13 +30,17 @@ Exports are allowed only after a run finishes and include a checksum manifest,
 run.json, events.jsonl, artifact metadata, and immutable artifact bytes.
 
 Each event transaction also updates a compact `run_progress` projection. The
-`/api/v1/activity` endpoint reads only queued/running records and this projection,
+`/api/v1/run-progress` endpoint reads only queued/running records and this projection,
 without loading model conversations. Actual start time excludes time spent queued;
 model turns and completed grading checks come from execution events. The UI polls
 this snapshot about once per second while resuming the selected trace by sequence.
 SSE reads bounded batches off the asynchronous server loop and drains all committed
 events before sending completion. The projection is additive to existing databases;
 run records and event traces remain the authoritative evidence.
+
+The legacy `/api/v1/activity` route remains as a deprecated alias. The new path
+avoids common analytics-route filtering in external browsers. The UI reports
+request failures explicitly instead of silently showing an empty stale panel.
 
 On startup, unfinished runs become interrupted. Cleanup only targets containers
 with both Benchmaxxing's managed label and the exact workspace identity. Failed
@@ -76,6 +82,15 @@ credentials/query/fragment are rejected, and requests disable ambient proxies an
 redirects. API profiles explicitly permit remote HTTP(S) endpoints. Credentials
 are loaded from named environment variables, never placed in task environments.
 Responses and recorded errors are bounded and redacted for the configured key.
+
+Streaming SSE is consumed incrementally with bounded wire/assembled data and a
+total deadline. Tool fragments are display-only until the complete response is
+validated. Deltas are persisted immediately, with UI renders batched separately;
+stdout/stderr are decoded incrementally and use independent streaming redactors.
+An endpoint that returns JSON to a streaming request is labeled as buffered,
+without making a second generation request. Partial evidence survives cancellation
+or malformed streams. Provider-returned reasoning may be displayed; it is never
+invented or inferred by the harness.
 
 A loopback server can itself call the internet. A genuinely offline deployment
 also configures its inference runtime accordingly and validates it disconnected.

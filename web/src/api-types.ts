@@ -79,8 +79,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Activity */
+        /**
+         * Activity
+         * @deprecated
+         */
         get: operations["activity_api_v1_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/run-progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity */
+        get: operations["activity_api_v1_run_progress_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -233,7 +253,7 @@ export interface components {
             max_turns?: number;
             /**
              * Wall Seconds
-             * @default 120
+             * @default 1800
              */
             wall_seconds?: number;
             /**
@@ -667,6 +687,26 @@ export interface operations {
         };
     };
     activity_api_v1_activity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivitySnapshot"];
+                };
+            };
+        };
+    };
+    activity_api_v1_run_progress_get: {
         parameters: {
             query?: never;
             header?: never;

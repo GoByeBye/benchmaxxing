@@ -14,4 +14,4 @@ max_tokens = 4096
 
 [budgets]
 max_turns = 24
-wall_seconds = 600
+wall_seconds = 1800

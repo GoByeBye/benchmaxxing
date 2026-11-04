@@ -63,7 +63,7 @@ test('starts a run, inspects grading and safely renders artifact evidence', asyn
   await page.getByRole('button', { name: 'Start benchmark' }).click();
   await expect(page.getByRole('heading', { name: 'Evidence, in context' })).toBeVisible();
   await expect.poll(() => requests.started.length).toBe(1);
-  expect(requests.started[0]).toMatchObject({ participant: 'scripted', scripted_variant: 'good', budgets: { max_turns: 24, wall_seconds: 120 } });
+  expect(requests.started[0]).toMatchObject({ participant: 'scripted', scripted_variant: 'good', budgets: { max_turns: 24, wall_seconds: 1800 } });
   expect(requests.tokens).toEqual(['local-test-token']);
   await expect(page.getByText('run / completed', { exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Grading' }).click();

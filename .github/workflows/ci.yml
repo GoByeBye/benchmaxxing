@@ -43,9 +43,11 @@ jobs:
       - run: git diff --exit-code -- web/openapi.json web/src/api-types.ts
       - run: npm run build
         working-directory: web
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox
         working-directory: web
       - run: npm test
+        working-directory: web
+      - run: npm run test:firefox
         working-directory: web
       - run: uv run --locked benchmaxxing prepare
       - run: uv run --locked pytest tests/integration -q

@@ -3,7 +3,7 @@
 The installed catalog contains 81 tasks and 666 grading checks: 27 programming,
 20 numerical engineering, 14 defensive security, 12 terminal and 8 synthetic policy
 decision tasks. The original interval-merging task retains its existing identity
-and public-asset hash. The harness identity is `benchmaxxing-tools/2`.
+and public-asset hash. The current harness identity is `benchmaxxing-tools/3`.
 
 | Category | Tasks | Example task IDs |
 | --- | ---: | --- |
@@ -38,7 +38,7 @@ It is not a comparable aggregate across different participants or settings.
 
 ## Live monitoring
 
-The UI requests `GET /api/v1/activity` on an approximately one-second cadence.
+The UI requests `GET /api/v1/run-progress` on an approximately one-second cadence.
 This compact snapshot describes queued and running attempts using a durable
 SQLite progress projection updated in the same transaction as each source event.
 It includes queue positions, phase, model turn, last tool, last activity time,
@@ -51,6 +51,19 @@ follow again to resume automatic selection. The activity panel continues updatin
 while inspection is pinned and identifies delayed or reconnecting snapshots.
 Elapsed time and model turns show budget consumption, not a completion percentage
 or an ETA. Grading progress counts checks actually reported by the grader.
+
+The session conversation appears above the catalog. It shows incremental model
+text and provider-returned reasoning, file reads/writes, pending tool arguments and
+live stdout/stderr. Completed response/tool records replace provisional content
+without duplication. The session keeps a separate bounded collection of recent
+turns, so raw-trace window eviction does not erase an ongoing response. Long fields
+are shortened visibly; full evidence remains in the trace/export. Pause or scroll
+up to freeze the reading view, then choose **Jump to live session** to resume.
+
+New task runs default to 1800 seconds. Changing defaults never edits a recorded
+attempt's configuration; reruns use new IDs. Response-token, turn and command
+limits still apply separately. The deprecated `/api/v1/activity` alias remains
+available for older clients; the task-specific path avoids generic tracking filters.
 
 The selected run's trace uses server-sent events at
 `/api/v1/runs/{run_id}/events?after={sequence}`. The UI batches incoming events

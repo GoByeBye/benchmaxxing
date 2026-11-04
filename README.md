@@ -24,12 +24,16 @@ repeat each task up to five times. Runs execute sequentially through one control
 Coverage shows distinct graded tasks and attempt outcomes within loaded history;
 it is not an overall model-quality score. See [task pack authoring](docs/task-packs.md).
 
-Live activity shows the current task, queue, execution phase, model turns, elapsed
-time and completed grading checks. Follow the active run automatically, or select
-a run to pin its inspection while the queue continues. Time and turn limits are
-budgets, not estimates of percent complete. The selected trace streams sequenced
-events, resumes after reconnecting and preserves your position while reading older
-events. See [live monitoring](docs/task-packs.md#live-monitoring) for API details.
+The live session shows returned model text, file edits, tool arguments and command
+output as they arrive, directly below run progress. Follow the active run or pin
+another inspection; pause the feed to read without losing your place. Raw sequenced
+events and complete exports remain available. Progress polling uses the task-specific
+`/api/v1/run-progress` route to avoid generic activity-tracker filters.
+
+New runs default to a 30-minute wall-clock budget per task, including the bundled
+Qwen profile. Model-turn, response-token and command limits remain separate.
+Time and turn consumption do not imply percent complete or an ETA. See
+[live monitoring](docs/task-packs.md#live-monitoring) for details.
 
 ## Requirements
 

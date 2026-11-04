@@ -87,6 +87,55 @@ def test_bounded_process_timeout():
         _bounded_process([sys.executable, "-c", "import time; time.sleep(10)"], timeout=0.1)
 
 
+def test_output_callback_precedes_completion_and_preserves_split_utf8():
+    observed = []
+    first = threading.Event()
+    complete = threading.Event()
+    results = []
+
+    def receive(stream, text):
+        observed.append((stream, text))
+        first.set()
+
+    def run():
+        results.append(
+            _bounded_process(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys,time; sys.stdout.buffer.write(b'one\\n\\xe2'); sys.stdout.flush(); "
+                    "time.sleep(1); sys.stdout.buffer.write(b'\\x82\\xac'); sys.stdout.flush(); "
+                    "sys.stderr.write('err'); sys.stderr.flush()",
+                ],
+                timeout=5,
+                on_output=receive,
+            )
+        )
+        complete.set()
+
+    worker = threading.Thread(target=run)
+    worker.start()
+    assert first.wait(timeout=3)
+    assert not complete.is_set()
+    worker.join(timeout=5)
+    assert complete.is_set()
+    assert "".join(text for stream, text in observed if stream == "stdout") == "one\n€"
+    assert "".join(text for stream, text in observed if stream == "stderr") == "err"
+    assert results[0]["stdout"] == "one\n€"
+
+
+def test_streamed_output_is_bounded_even_on_overflow():
+    received = []
+    with pytest.raises(OutputLimitExceeded):
+        _bounded_process(
+            [sys.executable, "-c", "import sys; sys.stdout.write('x'*1000000)"],
+            timeout=5,
+            output_limit=1024,
+            on_output=lambda _, text: received.append(text),
+        )
+    assert len("".join(received).encode()) <= 1024
+
+
 def test_cancelled_process_never_starts():
     cancellation = threading.Event()
     cancellation.set()

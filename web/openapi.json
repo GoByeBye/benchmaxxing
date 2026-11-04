@@ -100,6 +100,25 @@
               }
             }
           }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v1/run-progress": {
+      "get": {
+        "summary": "Activity",
+        "operationId": "activity_api_v1_run_progress_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivitySnapshot"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -478,7 +497,7 @@
             "maximum": 86400.0,
             "minimum": 1.0,
             "title": "Wall Seconds",
-            "default": 120
+            "default": 1800
           },
           "command_seconds": {
             "type": "number",

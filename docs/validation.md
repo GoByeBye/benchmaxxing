@@ -176,3 +176,36 @@ host remained connected and other validation work ran concurrently, so these
 timings are compatibility evidence, not isolated performance measurements or an
 overall model ranking. Provider-refusal values remained null; the synthetic
 log-instruction decision matched its explicit compliance rubric.
+
+## Streaming session and 30-minute defaults
+
+Harness `benchmaxxing-tools/3` requests incremental model responses, records
+display-only tool argument fragments, and streams unbuffered terminal output.
+Validated on 2026-11-04:
+
+- 150 core tests passed on Windows and Linux. Adapter tests cover real HTTP
+  incremental delivery before completion, fragmented UTF-8/SSE and tool calls,
+  split-credential redaction, cancellation, deadlines, malformed/truncated streams,
+  wire/output bounds and same-request buffered JSON compatibility.
+- Eleven selected Docker integration checks passed on Windows and Linux, including
+  output before command completion, isolation, cleanup, cancellation and Python/JSON
+  grading lifecycles. The 80 pack fixtures are unchanged from the full earlier run.
+- All 24 UI tests passed in Chromium and Firefox. Session tests cover early text,
+  provisional tool arguments, live command output, deduplicated reconnects,
+  independent aggregation beyond the raw event window, and stable paused reading.
+  A final targeted check verified canonical terminal-event rendering.
+- Fresh Firefox worked with the old endpoint. With `/api/v1/activity` deliberately
+  blocked, desktop and mobile each completed 45 successful real `/run-progress`
+  polls and ten history reads, stayed Live and rendered recorded Qwen session
+  content without JavaScript errors. This tests the reported blocker failure mode
+  without altering browser security settings or claiming access to its private rules.
+- Actual Qwen run `f6f0e51da03a49239fe140a24ee64ed0` passed all eight reference
+  checks in 46.9 seconds with an 1800-second wall budget. It reported SSE response
+  mode under harness `/3`; incremental events and full canonical responses remain
+  in the stored trace. This is compatibility evidence, not a timing comparison.
+
+The first 10-minute full-catalog launch was stopped after the operator requested
+30-minute budgets and the live session changes. Its completed/cancelled attempts
+are preserved. A new full-catalog launch uses independent IDs and the updated
+1800-second configuration. Response-token, turn and per-command limits remain
+separate; no completed attempt's original specification is rewritten.

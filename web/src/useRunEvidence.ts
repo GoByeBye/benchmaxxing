@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isActive, request } from './api';
 import type { Run, RunDetail, RunEvent } from './api';
+import { appendSessionEvents, emptySession } from './sessionState';
 
 export type StreamState = 'connecting' | 'live' | 'complete' | 'reconnecting';
 const EVENT_WINDOW = 300;
@@ -10,11 +11,12 @@ export function useRunEvidence(selected: string | null, onRun: (run: Run) => voi
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [eventCount, setEventCount] = useState(0);
   const [streamState, setStreamState] = useState<StreamState>('connecting');
+  const [session, setSession] = useState(emptySession);
   const reloadRef = useRef<() => void>(() => {});
   const reload = useCallback(() => reloadRef.current(), []);
 
   useEffect(() => {
-    setDetail(null); setEvents([]); setEventCount(0); setStreamState('connecting');
+    setDetail(null); setEvents([]); setEventCount(0); setSession(emptySession()); setStreamState('connecting');
     if (!selected) return;
     let disposed = false;
     let status = 'queued';
@@ -35,6 +37,7 @@ export function useRunEvidence(selected: string | null, onRun: (run: Run) => voi
       const batch = buffered; buffered = [];
       setEvents(current => [...current, ...batch].slice(-EVENT_WINDOW));
       setEventCount(current => current + batch.length);
+      setSession(current => appendSessionEvents(current, batch));
     }
     async function refreshRun() {
       if (disposed) return;
@@ -90,5 +93,5 @@ export function useRunEvidence(selected: string | null, onRun: (run: Run) => voi
   }, [selected, onRun, onError]);
 
   // Selection changes render before effect cleanup; never briefly show the previous run under a new selection.
-  return { detail: detail?.run.id === selected ? detail : null, events, eventCount, streamState, reload };
+  return { detail: detail?.run.id === selected ? detail : null, events, eventCount, streamState, session, reload };
 }

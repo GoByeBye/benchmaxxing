@@ -120,7 +120,8 @@ def create_app(
 
         return list_tasks()
 
-    @application.get("/api/v1/activity", response_model=ActivitySnapshot)
+    @application.get("/api/v1/run-progress", response_model=ActivitySnapshot)
+    @application.get("/api/v1/activity", response_model=ActivitySnapshot, deprecated=True)
     def activity() -> ActivitySnapshot:
         return owner.store.activity()
 

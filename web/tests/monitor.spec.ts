@@ -37,7 +37,7 @@ async function fixture(page: Page, options: { burst?: boolean; burstCount?: numb
     const url = new URL(route.request().url());
     const path = url.pathname;
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-    if (path.endsWith('/activity')) {
+    if (path.endsWith('/run-progress')) {
       activityRequests++;
       // Development StrictMode aborts its first mount; measure overlap after that initialization.
       const measure = activityRequests > 2;
@@ -209,7 +209,7 @@ test('a finished run resumes an interrupted trace until the server confirms the 
   await expect(page.locator('.run-summary .status')).toHaveText('passed');
   await expect.poll(() => state.calls.after.includes('1')).toBe(true);
   await expect(page.locator('.event')).toHaveCount(2);
-  await expect(page.locator('.stream-state')).toHaveText('Recorded');
+  await expect(page.locator('.inspector .stream-state')).toHaveText('Recorded');
   await expect(page.locator('.event-seq')).toHaveText(['#1', '#2']);
 });
 

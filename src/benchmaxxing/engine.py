@@ -6,6 +6,7 @@ import json
 import platform
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 from benchmaxxing import HARNESS_VERSION, __version__
@@ -27,6 +28,7 @@ from benchmaxxing.model import (
     ModelOutputLimitExceeded,
     ModelResponse,
     OpenAIAdapter,
+    TextRedactor,
     ToolCall,
     UnsupportedModel,
 )
@@ -161,7 +163,12 @@ def _arguments(call: ToolCall) -> dict[str, str]:
     return args
 
 
-def _run_tool(environment: DockerEnvironment, call: ToolCall) -> dict[str, Any]:
+def _run_tool(
+    environment: DockerEnvironment,
+    call: ToolCall,
+    *,
+    on_output: Callable[[str, str], None] | None = None,
+) -> dict[str, Any]:
     args = _arguments(call)
     if call.name == "read_file":
         return {"content": environment.read_file(args["path"])}
@@ -169,7 +176,7 @@ def _run_tool(environment: DockerEnvironment, call: ToolCall) -> dict[str, Any]:
         environment.write_file(args["path"], args["content"])
         return {"written": args["path"]}
     if call.name == "execute":
-        return environment.execute(args["command"])
+        return environment.execute(args["command"], on_output=on_output)
     return {"submitted": True}
 
 
@@ -193,6 +200,7 @@ def execute_run(
     turns = 0
     usage_samples: list[dict[str, int | None] | None] = []
     returned_models: set[str] = set()
+    response_modes: set[str] = set()
     submitted = False
 
     def checkpoint() -> None:
@@ -203,6 +211,11 @@ def execute_run(
 
     def event(kind: str, data: dict[str, Any]) -> None:
         store.append_event(run_id, kind, model.redact(data) if model else data)
+
+    def model_delta(data: dict[str, Any]) -> None:
+        if data.get("type") == "mode" and isinstance(data.get("mode"), str):
+            response_modes.add(data["mode"])
+        event("model.delta", {"turn": turns, **data})
 
     def preserve_submission() -> bytes:
         assert environment is not None
@@ -259,6 +272,8 @@ def execute_run(
                 if spec.inference
                 else None,
                 "effective_generation": None,
+                "requested_response_mode": "stream" if spec.inference else "scripted",
+                "terminal_environment": {"PYTHONUNBUFFERED": "1"},
                 "model_provenance": None,
             }
         )
@@ -300,10 +315,17 @@ def execute_run(
                     "messages": messages,
                     "tools": TOOLS,
                     "generation": spec.generation.model_dump(mode="json") if model else None,
+                    "response_mode": "stream" if model else "scripted",
                 },
             )
             response = (
-                model.complete(messages, TOOLS, deadline=deadline, cancel_event=cancellation)
+                model.complete(
+                    messages,
+                    TOOLS,
+                    deadline=deadline,
+                    cancel_event=cancellation,
+                    on_delta=model_delta,
+                )
                 if model
                 else scripted.complete()
             )
@@ -334,9 +356,55 @@ def execute_run(
                 raise ParticipantStopped("Participant ended without calling submit")
             for call in response.tool_calls:
                 checkpoint()
-                event("tool.started", {"turn": turns, "tool_call_id": call.id, "tool": call.name})
+                event(
+                    "tool.started",
+                    {
+                        "turn": turns,
+                        "tool_call_id": call.id,
+                        "tool": call.name,
+                        "arguments": call.arguments,
+                    },
+                )
+                redactors = (
+                    {name: model.new_text_redactor() for name in ("stdout", "stderr")}
+                    if model
+                    else {}
+                )
+
+                def tool_output(
+                    name: str,
+                    text: str,
+                    *,
+                    channels: dict[str, TextRedactor] = redactors,
+                    tool_id: str = call.id,
+                    tool_turn: int = turns,
+                ) -> None:
+                    safe = channels[name].feed(text) if name in channels else text
+                    if safe:
+                        event(
+                            "tool.output",
+                            {
+                                "turn": tool_turn,
+                                "tool_call_id": tool_id,
+                                "stream": name,
+                                "text": safe,
+                            },
+                        )
+
                 try:
-                    result = _run_tool(environment, call)
+                    result = _run_tool(environment, call, on_output=tool_output)
+                    for name, redactor in redactors.items():
+                        tail = redactor.finish()
+                        if tail:
+                            event(
+                                "tool.output",
+                                {
+                                    "turn": turns,
+                                    "tool_call_id": call.id,
+                                    "stream": name,
+                                    "text": tail,
+                                },
+                            )
                 except (ValueError, ToolOperationError) as exc:
                     result = {"error": str(exc)}
                 event(
@@ -457,6 +525,7 @@ def execute_run(
                 "elapsed_seconds": time.monotonic() - start,
                 "model_turns": turns,
                 "returned_models": sorted(returned_models),
+                "response_modes": sorted(response_modes),
                 "usage": total_usage,
                 "submitted": submitted,
             }

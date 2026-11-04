@@ -11,7 +11,7 @@ class Contract(BaseModel):
 
 class Budgets(Contract):
     max_turns: int = Field(default=24, ge=1, le=256)
-    wall_seconds: float = Field(default=120, ge=1, le=86400)
+    wall_seconds: float = Field(default=1800, ge=1, le=86400)
     command_seconds: float = Field(default=10, ge=0.1, le=300)
     output_bytes: int = Field(default=65536, ge=1024, le=1048576)
     artifact_bytes: int = Field(default=1048576, ge=1024, le=16777216)

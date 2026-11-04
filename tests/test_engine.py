@@ -48,7 +48,9 @@ class FakeEnvironment:
     def write_file(self, path: str, content: str) -> None:
         self.files[path] = content
 
-    def execute(self, command: str) -> dict[str, Any]:
+    def execute(self, command: str, *, on_output=None) -> dict[str, Any]:
+        if on_output:
+            on_output("stdout", "public tests complete")
         return {
             "exit_code": 0,
             "stdout": "public tests complete",
@@ -135,7 +137,7 @@ def test_cancel_before_start_skips_environment(store: Store) -> None:
 
 
 def test_cancellation_after_tool_cleans_up(store: Store, monkeypatch: pytest.MonkeyPatch) -> None:
-    def execute(environment: FakeEnvironment, command: str) -> dict[str, Any]:
+    def execute(environment: FakeEnvironment, command: str, *, on_output=None) -> dict[str, Any]:
         environment.cancellation.set()
         return {"exit_code": 0}
 
@@ -164,6 +166,60 @@ def test_completed_run_is_not_executed_again(store: Store) -> None:
     assert len(FakeEnvironment.instances) == 1
 
 
+def test_live_deltas_precede_validated_tool_execution(store: Store, monkeypatch):
+    from benchmaxxing.model import TextRedactor
+
+    class StreamingAdapter:
+        def __init__(self, *args, **kwargs):
+            self.scripted = engine.ScriptedParticipant("good")
+
+        def redact(self, value):
+            return value
+
+        def new_text_redactor(self):
+            return TextRedactor("")
+
+        def complete(self, messages, tools, *, on_delta, **kwargs):
+            response = self.scripted.complete()
+            previous_starts = sum(e.kind == "tool.started" for e in store.events(run.id))
+            on_delta({"type": "mode", "mode": "sse"})
+            on_delta({"type": "content", "text": "Working "})
+            on_delta({"type": "content", "text": "now"})
+            assert (
+                "".join(
+                    e.data["text"]
+                    for e in store.events(run.id)
+                    if e.kind == "model.delta"
+                    and e.data.get("type") == "content"
+                    and e.data["turn"] == self.scripted.turn
+                )
+                == "Working now"
+            )
+            on_delta({"type": "tool_call_delta", "index": 0, "field": "arguments", "text": "{"})
+            assert sum(e.kind == "tool.started" for e in store.events(run.id)) == previous_starts
+            assert any(e.kind == "model.delta" for e in store.events(run.id))
+            return response
+
+    monkeypatch.setattr(engine, "OpenAIAdapter", StreamingAdapter)
+    run = store.create_run(RunSpec(participant="openai", inference=InferenceProfile(model="test")))
+    result = engine.execute_run(store, run.id)
+    assert result.status == "passed"
+    assert result.metadata["requested_response_mode"] == "stream"
+    assert result.metadata["response_modes"] == ["sse"]
+    events = store.events(run.id)
+    for turn in range(1, 5):
+        deltas = [e for e in events if e.kind == "model.delta" and e.data["turn"] == turn]
+        completed = next(e for e in events if e.kind == "model.response" and e.data["turn"] == turn)
+        assert all(e.seq < completed.seq for e in deltas)
+        assert (
+            "".join(e.data.get("text", "") for e in deltas if e.data["type"] == "content")
+            == "Working now"
+        )
+    output = [e for e in events if e.kind == "tool.output"]
+    assert "".join(e.data["text"] for e in output) == "public tests complete"
+    assert next(e for e in events if e.kind == "tool.started").data["arguments"]
+
+
 def adapter_fixture(
     monkeypatch: pytest.MonkeyPatch, responses: list[ModelResponse | Exception]
 ) -> None:
@@ -173,6 +229,16 @@ def adapter_fixture(
 
         def redact(self, value: Any) -> Any:
             return value
+
+        def new_text_redactor(self):
+            class Identity:
+                def feed(self, text):
+                    return text
+
+                def finish(self):
+                    return ""
+
+            return Identity()
 
         def complete(self, *args: Any, **kwargs: Any) -> ModelResponse:
             response = responses.pop(0)

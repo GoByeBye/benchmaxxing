@@ -9,6 +9,7 @@ import { useActivity } from './useActivity';
 import RunTrace from './RunTrace';
 import { useRunEvidence } from './useRunEvidence';
 import { mergeRunHistory } from './runHistory';
+import SessionFeed from './SessionFeed';
 
 type IconName = 'grid' | 'play' | 'arrow' | 'clock' | 'check' | 'terminal' | 'download' | 'refresh' | 'stop' | 'file' | 'shield' | 'close';
 
@@ -56,7 +57,7 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
   const [model, setModel] = useState('');
   const [keyEnv, setKeyEnv] = useState('');
   const [turns, setTurns] = useState('24');
-  const [seconds, setSeconds] = useState('120');
+  const [seconds, setSeconds] = useState('1800');
   const [scope, setScope] = useState<'selected' | 'filtered'>('selected');
   const [repeats, setRepeats] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -258,7 +259,7 @@ export default function App() {
   const [followActive, setFollowActive] = useState(true);
   const activity = useActivity();
   const updateRun = useCallback((run: Run) => setRuns(current => mergeRunHistory([run], current)), []);
-  const { detail, events, eventCount, streamState, reload } = useRunEvidence(selected, updateRun, setError);
+  const { detail, events, eventCount, streamState, session: sessionFeed, reload } = useRunEvidence(selected, updateRun, setError);
   const historyController = useRef<AbortController | null>(null);
   const activitySignature = activity.report?.runs.map(run => `${run.id}:${run.status}`).join('|');
   const previousActivity = useRef<string | undefined>(undefined);
@@ -343,6 +344,7 @@ export default function App() {
         {error && <div className="alert alert-error" role="alert"><div><strong>Something needs attention</strong><p>{error}</p></div><button className="icon-button" aria-label="Dismiss error" onClick={() => setError(null)}><Icon name="close" /></button></div>}
         {doctor && !doctor.ready && <div className="alert alert-prepare" role="status"><span className="alert-icon"><Icon name="terminal" size={22} /></span><div><strong>Prepare your task environment</strong><p>Run <code>benchmaxxing prepare</code> in your terminal, then refresh this workspace.</p><details className="diagnostics"><summary>View environment checks</summary><pre>{JSON.stringify(doctor.checks, null, 2)}</pre></details></div><button className="button button-quiet" onClick={() => void refresh()} disabled={refreshing}><Icon name="refresh" size={16} />Recheck</button></div>}
         <LiveActivity {...activity} following={followActive} selected={selected} onFollow={setFollowActive} onInspect={inspectRun} />
+        <SessionFeed key={selected} run={detail?.run ?? null} tasks={tasks} session={sessionFeed} streamState={streamState} />
         <section className="metrics" aria-label="Workspace statistics"><div className="metric"><span>Loaded attempts</span><strong>{runs.length.toString().padStart(2, '0')}</strong><small>{runs.length >= 1000 ? 'Latest 1,000 runs' : 'Across loaded run history'}</small><Icon name="terminal" /></div><div className="metric"><span>Passed attempts</span><strong>{passed.toString().padStart(2, '0')}<em className="metric-divider">/</em><em>{finished.length.toString().padStart(2, '0')}</em></strong><small>Of loaded finished attempts</small><Icon name="check" /></div><div className="metric"><span>Grading checks</span><strong>{recordedChecks.toString().padStart(2, '0')}</strong><small>Recorded with evidence</small><Icon name="shield" /></div><div className="metric"><span>Run queue</span><strong>{queued.toString().padStart(2, '0')}<span className={`activity-dot ${active ? 'is-active' : ''}`} /></strong><small>{queued} queued · {running} running</small><Icon name="clock" /></div></section>
         <Coverage tasks={tasks} runs={runs} category={taskCategory} onCategory={setTaskCategory} />
         <TaskCatalog tasks={tasks} filtered={filteredTasks} selected={selectedTask} category={taskCategory} search={taskSearch} onCategory={setTaskCategory} onSearch={setTaskSearch} onSelect={setSelectedTaskId} />

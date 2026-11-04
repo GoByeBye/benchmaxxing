@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import codecs
 import hashlib
 import json
 import os
@@ -12,6 +13,8 @@ import subprocess
 import threading
 import time
 import uuid
+from collections import deque
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -60,6 +63,7 @@ def _bounded_process(
     output_limit: int = 1048576,
     input_bytes: bytes | None = None,
     cancel_event: threading.Event | None = None,
+    on_output: Callable[[str, str], None] | None = None,
 ) -> dict[str, Any]:
     """Drain both pipes concurrently without ever retaining unbounded output."""
     if cancel_event is not None and cancel_event.is_set():
@@ -81,15 +85,36 @@ def _bounded_process(
     guard = threading.Lock()
     exceeded = threading.Event()
     total = 0
+    pending: deque[tuple[str, bytes]] = deque()
+    decoders = {name: codecs.getincrementaldecoder("utf-8")("replace") for name in streams}
+
+    def emit_pending(*, final: bool = False) -> None:
+        if on_output is None:
+            return
+        with guard:
+            chunks = list(pending)
+            pending.clear()
+        for name, block in chunks:
+            decoded = decoders[name].decode(block)
+            if decoded:
+                on_output(name, decoded)
+        if final:
+            for name, decoder in decoders.items():
+                tail = decoder.decode(b"", final=True)
+                if tail:
+                    on_output(name, tail)
 
     def reader(name: str, pipe: Any) -> None:
         nonlocal total
         try:
-            while block := pipe.read(4096):
+            while block := pipe.read1(4096):
                 with guard:
                     remaining = max(0, output_limit - total)
-                    streams[name].extend(block[:remaining])
-                    total += len(block[:remaining])
+                    accepted = block[:remaining]
+                    streams[name].extend(accepted)
+                    total += len(accepted)
+                    if on_output is not None and accepted:
+                        pending.append((name, accepted))
                     if len(block) > remaining:
                         exceeded.set()
         finally:
@@ -128,6 +153,7 @@ def _bounded_process(
             if failure is not None:
                 process.kill()
                 break
+            emit_pending()
             time.sleep(0.025)
         process.wait(timeout=5)
     finally:
@@ -135,6 +161,7 @@ def _bounded_process(
             process.kill()
         for thread in threads:
             thread.join(timeout=2)
+    emit_pending(final=True)
     if failure is not None:
         raise failure
     if exceeded.is_set():
@@ -354,6 +381,7 @@ class DockerEnvironment:
         input_bytes: bytes | None = None,
         output_limit: int | None = None,
         timeout: float | None = None,
+        on_output: Callable[[str, str], None] | None = None,
     ) -> dict[str, Any]:
         try:
             return _docker(
@@ -362,6 +390,7 @@ class DockerEnvironment:
                 input_bytes=input_bytes,
                 output_limit=output_limit or self.budgets.output_bytes,
                 cancel_event=self.cancel_event,
+                on_output=on_output,
             )
         except (ExecutionCancelled, ExecutionTimeout, OutputLimitExceeded):
             self._abort()
@@ -476,10 +505,15 @@ class DockerEnvironment:
             "Could not write workspace file",
         )
 
-    def execute(self, command: str) -> dict[str, Any]:
+    def execute(
+        self, command: str, *, on_output: Callable[[str, str], None] | None = None
+    ) -> dict[str, Any]:
         if "\0" in command or len(command.encode("utf-8")) > self.budgets.output_bytes:
             raise ValueError("Command is invalid or exceeds input limit")
-        return self._operation(["exec", self.name, "sh", "-lc", command])
+        return self._operation(
+            ["exec", "-e", "PYTHONUNBUFFERED=1", self.name, "sh", "-lc", command],
+            on_output=on_output,
+        )
 
     def run_python(self, script: str, input_bytes: bytes) -> dict[str, Any]:
         """Execute a trusted driver in the sandbox; only its observations return."""

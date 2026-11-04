@@ -31,6 +31,8 @@ def test_activity_fifo_actual_start_and_terminal_removal(tmp_path: Path, monkeyp
     assert items[0].phase == "inference" and items[0].turn == 3
     assert items[0].task_title and items[0].category == "terminal"
     assert items[1].elapsed_seconds == 0 and items[1].started_at is None
+    store.append_event(active.id, "model.delta", {"turn": 3, "type": "content", "text": "partial"})
+    assert store.activity().runs[0].phase == "generating"
     store.update_run(active.id, status="passed", event_kind="run.finished")
     assert [item.id for item in store.activity().runs] == [first.id, last.id]
 
@@ -110,6 +112,7 @@ def test_activity_endpoint_and_batched_sse_resume(tmp_path: Path):
     ) as http:
         run = owner.store.create_run(RunSpec())
         assert http.get("/api/v1/activity").json()["runs"][0]["id"] == run.id
+        assert http.get("/api/v1/run-progress").json()["runs"][0]["id"] == run.id
         assert (
             http.get("/api/v1/activity", headers={"Origin": "https://outside.invalid"}).status_code
             == 403

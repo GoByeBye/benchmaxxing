@@ -9,6 +9,7 @@ import os
 import shlex
 import shutil
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -79,6 +80,21 @@ def test_workspace_tools_and_isolation(prepared_dir):
         assert task.execute(f"python -c {shlex.quote(network)}")["exit_code"] != 0
         assert task.execute("touch /must-not-write")["exit_code"] != 0
     assert cleanup_workspace(prepared_dir, "isolation") == []
+
+
+def test_terminal_output_arrives_before_command_finishes(prepared_dir):
+    seen = []
+    with DockerEnvironment(prepared_dir, "live-terminal", Budgets()) as task:
+        script = "import time; print('first'); time.sleep(1); print('second')"
+        started = time.monotonic()
+        result = task.execute(
+            f"python -c {shlex.quote(script)}",
+            on_output=lambda stream, text: seen.append((stream, text, time.monotonic())),
+        )
+        finished = time.monotonic()
+    assert result["exit_code"] == 0 and result["stdout"] == "first\nsecond\n"
+    assert "".join(text for stream, text, _ in seen if stream == "stdout") == result["stdout"]
+    assert seen[0][2] - started < finished - started - 0.5
 
 
 def test_symlink_cannot_escape_workspace(prepared_dir):

@@ -34,6 +34,7 @@ only-include = [
   "web/src", "web/tests", "web/public", "web/index.html", "web/.gitignore",
   "web/package.json", "web/package-lock.json", "web/openapi.json", "web/tsconfig.json",
   "web/vite.config.ts", "web/playwright.config.ts", "web/playwright.integration.config.ts",
+  "web/playwright.firefox.config.ts",
   "README.md", "CONTRIBUTING.md", "LICENSE", "AGENTS.md", "pyproject.toml", "uv.lock",
   ".gitignore", ".gitattributes", ".dockerignore", ".python-version",
 ]

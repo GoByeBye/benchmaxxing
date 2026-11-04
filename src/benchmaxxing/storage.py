@@ -141,6 +141,13 @@ class Store:
             turn = data.get("turn")
             if isinstance(turn, int) and not isinstance(turn, bool) and 0 <= turn <= 256:
                 values["turn"] = turn
+        elif kind == "model.delta" and data.get("type") in (
+            "content",
+            "refusal",
+            "reasoning",
+            "tool_call_delta",
+        ):
+            values["phase"] = "generating"
         elif kind == "tool.started":
             values["phase"] = "tool"
             tool = data.get("tool")
