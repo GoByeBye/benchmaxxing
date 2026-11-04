@@ -20,6 +20,7 @@ from filelock import FileLock
 from benchmaxxing.contracts import TaskSpec
 from benchmaxxing.providers.catalog import SUITES, get_suite
 from benchmaxxing.providers.contracts import ImportedTask, ImportSettings, SuiteStatus
+from benchmaxxing.providers.difficulty import display_difficulty
 
 
 def root(data_dir: Path) -> Path:
@@ -166,7 +167,7 @@ def public_task(data_dir: Path, task: ImportedTask) -> TaskSpec:
         image=str(prepared["image_id"]) if prepared else task.recipe.image or "unprepared",
         kind="native",
         submission_file=task.submission_file,
-        difficulty=task.difficulty,
+        difficulty=display_difficulty(task.suite_id, task.upstream_id, task.difficulty),
         tags=[task.suite_id, *task.tags],
         check_count=task.check_count,
         rubric="; ".join(task.comparison_notes)
@@ -278,6 +279,10 @@ def list_public_tasks(data_dir: Path) -> list[TaskSpec]:
     tasks = []
     for entry in catalog_entries(data_dir):
         task = TaskSpec.model_validate(entry["task"])
+        if task.suite_id and task.upstream_id:
+            task.difficulty = display_difficulty(
+                task.suite_id, task.upstream_id, task.difficulty
+            )
         record = prepared.get(task.id, {})
         task.prepared = record.get("task_hash") == task.task_hash
         if task.prepared:

@@ -1300,7 +1300,7 @@
             "maximum": 32768.0,
             "minimum": 1.0,
             "title": "Max Tokens",
-            "default": 2048
+            "default": 16384
           },
           "seed": {
             "anyOf": [
@@ -2226,7 +2226,8 @@
             "enum": [
               "easy",
               "medium",
-              "hard"
+              "hard",
+              "unrated"
             ],
             "title": "Difficulty",
             "default": "easy"

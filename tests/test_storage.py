@@ -1,13 +1,14 @@
 import hashlib
 import io
 import json
+import sqlite3
 import zipfile
 from pathlib import Path
 
 import pytest
 
-from benchmaxxing.contracts import RunSpec
-from benchmaxxing.storage import Store
+from benchmaxxing.contracts import InferenceProfile, RunSpec
+from benchmaxxing.storage import Store, utc_now
 
 
 def test_export_roundtrip_and_integrity(tmp_path: Path) -> None:
@@ -56,6 +57,63 @@ def test_restart_preserves_completed_and_interrupts_active(tmp_path: Path) -> No
     assert reopened.get_run(completed.id).status == "passed"
     assert reopened.mark_interrupted() == []
     assert reopened.events(active.id)[-1].kind == "interrupted"
+
+
+@pytest.mark.parametrize(
+    ("kind", "data"),
+    [
+        ("model.delta", {"turn": 1, "type": "refusal", "text": "Declined."}),
+        (
+            "model.response",
+            {"turn": 1, "message": {"role": "assistant", "refusal": "Declined."}},
+        ),
+    ],
+)
+def test_explicit_refusal_is_atomic_with_trace_and_survives_restart(
+    tmp_path: Path, kind: str, data: dict[str, object]
+) -> None:
+    store = Store(tmp_path)
+    run = store.create_run(RunSpec(participant="openai", inference=InferenceProfile(model="test")))
+    store.update_run(run.id, status="running")
+    store.append_event(run.id, kind, data)
+    reopened = Store(tmp_path)
+    assert reopened.get_run(run.id).refusal == "explicit_provider"
+    (interrupted,) = reopened.mark_interrupted()
+    assert interrupted.refusal == "explicit_provider"
+    assert [item.kind for item in reopened.events(run.id)][-2:] == [kind, "interrupted"]
+    with zipfile.ZipFile(io.BytesIO(reopened.export_run(run.id))) as archive:
+        assert json.loads(archive.read("run.json"))["refusal"] == "explicit_provider"
+
+
+def test_restart_recovers_refusal_from_legacy_trace(tmp_path: Path) -> None:
+    store = Store(tmp_path)
+    run = store.create_run(RunSpec(participant="openai", inference=InferenceProfile(model="test")))
+    store.update_run(run.id, status="running")
+    # Older controllers wrote the response event before updating the run record.
+    with sqlite3.connect(store.db_path) as db:
+        db.execute(
+            "INSERT INTO events(run_id,timestamp,kind,data) VALUES (?,?,?,?)",
+            (
+                run.id,
+                utc_now(),
+                "model.response",
+                json.dumps({"turn": 1, "message": {"role": "assistant", "refusal": "Declined."}}),
+            ),
+        )
+    assert store.get_run(run.id).refusal is None
+    (interrupted,) = Store(tmp_path).mark_interrupted()
+    assert interrupted.refusal == "explicit_provider"
+
+
+def test_scripted_refusal_marker_remains_a_fixture(tmp_path: Path) -> None:
+    store = Store(tmp_path)
+    run = store.create_run(RunSpec(scripted_variant="refuse"))
+    store.append_event(
+        run.id,
+        "model.response",
+        {"turn": 1, "message": {"role": "assistant", "refusal": "scripted_fixture"}},
+    )
+    assert store.get_run(run.id).refusal == "scripted_fixture"
 
 
 def test_export_requires_finished_run(tmp_path: Path) -> None:

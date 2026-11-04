@@ -441,6 +441,8 @@ def execute_imported(
                     "finish_reason": response.finish_reason,
                 },
             )
+            if response.finish_reason == "content_filter":
+                event("model.filtered", {"turn": turns, "reason": "content_filter"})
             messages.append(response.message_dict())
             if response.finish_reason == "length":
                 if task.recipe.tools == "response":

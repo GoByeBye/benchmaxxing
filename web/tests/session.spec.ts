@@ -9,6 +9,15 @@ const delta = (seq: number, type: string, data: Record<string, unknown>, turn = 
 const response = (seq: number, turn: number, content: string, tool_calls: unknown[] = []) => event(seq, 'model.response', { turn, message: { role: 'assistant', content, tool_calls } });
 const toolCall = (id: string, name: string, args: object) => ({ id, type: 'function', function: { name, arguments: JSON.stringify(args) } });
 
+test('provider filtering is visible without labeling ordinary text as a refusal', () => {
+  const state = appendSessionEvents(emptySession(), [
+    response(1, 1, 'I cannot help with that.'),
+    event(2, 'model.filtered', { turn: 1, reason: 'content_filter' }),
+  ]);
+  expect(state.items[0].refusal).toBe('');
+  expect(state.items[1]).toMatchObject({ kind: 'notice', status: 'error', content: 'Provider filtered this response (content_filter).' });
+});
+
 async function sessionFixture(page: Page, batches: RunEvent[][]) {
   const releases: (() => void)[] = [];
   const gates = batches.map((_, index) => new Promise<void>(resolve => { releases[index] = resolve; }));

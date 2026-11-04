@@ -95,9 +95,13 @@ test('model profiles submit endpoint settings and key variable names', async ({ 
   await page.getByLabel('Model identifier').fill('test-model');
   await page.getByLabel('API key environment variable').fill('TEST_MODEL_KEY');
   await page.getByLabel('Max turns').fill('10');
+  await expect(page.getByLabel('Max output tokens')).toHaveValue('16384');
+  await page.getByLabel('Max output tokens').fill('0');
+  await expect(page.getByRole('button', { name: 'Start benchmark' })).toBeDisabled();
+  await page.getByLabel('Max output tokens').fill('8192');
   await page.getByRole('button', { name: 'Start benchmark' }).click();
   await expect.poll(() => requests.started.length).toBe(1);
-  expect(requests.started[0]).toMatchObject({ participant: 'openai', inference: { mode: 'api', base_url: 'https://example.invalid/v1', model: 'test-model', api_key_env: 'TEST_MODEL_KEY' }, budgets: { max_turns: 10 } });
+  expect(requests.started[0]).toMatchObject({ participant: 'openai', inference: { mode: 'api', base_url: 'https://example.invalid/v1', model: 'test-model', api_key_env: 'TEST_MODEL_KEY' }, generation: { max_tokens: 8192 }, budgets: { max_turns: 10 } });
   await expect(page.locator('.run-summary p')).toContainText('API inference');
 });
 
@@ -116,6 +120,7 @@ test('recent model runs prefill the next endpoint without fixing a machine-speci
   expect(requests.started[0].inference).toMatchObject({
     mode: 'offline', base_url: 'http://127.0.0.1:8081/v1', model: 'qwen3.8-27b',
   });
+  expect(requests.started[0].generation?.max_tokens).toBe(16384);
 });
 
 test('saves an endpoint, discovers models, and queues only checked models', async ({ page }) => {

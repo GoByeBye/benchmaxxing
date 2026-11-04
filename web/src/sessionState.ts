@@ -74,6 +74,9 @@ export function appendSessionEvents(previous: SessionState, events: RunEvent[]):
         put(action, 'name', string(fn.name)); put(action, 'arguments', serialized(fn.arguments));
         if (action.status === 'assembling') action.status = 'ready';
       });
+    } else if (event.kind === 'model.filtered') {
+      const item = edit(`filter:${event.seq}`, 'notice'); item.status = 'error';
+      put(item, 'content', 'Provider filtered this response (content_filter).');
     } else if (event.kind === 'tool.started') {
       const item = tool(string(data.tool_call_id));
       item.status = 'running'; put(item, 'name', string(data.tool));

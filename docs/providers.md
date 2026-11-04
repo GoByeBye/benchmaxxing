@@ -121,6 +121,11 @@ that every task has been executed. Consult the live provider panel for changes.
 | XSTest / HarmBench | 450 / 510 | 450 / 510 | Response capture only; no automatic official judgment |
 | WorkArena | 0 | 0 | Hosted ServiceNow prevents fully offline preparation |
 
+Cybench catalog difficulty follows explicit challenge-name labels: Very Easy and
+Easy appear as Easy, Medium as Medium, and Hard as Hard. Challenges without an
+upstream difficulty label appear as Unrated. This is a public catalog annotation;
+existing hashed import records and run evidence are unchanged.
+
 Terminal record counts include distinct immutable local variants, so they exceed
 the published 89 and 66 task counts. The inventory does not relabel those records
 as additional upstream tasks. Prepared refusal-capture records do not imply that
@@ -169,6 +174,10 @@ continuous native score has `passed: null`; an unassessed response has no scorec
 and finishes as `completed` with `assessment_status: needs_review`. Neither is
 counted as a pass. Refusal is recorded separately from correctness; no keyword
 heuristic silently supplies an official HarmBench/XSTest judgment.
+The run-level refusal field records an explicit provider refusal signal. Refusal
+phrased as ordinary response text remains in the trace without a refusal label
+until a human or configured local classifier reviews it. Provider content
+filtering has its own trace event and does not count as a model refusal.
 
 Exports retain the original IDs, source hashes, image identity, local variant,
 harness version, budgets, observations, submission artifacts and native grading

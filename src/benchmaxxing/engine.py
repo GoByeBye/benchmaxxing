@@ -352,6 +352,8 @@ def execute_run(
                     "finish_reason": response.finish_reason,
                 },
             )
+            if response.finish_reason == "content_filter":
+                event("model.filtered", {"turn": turns, "reason": "content_filter"})
             messages.append(message)
             if response.refusal:
                 refusal = "explicit_provider" if model else "scripted_fixture"

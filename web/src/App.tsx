@@ -69,6 +69,7 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
   const [modelTargets, setModelTargets] = useState<ModelTarget[]>([]);
   const sourceTouched = useRef(false);
   const [turns, setTurns] = useState('24');
+  const [maxTokens, setMaxTokens] = useState('16384');
   const [seconds, setSeconds] = useState('1800');
   const [scope, setScope] = useState<'selected' | 'filtered' | 'batch'>('selected');
   const [repeats, setRepeats] = useState(1);
@@ -96,8 +97,10 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
   const targets = scope === 'filtered' ? filteredTasks : scope === 'batch' ? batchTasks : task ? [task] : [];
   const modelCount = participant === 'openai' && endpointSource === 'saved' ? modelTargets.length : 1;
   const queueCount = targets.length * repeats * modelCount;
-  const validation = !Number.isInteger(Number(turns)) || Number(turns) < 1 || Number(turns) > 256
-    ? 'Max turns must be a whole number between 1 and 256.'
+  const validation = participant === 'openai' && (!maxTokens.trim() || !Number.isInteger(Number(maxTokens)) || Number(maxTokens) < 1 || Number(maxTokens) > 32768)
+    ? 'Max output tokens must be a whole number between 1 and 32,768.'
+    : !Number.isInteger(Number(turns)) || Number(turns) < 1 || Number(turns) > 256
+      ? 'Max turns must be a whole number between 1 and 256.'
     : !seconds.trim() || !Number.isFinite(Number(seconds)) || Number(seconds) < 1 || Number(seconds) > 86400
       ? 'Time budget must be between 1 and 86,400 seconds.'
       : !Number.isInteger(repeats) || repeats < 1 || repeats > 5
@@ -130,6 +133,7 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
       schema_version: 1,
       participant,
       scripted_variant: variant,
+      ...(participant === 'openai' ? { generation: { max_tokens: Number(maxTokens) } } : {}),
       budgets: { max_turns: Number(turns), wall_seconds: Number(seconds), ...(hasNative ? { memory_mb: 2048, pids: 256, command_seconds: 120, artifact_bytes: 67108864 } : {}) },
     };
     let queued = 0;
@@ -197,6 +201,7 @@ function RunComposer({ session, doctor, task, filteredTasks, batchTasks, onAddSe
         <div><label htmlFor="turns">Max turns</label><input id="turns" type="number" required min={1} max={256} value={turns} onChange={event => setTurns(event.target.value)} /></div>
         <div><label htmlFor="seconds">Time budget <span className="optional">sec / attempt</span></label><input id="seconds" type="number" required min={1} max={86400} step="any" value={seconds} onChange={event => setSeconds(event.target.value)} /></div>
       </div>
+      {participant === 'openai' && <><label htmlFor="max-output-tokens">Max output tokens <span className="optional">per model turn</span></label><input id="max-output-tokens" type="number" required min={1} max={32768} step={1} value={maxTokens} onChange={event => setMaxTokens(event.target.value)} /><p className="field-hint">Caps each model response. This is separate from the task's 30-minute wall budget and max turns.</p></>}
       <label htmlFor="repeats">Attempts per task</label>
       <select id="repeats" value={repeats} onChange={event => setRepeats(Number(event.target.value))}>{[1, 2, 3, 4, 5].map(count => <option key={count} value={count}>{count} {count === 1 ? 'attempt' : 'attempts'}</option>)}</select>
       </fieldset>

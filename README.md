@@ -169,6 +169,8 @@ For mixed-category batches, add the current task or the filtered task set to
 **My task selection**, change catalog filters, and add more. The composer shows
 the resulting task × model × repeat count before queueing. Each attempt keeps
 its own 30-minute default wall budget and evidence.
+The composer also sets the max output tokens per model turn (1–32,768, default
+16,384); this value is recorded in every run specification and export.
 
 The comparison panel graphs category pass rates for two model profiles over
 matching task versions, hashes, harnesses, graders, generation settings, budgets,

@@ -593,7 +593,7 @@ export interface components {
             temperature?: number;
             /**
              * Max Tokens
-             * @default 2048
+             * @default 16384
              */
             max_tokens?: number;
             /** Seed */
@@ -1013,7 +1013,7 @@ export interface components {
              * @default easy
              * @enum {string}
              */
-            difficulty?: "easy" | "medium" | "hard";
+            difficulty?: "easy" | "medium" | "hard" | "unrated";
             /** Tags */
             tags?: string[];
             /**

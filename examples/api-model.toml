@@ -9,7 +9,7 @@ api_key_env = "BENCHMAXXING_MODEL_API_KEY"
 
 [generation]
 temperature = 0
-max_tokens = 2048
+max_tokens = 16384
 
 [budgets]
 wall_seconds = 300

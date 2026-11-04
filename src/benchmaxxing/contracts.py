@@ -22,7 +22,7 @@ class Budgets(Contract):
 
 class Generation(Contract):
     temperature: float = Field(default=0, ge=0, le=2)
-    max_tokens: int = Field(default=2048, ge=1, le=32768)
+    max_tokens: int = Field(default=16384, ge=1, le=32768)
     seed: int | None = None
 
 
@@ -131,6 +131,9 @@ class ArtifactRecord(Contract):
     sha256: str
 
 
+Difficulty = Literal["easy", "medium", "hard", "unrated"]
+
+
 class TaskSpec(Contract):
     schema_version: Literal[1] = 1
     id: str = "python.interval-merge"
@@ -143,7 +146,7 @@ class TaskSpec(Contract):
     kind: Literal["python", "json", "native", "answer"] = "python"
     execution_profile: Literal["workspace", "closed-book", "context-retrieval"] = "workspace"
     submission_file: str = "solution.py"
-    difficulty: Literal["easy", "medium", "hard"] = "easy"
+    difficulty: Difficulty = "easy"
     tags: list[str] = Field(default_factory=list)
     check_count: int | None = Field(default=8, ge=1)
     rubric: str = ""

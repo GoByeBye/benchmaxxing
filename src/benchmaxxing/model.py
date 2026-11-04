@@ -718,16 +718,19 @@ def _responses_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def parse_responses_response(payload: Any) -> ModelResponse:
-    """Normalize completed Responses items into the shared harness response."""
+    """Normalize Responses items, including explicitly filtered partial output."""
     if not isinstance(payload, dict) or payload.get("error") is not None:
         raise ModelProtocolError("Inference endpoint returned an invalid Responses response")
     status = payload.get("status")
+    filtered = False
     if status == "incomplete":
         details = payload.get("incomplete_details")
         if isinstance(details, dict) and details.get("reason") == "max_output_tokens":
             raise ModelOutputLimitExceeded("Inference response exhausted the output token budget")
-        raise ModelProtocolError("Inference endpoint returned an incomplete response")
-    if status != "completed":
+        if not isinstance(details, dict) or details.get("reason") != "content_filter":
+            raise ModelProtocolError("Inference endpoint returned an incomplete response")
+        filtered = True
+    elif status != "completed":
         raise ModelProtocolError("Inference endpoint did not return a completed response")
     output = payload.get("output")
     if not isinstance(output, list):
@@ -742,7 +745,8 @@ def parse_responses_response(payload: Any) -> ModelResponse:
         if kind == "message":
             if item.get("role") != "assistant" or not isinstance(item.get("content"), list):
                 raise ModelProtocolError("Malformed Responses assistant message")
-            if item.get("status", "completed") != "completed":
+            item_status = item.get("status", "completed")
+            if item_status != "completed" and not (filtered and item_status == "incomplete"):
                 raise ModelProtocolError("Incomplete Responses assistant message")
             for part in item["content"]:
                 if not isinstance(part, dict):
@@ -754,6 +758,10 @@ def parse_responses_response(payload: Any) -> ModelResponse:
                 else:
                     raise ModelProtocolError("Unsupported or malformed Responses content")
         elif kind == "function_call":
+            if filtered:
+                # A filtered response cannot authorize execution, even if it
+                # includes a partially assembled function call.
+                continue
             if item.get("status", "completed") != "completed":
                 raise ModelProtocolError("Incomplete Responses function call")
             calls.append(
@@ -790,7 +798,9 @@ def parse_responses_response(payload: Any) -> ModelResponse:
                         "refusal": "".join(refusals) if refusals else None,
                         "tool_calls": calls,
                     },
-                    "finish_reason": "tool_calls" if calls else "stop",
+                    "finish_reason": (
+                        "content_filter" if filtered else "tool_calls" if calls else "stop"
+                    ),
                 }
             ],
         }

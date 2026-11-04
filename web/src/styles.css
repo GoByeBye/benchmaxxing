@@ -166,6 +166,7 @@ tbody tr:has(.status-failed) .table-score,
 .difficulty-easy { color: var(--difficulty-easy-text); background: var(--difficulty-easy-surface); border-color: var(--difficulty-easy-border); }
 .difficulty-medium { color: var(--difficulty-medium-text); background: var(--difficulty-medium-surface); border-color: var(--difficulty-medium-border); }
 .difficulty-hard { color: var(--difficulty-hard-text); background: var(--difficulty-hard-surface); border-color: var(--difficulty-hard-border); }
+.difficulty-unrated { color: var(--muted); background: var(--surface); border-color: var(--border); }
 .catalog-task-bottom { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; color: var(--muted); font-size: 9px; }
 .catalog-task-bottom > span:last-child { font-family: var(--mono); font-size: 8px; white-space: nowrap; }
 .catalog-detail { padding: 23px; min-width: 0; background: var(--surface-raised); }

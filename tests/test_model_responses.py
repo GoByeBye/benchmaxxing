@@ -107,7 +107,7 @@ def test_responses_round_trip_and_buffered_events(
     assert requests[0]["stream"] is False
     assert requests[0]["store"] is False
     assert requests[0].get("include") == (["reasoning.encrypted_content"] if reasoning else None)
-    assert requests[0]["max_output_tokens"] == 2048
+    assert requests[0]["max_output_tokens"] == 16384
     assert "seed" not in requests[0] and "messages" not in requests[0]
     assert requests[0]["tools"][0]["name"] == "submit"
     assert requests[0]["tools"][0]["strict"] is False
@@ -145,7 +145,7 @@ def test_responses_round_trip_and_buffered_events(
         {"output": [{"type": "function_call", "call_id": "c", "name": "f", "arguments": {}}]},
         {"usage": {"input_tokens": True}},
         {"usage": {"output_tokens": -1}},
-        {"status": "incomplete", "incomplete_details": {"reason": "content_filter"}},
+        {"status": "incomplete", "incomplete_details": {"reason": "unknown"}},
     ],
 )
 def test_invalid_responses_are_rejected(overrides: dict[str, Any]) -> None:
@@ -179,6 +179,42 @@ def test_responses_refusal_multiple_text_and_duplicate_calls() -> None:
         parse_responses_response(
             response(status="incomplete", incomplete_details={"reason": "max_output_tokens"})
         )
+
+
+def test_responses_content_filter_preserves_text_and_drops_incomplete_tools() -> None:
+    filtered = parse_responses_response(
+        response(
+            status="incomplete",
+            incomplete_details={"reason": "content_filter"},
+            output=[
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "incomplete",
+                    "content": [{"type": "output_text", "text": "Partial text"}],
+                },
+                {
+                    "type": "function_call",
+                    "status": "incomplete",
+                    "call_id": "call_1",
+                    "name": "submit",
+                    "arguments": "{",
+                },
+            ],
+        )
+    )
+    assert filtered.content == "Partial text"
+    assert filtered.tool_calls == []
+    assert filtered.refusal is None
+    assert filtered.finish_reason == "content_filter"
+    assert (
+        parse_responses_response(
+            response(
+                status="incomplete", incomplete_details={"reason": "content_filter"}, output=[]
+            )
+        ).finish_reason
+        == "content_filter"
+    )
 
 
 def test_responses_default_and_invalid_style() -> None:
