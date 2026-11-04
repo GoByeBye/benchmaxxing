@@ -299,4 +299,44 @@ def test_original_task_identity_is_unchanged_by_answer_profile():
     original = get_task()
     assert original.id == "python.interval-merge" and original.kind == "python"
     assert original.execution_profile == "workspace"
-    assert len([task for task in list_tasks() if task.kind not in {"answer", "native"}]) == 81
+    assert len([task for task in list_tasks() if task.kind not in {"answer", "native"}]) == 82
+
+
+@pytest.mark.parametrize(
+    "task_id",
+    [
+        key
+        for key, task in definitions().items()
+        if task.retrieval and task.retrieval.mode == "join"
+    ],
+)
+def test_join_questions_require_independent_alias_lookup(task_id):
+    task = definitions()[task_id]
+    supplied, offsets = context(task_id)
+    aliases = {}
+    canonicals = {}
+    for record in offsets:
+        line = supplied[record["byte_offset"] : record["byte_offset"] + record["byte_length"]]
+        parts = line.strip().split()
+        if record["kind"] == "ALIAS":
+            aliases[parts[1]] = parts[2].removeprefix("target=")
+        elif record["kind"] == "CANONICAL":
+            canonicals[parts[1]] = parts[2].removeprefix("value=")
+    assert len(aliases) == len(canonicals) == len(task.questions)
+    for question in task.questions:
+        alias = question.question.split()[2].rstrip(",")
+        target = aliases[alias]
+        assert alias.removeprefix("alias-") != target.removeprefix("request-")
+        assert target not in question.question
+        assert canonicals[target] == question.accepted[0]
+
+
+def test_join_correction_has_explicit_task_and_generator_versions():
+    for task in definitions().values():
+        if task.retrieval and task.retrieval.mode == "join":
+            assert task.version == "1.1.0"
+            assert task.retrieval.generator == "synthetic-ledger/2"
+        else:
+            assert task.version == "1.0.0"
+            if task.retrieval:
+                assert task.retrieval.generator == "synthetic-ledger/1"

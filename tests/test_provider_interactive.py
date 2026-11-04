@@ -609,7 +609,7 @@ def prepared_miniwob(tmp_path: Path) -> tuple[Path, Any]:
         pytest.skip("Set BENCHMAXXING_MINIWOB_SOURCE to the explicitly prepared frozen HTML source")
     source = Path(source_name)
     tasks = convert_source("miniwob", source, revision="7fd85d71a4b60325c6585396ec4f48377d049838")
-    assert len(tasks) == 125
+    assert len(tasks) == 126
     task = next(task for task in tasks if task.upstream_id == "miniwob.click-test")
     data = tmp_path / "data"
     install(data, source, [task])

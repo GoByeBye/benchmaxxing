@@ -187,6 +187,16 @@ tbody tr:has(.status-failed) .table-score,
 .composer fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 .composer fieldset:disabled { opacity: .7; }
 .queue-summary { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); margin-top: 18px; }
+.batch-builder { border: 1px solid var(--border); border-radius: 4px; background: var(--surface-deep); padding: 9px; margin-top: 9px; }
+.batch-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.batch-actions .button { font-size: 9px; padding: 6px 8px; white-space: normal; text-align: left; }
+.batch-heading { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 12px 2px 7px; color: var(--text-secondary); font-size: 10px; }
+.batch-heading button, .batch-list button { border: 0; background: transparent; color: var(--accent-light); cursor: pointer; }
+.batch-list { max-height: 150px; overflow-y: auto; display: grid; gap: 3px; }
+.batch-list > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; border: 1px solid var(--border); border-radius: 3px; font-size: 9px; }
+.batch-list span { min-width: 0; overflow-wrap: anywhere; }
+.batch-list small { display: block; color: var(--muted); margin-top: 3px; }
+.batch-list button { font-size: 17px; line-height: 1; flex: 0 0 auto; }
 .queue-summary strong { color: var(--text-secondary); font-size: 10px; font-weight: 500; }
 .queue-summary span { color: var(--muted); font-size: 9px; line-height: 1.7; }
 .queue-notice { color: var(--accent-light); font-size: 10px; margin-top: 13px; line-height: 1.8; }

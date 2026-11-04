@@ -374,6 +374,12 @@ def convert(
         from benchmaxxing.providers.frontend import convert_frontend
 
         return convert_frontend(source, revision=revision, source_sha256=digest, variant=variant)
+    if suite_id == "frontend-design-extended":
+        from benchmaxxing.providers.frontend import convert_frontend_extension
+
+        return convert_frontend_extension(
+            source, revision=revision, source_sha256=digest, variant=variant
+        )
     if suite_id in {
         "evalplus-humaneval",
         "evalplus-mbpp",

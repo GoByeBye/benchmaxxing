@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import json
 import os
 import threading
 from pathlib import Path
@@ -11,11 +12,14 @@ import pytest
 from benchmaxxing.contracts import Budgets, RunSpec
 from benchmaxxing.engine import execute_run
 from benchmaxxing.environment import EnvironmentError, OutputLimitExceeded
-from benchmaxxing.providers import registry
+from benchmaxxing.providers import frontend, registry
 from benchmaxxing.providers.frontend import (
     VERSION,
     convert_frontend,
+    convert_frontend_extension,
+    fetch_frontend_extension_source,
     fetch_frontend_source,
+    prepare_frontend_extension_runtime,
     prepare_frontend_runtime,
 )
 from benchmaxxing.providers.runner import _grading_artifacts
@@ -23,10 +27,12 @@ from benchmaxxing.providers.sandbox import NativeEnvironment
 from benchmaxxing.storage import Store
 
 
-def installed(directory):
-    fetched = fetch_frontend_source(directory)
+def installed(directory, extension=False):
+    fetch = fetch_frontend_extension_source if extension else fetch_frontend_source
+    convert = convert_frontend_extension if extension else convert_frontend
+    fetched = fetch(directory)
     source = Path(fetched["source_path"])
-    tasks = convert_frontend(source, revision=VERSION, source_sha256=fetched["source_sha256"])
+    tasks = convert(source, revision=VERSION, source_sha256=fetched["source_sha256"])
     registry.install(directory, source, tasks)
     return tasks
 
@@ -88,12 +94,13 @@ docker_enabled = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(scope="module")
-def prepared(tmp_path_factory):
+@pytest.fixture(scope="module", params=[False, True], ids=["original", "extended"])
+def prepared(tmp_path_factory, request):
     directory = tmp_path_factory.mktemp("frontend-docker")
-    tasks = installed(directory)
-    result = prepare_frontend_runtime(directory)
-    assert result["prepared_tasks"] == 6 and not result["errors"]
+    tasks = installed(directory, request.param)
+    prepare = prepare_frontend_extension_runtime if request.param else prepare_frontend_runtime
+    result = prepare(directory)
+    assert result["prepared_tasks"] == len(tasks) and not result["errors"]
     return directory, tasks
 
 
@@ -103,6 +110,8 @@ def prepared(tmp_path_factory):
 @pytest.mark.parametrize("good", [True, False])
 def test_original_frontend_good_bad_in_fresh_browser_grader(prepared, index, good):
     directory, tasks = prepared
+    if index >= len(tasks):
+        pytest.skip("extension pack contains three briefs")
     task = tasks[index]
     budget = Budgets(
         wall_seconds=120,
@@ -151,3 +160,99 @@ def test_frontend_shared_runner_records_pngs_and_grading_evidence(prepared):
     artifacts = store.artifacts(run.id)
     assert sum(item.media_type == "image/png" for item in artifacts) == 2
     assert any(item.name == "native-grading-evidence.json" for item in artifacts)
+
+
+def test_extension_pack_keeps_original_source_identity(tmp_path):
+    original = installed(tmp_path)
+    extended = installed(tmp_path, True)
+    assert len(extended) == 3
+    assert {task.suite_id for task in extended} == {"frontend-design-extended"}
+    assert len({task.id for task in original + extended}) == 9
+    assert [task.model_dump() for task in installed(tmp_path)] == [
+        task.model_dump() for task in original
+    ]
+    for task in extended:
+        assert "1280px" in task.prompt and "390px" in task.prompt
+        assert task.recipe.network == "none"
+        assert "frontend_grader.py" not in task.public_files
+        assert task.good_solution != task.bad_solution
+
+
+@pytest.mark.docker
+@docker_enabled
+@pytest.mark.parametrize(
+    ("index", "before", "after"),
+    [
+        (0, "+ +d.value", "+ 4"),
+        (1, "String(!open)", "'false'"),
+        (2, "'Ember'", "'Wrong title'"),
+    ],
+)
+def test_extension_rejects_behavior_regressions(prepared, index, before, after):
+    directory, tasks = prepared
+    if tasks[0].suite_id != "frontend-design-extended":
+        pytest.skip("extension mutation fixtures only")
+    task = tasks[index]
+    assert before in task.good_solution
+    budget = Budgets(memory_mb=2048, pids=256, command_seconds=30, artifact_bytes=8 * 1024 * 1024)
+    environment = NativeEnvironment(
+        directory, f"frontend-mutation-{index}", budget, task, threading.Event()
+    )
+    try:
+        environment.start()
+        environment.write_file("index.html", task.good_solution.replace(before, after))
+        frozen = environment.freeze()
+        environment.close()
+        result = environment.grade(frozen)
+        assert not result["passed"], result
+        functional = [
+            check
+            for check in result["checks"]
+            if "_at_" in check["name"] and not check["name"].startswith("overflow")
+        ]
+        assert len(functional) == 2
+        assert all(not check["passed"] for check in functional), result
+    finally:
+        environment.close()
+
+
+@pytest.mark.parametrize("extension", [False, True], ids=["original-crlf", "extended-lf"])
+def test_frontend_source_bytes_and_hash_ignore_checkout_line_endings(
+    tmp_path, monkeypatch, extension
+):
+    runtime = Path(frontend.__file__).parents[1] / "runtimes"
+    prefix = "frontend_extension" if extension else "frontend"
+    grader = (runtime / f"{prefix}_grader.py").read_bytes().replace(b"\r\n", b"\n")
+    briefs = json.loads((runtime / f"{prefix}_briefs.json").read_text(encoding="utf-8"))
+    fake_package = tmp_path / "package"
+    fake_runtime = fake_package / "runtimes"
+    fake_runtime.mkdir(parents=True)
+    monkeypatch.setattr(frontend, "__file__", str(fake_package / "providers" / "frontend.py"))
+    fetch = fetch_frontend_extension_source if extension else fetch_frontend_source
+    convert = convert_frontend_extension if extension else convert_frontend
+    results = []
+    records = []
+    for label, newline in [("lf", b"\n"), ("crlf", b"\r\n")]:
+        (fake_runtime / f"{prefix}_grader.py").write_bytes(grader.replace(b"\n", newline))
+        (fake_runtime / f"{prefix}_briefs.json").write_bytes(
+            json.dumps(briefs, indent=2).encode().replace(b"\n", newline)
+        )
+        result = fetch(tmp_path / label)
+        frozen = (Path(result["source_path"]) / "frontend_grader.py").read_bytes()
+        expected = grader if extension else grader.replace(b"\n", b"\r\n")
+        assert frozen == expected
+        results.append(result["source_sha256"])
+        records.append(
+            [
+                task.model_dump()
+                for task in convert(
+                    Path(result["source_path"]),
+                    revision=VERSION,
+                    source_sha256=result["source_sha256"],
+                )
+            ]
+        )
+    assert results[0] == results[1]
+    assert records[0] == records[1]
+    if not extension:
+        assert results[0] == "0572d83dcd61e7680359255620e6f71337d0c556eee7aac4eebb6b8bd76c4712"

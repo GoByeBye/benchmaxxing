@@ -23,6 +23,13 @@ from benchmaxxing.providers.downloads import cache_root, download
 from benchmaxxing.providers.preparation import check_docker_capacity, prepare_imported
 
 _HARBOR_PROFILES = {
+    "log-summary-date-ranges-offline-v1": {
+        "suite_id": "terminal-bench-2-1",
+        "upstream_id": "terminal-bench/log-summary-date-ranges",
+        "base": "benchmaxxing/cancel-async-tasks-offline-v1:latest",
+        "base_runtime_label": "cancel-async-tasks-offline-v1",
+        "fingerprint": "198b2b869d44f6370411eb190f42bd2e91ad2796bbe506718188c318cc832d6f",
+    },
     "cancel-async-tasks-offline-v1": {
         "suite_id": "terminal-bench-2-1",
         "upstream_id": "terminal-bench/cancel-async-tasks",
@@ -194,6 +201,8 @@ def _prepare_prepacked_python_profile(data_dir: Path, task: ImportedTask) -> dic
     expected = {"environment/Dockerfile"}
     if profile_name == "sqlite-db-truncate-offline-v1":
         expected.add("environment/trunc.db")
+    if profile_name == "log-summary-date-ranges-offline-v1":
+        expected.add("environment/log_generator_deterministic.py")
     if set(runtime) != expected:
         raise PreparationError("Reviewed task runtime assets changed")
 
@@ -205,6 +214,40 @@ def _prepare_prepacked_python_profile(data_dir: Path, task: ImportedTask) -> dic
         "network": "none",
         "dependency_install": "none; exact pytest and pytest-json-ctrf versions probed",
     }
+    if profile_name == "log-summary-date-ranges-offline-v1":
+        check_docker_capacity(data_dir, 256 * 1024**2)
+        source = runtime["environment/log_generator_deterministic.py"]
+        asset_path = registry.asset_root(data_dir) / str(source.sha256)
+        if source.sha256 is None or not asset_path.is_file():
+            raise PreparationError("The reviewed log generator asset is missing")
+        if registry.file_hash(asset_path) != source.sha256:
+            raise PreparationError("The reviewed log generator asset changed")
+        cache = cache_root(data_dir) / "builds"
+        cache.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="log-summary-", dir=cache) as name:
+            context = Path(name)
+            shutil.copyfile(asset_path, context / "log_generator_deterministic.py")
+            dockerfile = (
+                f"FROM {profile['base']}\n"
+                "WORKDIR /app\n"
+                "COPY log_generator_deterministic.py /app/\n"
+                "RUN python /app/log_generator_deterministic.py "
+                "&& rm /app/log_generator_deterministic.py "
+                "&& chmod -R a+rX /app/logs\n"
+                'LABEL org.benchmaxxing.runtime="log-summary-date-ranges-offline-v1"\n'
+            )
+            (context / "Dockerfile").write_text(dockerfile, encoding="utf-8")
+            image = "benchmaxxing/log-summary-date-ranges-offline-v1:latest"
+            _require_success(
+                _docker(
+                    ["build", "--pull=false", "--network", "none", "--tag", image, str(context)],
+                    timeout=120,
+                    output_limit=1024**2,
+                ),
+                "Reviewed log-summary runtime build failed",
+            )
+            provenance["generator_sha256"] = source.sha256
+            provenance["dockerfile_sha256"] = hashlib.sha256(dockerfile.encode()).hexdigest()
     if profile_name == "sqlite-db-truncate-offline-v1":
         check_docker_capacity(data_dir, 256 * 1024**2)
         source = runtime["environment/trunc.db"]
@@ -266,7 +309,11 @@ def prepare_harbor_profile(data_dir: Path, task: ImportedTask) -> dict[str, Any]
         raise PreparationError("No reviewed offline build recipe exists for this native task")
     if profile_name == "sound-change-cascade-offline-v1":
         return _prepare_sound_profile(data_dir, task)
-    if profile_name in {"regex-log-offline-v1", "sqlite-db-truncate-offline-v1"}:
+    if profile_name in {
+        "regex-log-offline-v1",
+        "sqlite-db-truncate-offline-v1",
+        "log-summary-date-ranges-offline-v1",
+    }:
         return _prepare_prepacked_python_profile(data_dir, task)
     check_docker_capacity(data_dir, 2 * 1024**3)
     cache = cache_root(data_dir) / "builds"

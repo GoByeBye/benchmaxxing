@@ -31,6 +31,8 @@ class InferenceProfile(Contract):
     base_url: str = "http://127.0.0.1:8080/v1"
     model: str = Field(min_length=1)
     api_key_env: str | None = None
+    api_style: Literal["chat_completions", "responses"] = "chat_completions"
+    responses_reasoning: bool = False
 
     @model_validator(mode="after")
     def validate_endpoint(self) -> "InferenceProfile":

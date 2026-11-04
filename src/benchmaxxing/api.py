@@ -27,6 +27,13 @@ from benchmaxxing.contracts import (
     TaskSpec,
 )
 from benchmaxxing.controller import Controller, RecoveryPending
+from benchmaxxing.endpoints import (
+    Endpoint,
+    EndpointInput,
+    EndpointStore,
+    ModelDiscovery,
+    discover_models,
+)
 from benchmaxxing.providers.contracts import (
     FetchRequest,
     ImportRequest,
@@ -65,6 +72,7 @@ def create_app(
         openapi_url="/api/v1/openapi.json",
     )
     application.state.controller = owner
+    endpoint_store = EndpointStore(owner.store.data_dir)
     application.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
     @application.middleware("http")
@@ -123,6 +131,30 @@ def create_app(
         if "checks" in result:
             return DoctorReport.model_validate(result)
         return DoctorReport(ready=bool(result.get("ready", False)), checks=result)
+
+    @application.get("/api/v1/endpoints", response_model=list[Endpoint])
+    def endpoints() -> list[Endpoint]:
+        return endpoint_store.list()
+
+    @application.post("/api/v1/endpoints", response_model=Endpoint, status_code=201)
+    def add_endpoint(value: EndpointInput) -> Endpoint:
+        return endpoint_store.save(value)
+
+    @application.put("/api/v1/endpoints/{endpoint_id}", response_model=Endpoint)
+    def update_endpoint(endpoint_id: str, value: EndpointInput) -> Endpoint:
+        return endpoint_store.save(value, endpoint_id)
+
+    @application.delete("/api/v1/endpoints/{endpoint_id}", status_code=204)
+    def delete_endpoint(endpoint_id: str) -> Response:
+        endpoint_store.delete(endpoint_id)
+        return Response(status_code=204)
+
+    @application.post("/api/v1/endpoints/{endpoint_id}/models", response_model=ModelDiscovery)
+    def endpoint_models(endpoint_id: str) -> ModelDiscovery:
+        try:
+            return discover_models(endpoint_store.get(endpoint_id))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
 
     @application.get("/api/v1/tasks", response_model=list[TaskSpec])
     def tasks(include_archived: bool = False) -> list[TaskSpec]:

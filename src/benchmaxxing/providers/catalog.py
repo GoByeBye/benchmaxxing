@@ -258,6 +258,20 @@ SUITES.extend(
             requirements=["Prepared local Chromium runtime", "Separate human aesthetic review"],
         ),
         SuiteDescriptor(
+            id="frontend-design-extended",
+            name="Benchmaxxing Frontend Design Extended",
+            category="frontend",
+            upstream_url="https://github.com/GoByeBye/benchmaxxing",
+            version="1.0.0",
+            published_size="3 original tasks",
+            description="Additional offline interface briefs with browser-verified behavior, "
+            "responsive layouts and separate visual review artifacts.",
+            license="AGPL-3.0-only",
+            offline="supported-path",
+            origin="original",
+            requirements=["Prepared local Chromium runtime", "Separate human aesthetic review"],
+        ),
+        SuiteDescriptor(
             id="cyberlabs",
             name="Benchmaxxing Application Security Labs",
             category="security",

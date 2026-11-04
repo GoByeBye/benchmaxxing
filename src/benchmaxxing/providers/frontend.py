@@ -12,6 +12,8 @@ from benchmaxxing.providers.contracts import ImportedTask, NativeRecipe
 
 VERSION = "1.0.0"
 SUITE_ID = "frontend-design"
+EXTENSION_SUITE_ID = "frontend-design-extended"
+EXTENSION_VERSION = "1.0.0"
 BROWSER_IMAGE = "benchmaxxing/miniwob-frozen:0.14.3"
 
 
@@ -29,8 +31,9 @@ def _fetch_frontend_source(data_dir: Path) -> dict[str, Any]:
     ]
     source.mkdir(parents=True, exist_ok=True)
     registry._atomic_json(source / "briefs.json", {"version": VERSION, "briefs": records})
-    downloads.check_capacity(data_dir, grader.stat().st_size)
-    (source / "frontend_grader.py").write_bytes(grader.read_bytes())
+    frozen_grader = _frozen_grader_bytes(grader, legacy=True)
+    downloads.check_capacity(data_dir, len(frozen_grader))
+    (source / "frontend_grader.py").write_bytes(frozen_grader)
     downloads.note_file(source / "frontend_grader.py")
     return {
         "source_path": str(source),
@@ -42,13 +45,33 @@ def _fetch_frontend_source(data_dir: Path) -> dict[str, Any]:
 def convert_frontend(
     source: Path, *, revision: str, source_sha256: str, variant: str | None = None
 ) -> list[ImportedTask]:
+    return _convert_frontend(
+        source, revision=revision, source_sha256=source_sha256, variant=variant, suite_id=SUITE_ID
+    )
+
+
+def convert_frontend_extension(
+    source: Path, *, revision: str, source_sha256: str, variant: str | None = None
+) -> list[ImportedTask]:
+    return _convert_frontend(
+        source,
+        revision=revision,
+        source_sha256=source_sha256,
+        variant=variant,
+        suite_id=EXTENSION_SUITE_ID,
+    )
+
+
+def _convert_frontend(
+    source: Path, *, revision: str, source_sha256: str, variant: str | None, suite_id: str
+) -> list[ImportedTask]:
     value = json.loads((source / "briefs.json").read_text(encoding="utf-8"))
     if value.get("version") != VERSION or revision != VERSION:
         raise ValueError("Unsupported frontend brief version")
     grader = (source / "frontend_grader.py").read_text(encoding="utf-8")
     return [
         ImportedTask(
-            suite_id=SUITE_ID,
+            suite_id=suite_id,
             upstream_id="benchmaxxing/" + brief["id"],
             revision=VERSION,
             source_sha256=source_sha256,
@@ -114,6 +137,14 @@ def convert_frontend(
 
 
 def prepare_frontend_runtime(data_dir: Path) -> dict[str, Any]:
+    return _prepare_frontend_runtime(data_dir, SUITE_ID)
+
+
+def prepare_frontend_extension_runtime(data_dir: Path) -> dict[str, Any]:
+    return _prepare_frontend_runtime(data_dir, EXTENSION_SUITE_ID)
+
+
+def _prepare_frontend_runtime(data_dir: Path, suite_id: str) -> dict[str, Any]:
     from benchmaxxing.environment import EnvironmentError
     from benchmaxxing.providers.interactive_preparation import prepare_miniwob_runtime
     from benchmaxxing.providers.preparation import prepare_suite
@@ -160,4 +191,32 @@ def prepare_frontend_runtime(data_dir: Path) -> dict[str, Any]:
         ),
         "Prepared browser runtime failed its offline Chromium probe",
     )
-    return prepare_suite(data_dir, registry.imported_tasks(data_dir, SUITE_ID), image=info["Id"])
+    return prepare_suite(data_dir, registry.imported_tasks(data_dir, suite_id), image=info["Id"])
+
+
+def fetch_frontend_extension_source(data_dir: Path) -> dict[str, Any]:
+    """Install a sibling pack without rewriting the six original task identities."""
+    with downloads.capacity_batch(data_dir):
+        source = downloads.cache_root(data_dir) / "sources" / EXTENSION_SUITE_ID / EXTENSION_VERSION
+        runtime = Path(__file__).parents[1] / "runtimes"
+        records = json.loads(
+            (runtime / "frontend_extension_briefs.json").read_text(encoding="utf-8")
+        )
+        source.mkdir(parents=True, exist_ok=True)
+        registry._atomic_json(source / "briefs.json", records)
+        grader = runtime / "frontend_extension_grader.py"
+        frozen_grader = _frozen_grader_bytes(grader, legacy=False)
+        downloads.check_capacity(data_dir, len(frozen_grader))
+        (source / "frontend_grader.py").write_bytes(frozen_grader)
+        downloads.note_file(source / "frontend_grader.py")
+        return {
+            "source_path": str(source),
+            "revision": EXTENSION_VERSION,
+            "source_sha256": registry.source_hash(source),
+        }
+
+
+def _frozen_grader_bytes(grader: Path, *, legacy: bool) -> bytes:
+    # v1's published Windows identities used CRLF; keep those bytes on every host.
+    normalized = grader.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return normalized.replace(b"\n", b"\r\n") if legacy else normalized

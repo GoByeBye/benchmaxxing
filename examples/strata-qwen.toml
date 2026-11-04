@@ -1,12 +1,13 @@
-# Existing local Strata server; prepare/load the model outside Benchmaxxing.
-# Enable Strata offline mode separately. This profile never installs model assets.
+# Example for the current local Qwen server; prepare/load it outside Benchmaxxing.
+# Configure the server's offline mode separately. This profile installs no model assets.
 schema_version = 1
 participant = "openai"
 
 [inference]
 mode = "offline"
 base_url = "http://127.0.0.1:8081/v1"
-model = "qwen3.8-flash-next-iq3_s"
+model = "qwen3.8-27b"
+api_style = "chat_completions"
 
 [generation]
 temperature = 0

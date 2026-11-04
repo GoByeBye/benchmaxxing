@@ -110,6 +110,14 @@ def _reviewed_harbor(task: ImportedTask, folder: Path) -> ImportedTask:
         "if [ $? -eq 0 ]; then echo 1; else echo 0; fi > /logs/verifier/reward.txt\n"
     )
     reviewed = {
+        ("terminal-bench-2-1", "terminal-bench/log-summary-date-ranges"): {
+            "fingerprint": "198b2b869d44f6370411eb190f42bd2e91ad2796bbe506718188c318cc832d6f",
+            "profile": "log-summary-date-ranges-offline-v1",
+            "artifacts": ["/app/summary.csv"],
+            "pytest": "8.4.1",
+            "ctrf": "0.3.5",
+            "wrapper": standard_pytest,
+        },
         ("terminal-bench-2-1", "terminal-bench/cancel-async-tasks"): {
             "fingerprint": "98e3155bda13ca6665508fa1427a13489e62a6ef6d48c6749ad089fd3c315f87",
             "profile": "cancel-async-tasks-offline-v1",
@@ -160,6 +168,7 @@ def _reviewed_harbor(task: ImportedTask, folder: Path) -> ImportedTask:
             "Task inputs, the Python rule engine and native grading assertions are unchanged."
         )
     if reviewed["profile"] in {
+        "log-summary-date-ranges-offline-v1",
         "regex-log-offline-v1",
         "sqlite-db-truncate-offline-v1",
     }:

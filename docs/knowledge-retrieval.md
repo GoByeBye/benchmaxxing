@@ -39,7 +39,8 @@ reviewed accepted answers and a new immutable task hash.
 ## Needle-in-a-haystack profiles
 
 Synthetic contexts contain exactly **32,768, 131,072 or 524,288 UTF-8 bytes**.
-The ASCII ledger generator is deterministic and versioned `synthetic-ledger/1`.
+The ASCII ledger generator is deterministic and versioned `synthetic-ledger/1`
+for unchanged profiles and `synthetic-ledger/2` for corrected two-hop profiles.
 These are byte lengths; tokenizer tokens remain unknown unless reported by the
 inference endpoint. A byte length must not be relabeled as a token context size.
 
@@ -53,7 +54,9 @@ inference endpoint. A byte length must not be relabeled as a token context size.
 
 Every profile includes obsolete historical near-matches. Seeds are fixed per
 profile and recorded in task identity and evidence; repeated runs are trials on
-the same frozen input. Actual record byte offsets are recorded, including any
+the same frozen input. Two-hop aliases use an independently derived identifier;
+the question does not expose the canonical key, so the alias record must be
+resolved before looking up its canonical value. Actual record byte offsets are recorded, including any
 shift introduced by other inserted records. An anchor fraction describes the
 insertion into filler, rather than falsely claiming an exact final token position.
 
@@ -137,3 +140,20 @@ with pulls disabled. These answer runs started no candidate containers. The host
 remained connected; no host-wide egress isolation or additional Qwen results are
 claimed. A comparison against the primary prepared manifest confirmed that all
 81 earlier original task hashes remained unchanged.
+
+## Two-hop alias correction
+
+The original join profiles derived alias names directly from canonical keys.
+A participant could strip the alias prefix and retrieve the answer without
+resolving the alias record. Aliases now use a separate deterministic hash
+namespace. The six join profiles explicitly use task version `1.1.0` and
+generator `synthetic-ledger/2`; other profiles retain task version `1.0.0` and
+generator `synthetic-ledger/1` where applicable. Regression checks resolve every join profile through both records
+and verify that questions do not expose canonical keys. Task IDs and check counts
+are unchanged. Because answer task identity includes the complete `answers.py`
+implementation, this correction changes the hashes of all 44 answer profiles,
+including knowledge and non-join profiles whose rendered inputs are unchanged.
+Existing run evidence remains immutable and describes the earlier inputs. Stop
+the controller and explicitly run `benchmaxxing prepare --no-pull` to register the
+corrected installed hashes before starting new answer runs in an existing data
+directory. No provider or workspace task hash changes from this correction.

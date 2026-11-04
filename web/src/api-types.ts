@@ -55,6 +55,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/endpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Endpoints */
+        get: operations["endpoints_api_v1_endpoints_get"];
+        put?: never;
+        /** Add Endpoint */
+        post: operations["add_endpoint_api_v1_endpoints_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/endpoints/{endpoint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Endpoint */
+        put: operations["update_endpoint_api_v1_endpoints__endpoint_id__put"];
+        post?: never;
+        /** Delete Endpoint */
+        delete: operations["delete_endpoint_api_v1_endpoints__endpoint_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/endpoints/{endpoint_id}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Endpoint Models */
+        post: operations["endpoint_models_api_v1_endpoints__endpoint_id__models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks": {
         parameters: {
             query?: never;
@@ -462,6 +515,70 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** Endpoint */
+        Endpoint: {
+            /** Name */
+            name: string;
+            /**
+             * Mode
+             * @default offline
+             * @enum {string}
+             */
+            mode?: "offline" | "api";
+            /**
+             * Base Url
+             * @default http://127.0.0.1:8080/v1
+             */
+            base_url?: string;
+            /** Api Key Env */
+            api_key_env?: string | null;
+            /**
+             * Api Style
+             * @default chat_completions
+             * @enum {string}
+             */
+            api_style?: "chat_completions" | "responses";
+            /**
+             * Responses Reasoning
+             * @default false
+             */
+            responses_reasoning?: boolean;
+            /** Model Ids */
+            model_ids?: string[];
+            /** Id */
+            id: string;
+        };
+        /** EndpointInput */
+        EndpointInput: {
+            /** Name */
+            name: string;
+            /**
+             * Mode
+             * @default offline
+             * @enum {string}
+             */
+            mode?: "offline" | "api";
+            /**
+             * Base Url
+             * @default http://127.0.0.1:8080/v1
+             */
+            base_url?: string;
+            /** Api Key Env */
+            api_key_env?: string | null;
+            /**
+             * Api Style
+             * @default chat_completions
+             * @enum {string}
+             */
+            api_style?: "chat_completions" | "responses";
+            /**
+             * Responses Reasoning
+             * @default false
+             */
+            responses_reasoning?: boolean;
+            /** Model Ids */
+            model_ids?: string[];
+        };
         /** FetchRequest */
         FetchRequest: {
             /** Suite Id */
@@ -536,6 +653,24 @@ export interface components {
             model: string;
             /** Api Key Env */
             api_key_env?: string | null;
+            /**
+             * Api Style
+             * @default chat_completions
+             * @enum {string}
+             */
+            api_style?: "chat_completions" | "responses";
+            /**
+             * Responses Reasoning
+             * @default false
+             */
+            responses_reasoning?: boolean;
+        };
+        /** ModelDiscovery */
+        ModelDiscovery: {
+            /** Endpoint Id */
+            endpoint_id: string;
+            /** Model Ids */
+            model_ids: string[];
         };
         /** PreparationJob */
         PreparationJob: {
@@ -997,6 +1132,154 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DoctorReport"];
+                };
+            };
+        };
+    };
+    endpoints_api_v1_endpoints_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Endpoint"][];
+                };
+            };
+        };
+    };
+    add_endpoint_api_v1_endpoints_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EndpointInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Endpoint"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_endpoint_api_v1_endpoints__endpoint_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                endpoint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EndpointInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Endpoint"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_endpoint_api_v1_endpoints__endpoint_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                endpoint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    endpoint_models_api_v1_endpoints__endpoint_id__models_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                endpoint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelDiscovery"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

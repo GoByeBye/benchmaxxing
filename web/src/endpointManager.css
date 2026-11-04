@@ -1,0 +1,23 @@
+.endpoint-manager { border: 1px solid var(--border); border-radius: 5px; background: var(--surface-deep); padding: 12px; margin-top: 12px; }
+.endpoint-toolbar, .endpoint-card-top, .endpoint-actions, .endpoint-editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.endpoint-toolbar > strong { font-size: 11px; font-weight: 500; color: var(--text); }
+.endpoint-toolbar .button { min-height: 28px; padding: 5px 7px; }
+.endpoint-card { margin-top: 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); padding: 10px; }
+.composer .endpoint-check, .composer .endpoint-model { display: flex; align-items: flex-start; gap: 9px; margin: 0; color: var(--text-secondary); cursor: pointer; }
+.composer .endpoint-check input, .composer .endpoint-model input { width: 15px; height: 15px; flex: 0 0 15px; padding: 0; accent-color: var(--accent); }
+.endpoint-check span, .endpoint-model span { min-width: 0; overflow-wrap: anywhere; }
+.endpoint-check strong { display: block; color: var(--text); font-size: 11px; font-weight: 500; }
+.endpoint-check small { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }
+.endpoint-actions { justify-content: flex-start; flex-wrap: wrap; margin: 11px 0 8px 24px; }
+.endpoint-actions button { border: 0; background: transparent; color: var(--accent-light); font-size: 9px; padding: 2px; cursor: pointer; }
+.endpoint-actions button:hover { text-decoration: underline; }
+.endpoint-models { max-height: 170px; overflow-y: auto; display: grid; gap: 8px; border-top: 1px solid var(--border); padding: 10px 0 0 24px; }
+.composer .endpoint-model { font-size: 10px; line-height: 1.5; }
+.composer .endpoint-reasoning { margin-top: 12px; line-height: 1.5; }
+.endpoint-manual { display: flex; gap: 7px; margin-top: 12px; }
+.composer .endpoint-manual input { min-width: 0; flex: 1; }
+.endpoint-manual button { flex: 0 0 auto; }
+.endpoint-editor { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 7px; }
+.endpoint-editor-actions { justify-content: flex-start; margin-top: 16px; }
+.endpoint-editor-actions .button-primary { color: var(--on-accent); }
+.endpoint-error { margin-top: 12px; color: var(--fail-text); font-size: 10px; line-height: 1.6; }

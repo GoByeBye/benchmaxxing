@@ -114,6 +114,7 @@ class ModelResponse:
     usage: dict[str, int | None] | None = None
     refusal: str | None = None
     finish_reason: str | None = None
+    response_items: list[dict[str, Any]] | None = None
 
     def message_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {"role": "assistant", "content": self.content}
@@ -121,6 +122,8 @@ class ModelResponse:
             result["tool_calls"] = [call.message_dict() for call in self.tool_calls]
         if self.refusal is not None:
             result["refusal"] = self.refusal
+        if self.response_items is not None:
+            result["_response_items"] = self.response_items
         return result
 
 
@@ -462,6 +465,27 @@ class OpenAIAdapter:
             payload["seed"] = self.generation.seed
         if on_delta is not None:
             payload["stream_options"] = {"include_usage": True}
+        endpoint = "/chat/completions"
+        responses_style = self.profile.api_style == "responses"
+        if responses_style:
+            endpoint = "/responses"
+            # Responses currently uses one bounded JSON request. Announce this explicit
+            # buffered mode immediately so a live session does not imply token streaming.
+            payload = {
+                "model": self.profile.model,
+                "input": _responses_input(messages),
+                "stream": False,
+                "store": False,
+                "temperature": self.generation.temperature,
+                "max_output_tokens": self.generation.max_tokens,
+            }
+            if self.profile.responses_reasoning:
+                payload["include"] = ["reasoning.encrypted_content"]
+            if tools:
+                payload.update(tools=_responses_tools(tools), tool_choice="auto")
+            # Responses has no seed parameter; do not send Chat-only settings.
+            if on_delta is not None:
+                on_delta({"type": "mode", "mode": "json"})
         # Do not allow a compressed response to expand before our byte limit.
         headers = {
             "Accept": "text/event-stream, application/json"
@@ -482,7 +506,7 @@ class OpenAIAdapter:
                 transport=self.transport,
             ) as client:
                 async with client.stream(
-                    "POST", self.base_url + "/chat/completions", json=payload, headers=headers
+                    "POST", self.base_url + endpoint, json=payload, headers=headers
                 ) as response:
                     if 300 <= response.status_code < 400:
                         raise ModelProtocolError("Inference redirects are disabled")
@@ -491,7 +515,9 @@ class OpenAIAdapter:
                     if response.status_code >= 400:
                         # Bodies can contain credentials or arbitrary provider text.
                         raise ModelError(f"Inference endpoint returned HTTP {response.status_code}")
-                    return await self._read_response(response, on_delta)
+                    return await self._read_response(
+                        response, on_delta, responses_style=responses_style
+                    )
         except httpx.TimeoutException as exc:
             raise ModelDeadlineExceeded("Inference transport timed out") from exc
         except httpx.HTTPError as exc:
@@ -501,13 +527,17 @@ class OpenAIAdapter:
         self,
         response: httpx.Response,
         on_delta: Callable[[dict[str, Any]], None] | None,
+        *,
+        responses_style: bool = False,
     ) -> ModelResponse:
         body = bytearray()
         wire_bytes = 0
         wire_limit = (
-            self.max_response_bytes if on_delta is None else self.max_response_bytes * 32 + 262144
+            self.max_response_bytes
+            if on_delta is None or responses_style
+            else self.max_response_bytes * 32 + 262144
         )
-        mode: str | None = "json" if on_delta is None else None
+        mode: str | None = "json" if on_delta is None or responses_style else None
         emitter = _DeltaEmitter(on_delta, self._api_key) if on_delta is not None else None
         frames = _SSEFrames(self.max_response_bytes + 65536)
         assembled = _StreamResponse(emitter, self.max_response_bytes) if emitter else None
@@ -547,18 +577,20 @@ class OpenAIAdapter:
         if mode != "json":
             raise ModelProtocolError("Inference stream ended without [DONE]")
         raw_payload = _decode_json(body)
-        result = parse_response(self.redact(raw_payload))
+        parser = parse_responses_response if responses_style else parse_response
+        result = parser(self.redact(raw_payload))
         if on_delta is not None:
             assert emitter is not None
-            raw_result = parse_response(raw_payload)
+            raw_result = parser(raw_payload)
             for name in ("content", "refusal"):
                 value = getattr(raw_result, name)
                 if value is not None:
                     emitter.text(name, value)
-            for name in ("reasoning_content", "reasoning"):
-                value = raw_payload["choices"][0]["message"].get(name)
-                if isinstance(value, str):
-                    emitter.text("reasoning", value)
+            if not responses_style:
+                for name in ("reasoning_content", "reasoning"):
+                    value = raw_payload["choices"][0]["message"].get(name)
+                    if isinstance(value, str):
+                        emitter.text("reasoning", value)
             for index, call in enumerate(raw_result.tool_calls):
                 for name in ("id", "name", "arguments"):
                     emitter.text(
@@ -644,3 +676,131 @@ def parse_response(payload: Any) -> ModelResponse:
     if finish_reason is not None and not isinstance(finish_reason, str):
         raise ModelProtocolError("Finish reason must be text")
     return ModelResponse(content, calls, model, normalized_usage, refusal, finish_reason)
+
+
+def _responses_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Translate the harness transcript without losing Responses reasoning items."""
+    items: list[dict[str, Any]] = []
+    for message in messages:
+        if message.get("role") == "assistant" and "_response_items" in message:
+            items.extend(message["_response_items"])
+        elif message.get("role") == "tool":
+            items.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": message["tool_call_id"],
+                    "output": message["content"],
+                }
+            )
+        else:
+            if message.get("content") is not None:
+                items.append({"role": message["role"], "content": message["content"]})
+            for call in message.get("tool_calls", []):
+                items.append(
+                    {
+                        "type": "function_call",
+                        "call_id": call["id"],
+                        "name": call["function"]["name"],
+                        "arguments": call["function"]["arguments"],
+                    }
+                )
+    return items
+
+
+def _responses_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result = []
+    for tool in tools:
+        if tool.get("type") != "function" or not isinstance(tool.get("function"), dict):
+            raise UnsupportedModel("Only function tools are supported")
+        # Responses defaults strict to true; preserve the harness's optional fields.
+        result.append({"type": "function", "strict": False, **tool["function"]})
+    return result
+
+
+def parse_responses_response(payload: Any) -> ModelResponse:
+    """Normalize completed Responses items into the shared harness response."""
+    if not isinstance(payload, dict) or payload.get("error") is not None:
+        raise ModelProtocolError("Inference endpoint returned an invalid Responses response")
+    status = payload.get("status")
+    if status == "incomplete":
+        details = payload.get("incomplete_details")
+        if isinstance(details, dict) and details.get("reason") == "max_output_tokens":
+            raise ModelOutputLimitExceeded("Inference response exhausted the output token budget")
+        raise ModelProtocolError("Inference endpoint returned an incomplete response")
+    if status != "completed":
+        raise ModelProtocolError("Inference endpoint did not return a completed response")
+    output = payload.get("output")
+    if not isinstance(output, list):
+        raise ModelProtocolError("Responses output must be a list")
+    text: list[str] = []
+    refusals: list[str] = []
+    calls = []
+    for item in output:
+        if not isinstance(item, dict):
+            raise ModelProtocolError("Malformed Responses output item")
+        kind = item.get("type")
+        if kind == "message":
+            if item.get("role") != "assistant" or not isinstance(item.get("content"), list):
+                raise ModelProtocolError("Malformed Responses assistant message")
+            if item.get("status", "completed") != "completed":
+                raise ModelProtocolError("Incomplete Responses assistant message")
+            for part in item["content"]:
+                if not isinstance(part, dict):
+                    raise ModelProtocolError("Malformed Responses content")
+                if part.get("type") == "output_text" and isinstance(part.get("text"), str):
+                    text.append(part["text"])
+                elif part.get("type") == "refusal" and isinstance(part.get("refusal"), str):
+                    refusals.append(part["refusal"])
+                else:
+                    raise ModelProtocolError("Unsupported or malformed Responses content")
+        elif kind == "function_call":
+            if item.get("status", "completed") != "completed":
+                raise ModelProtocolError("Incomplete Responses function call")
+            calls.append(
+                {
+                    "id": item.get("call_id"),
+                    "type": "function",
+                    "function": {"name": item.get("name"), "arguments": item.get("arguments")},
+                }
+            )
+        elif kind == "reasoning":
+            # Preserve opaque reasoning for stateless follow-up requests, without
+            # interpreting or displaying encrypted model context as visible text.
+            continue
+        else:
+            raise UnsupportedModel("Unsupported Responses output item")
+    usage = payload.get("usage")
+    if usage is not None:
+        if not isinstance(usage, dict):
+            raise ModelProtocolError("Usage must be an object or null")
+        usage = {
+            "prompt_tokens": usage.get("input_tokens"),
+            "completion_tokens": usage.get("output_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+        }
+    response = parse_response(
+        {
+            "model": payload.get("model"),
+            "usage": usage,
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "".join(text) if text else None,
+                        "refusal": "".join(refusals) if refusals else None,
+                        "tool_calls": calls,
+                    },
+                    "finish_reason": "tool_calls" if calls else "stop",
+                }
+            ],
+        }
+    )
+    return ModelResponse(
+        response.content,
+        response.tool_calls,
+        response.model,
+        response.usage,
+        response.refusal,
+        response.finish_reason,
+        output,
+    )

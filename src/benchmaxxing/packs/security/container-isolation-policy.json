@@ -1,0 +1,344 @@
+{
+  "schema_version": 1,
+  "id": "security.container-isolation-policy",
+  "version": "1.0.0",
+  "title": "Audit a synthetic container isolation specification",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "sandbox-isolation",
+    "static-policy"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) to statically audit a synthetic container specification against this deliberately limited lab policy. Do not run containers, inspect the host, or contact a network. Every input contains network and user strings; read_only, privileged and no_new_privileges booleans; cap_drop and mounts string lists; and memory_mb and pids_limit integers (not booleans). Return exactly {\"issues\": [codes]} with unique codes sorted lexicographically. Each failed field contributes its field name as a code. Require network exactly \"none\"; user matching ASCII digits:digits with numeric UID >0 (GID may be zero, leading zeros permitted); read_only true; privileged false; cap_drop containing the exact string \"ALL\"; no_new_privileges true; mounts empty; memory_mb in inclusive range 1..512; pids_limit in inclusive range 1..128. Ignore unknown fields and additional cap_drop entries. Do not mutate input. This static exercise scores only the specified fields and does not certify actual runtime isolation.",
+  "files": {
+    "solution.py": "def solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nfrom solution import solve\n\nCASES = [{'name': 'isolated', 'input': {'network': 'none', 'user': '1000:1000', 'read_only': True, 'privileged': False, 'cap_drop': ['ALL'], 'no_new_privileges': True, 'mounts': [], 'memory_mb': 256, 'pids_limit': 64}, 'expected': {'issues': []}}, {'name': 'external_network', 'input': {'network': 'bridge', 'user': '1000:1000', 'read_only': True, 'privileged': False, 'cap_drop': ['ALL'], 'no_new_privileges': True, 'mounts': [], 'memory_mb': 256, 'pids_limit': 64}, 'expected': {'issues': ['network']}}, {'name': 'root_user', 'input': {'network': 'none', 'user': '0:1000', 'read_only': True, 'privileged': False, 'cap_drop': ['ALL'], 'no_new_privileges': True, 'mounts': [], 'memory_mb': 256, 'pids_limit': 64}, 'expected': {'issues': ['user']}}]\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert solve(value) == case[\"expected\"], case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import re\n    issues = []\n    if payload[\"network\"] != \"none\":\n        issues.append(\"network\")\n    match = re.fullmatch(r\"([0-9]+):([0-9]+)\", payload[\"user\"])\n    if match is None or int(match.group(1)) == 0:\n        issues.append(\"user\")\n    if not payload[\"read_only\"]:\n        issues.append(\"read_only\")\n    if payload[\"privileged\"]:\n        issues.append(\"privileged\")\n    if \"ALL\" not in payload[\"cap_drop\"]:\n        issues.append(\"cap_drop\")\n    if not payload[\"no_new_privileges\"]:\n        issues.append(\"no_new_privileges\")\n    if payload[\"mounts\"]:\n        issues.append(\"mounts\")\n    for key, maximum in ((\"memory_mb\", 512), (\"pids_limit\", 128)):\n        if not 1 <= payload[key] <= maximum:\n            issues.append(key)\n    return {\"issues\": sorted(issues)}\n",
+  "bad_solution": "def solve(payload):\n    return {\"issues\": []}\n",
+  "cases": [
+    {
+      "name": "isolated",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": []
+      }
+    },
+    {
+      "name": "external_network",
+      "input": {
+        "network": "bridge",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": [
+          "network"
+        ]
+      }
+    },
+    {
+      "name": "root_user",
+      "input": {
+        "network": "none",
+        "user": "0:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": [
+          "user"
+        ]
+      }
+    },
+    {
+      "name": "root_group_allowed",
+      "input": {
+        "network": "none",
+        "user": "1000:0",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": []
+      }
+    },
+    {
+      "name": "writable_root",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": false,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": [
+          "read_only"
+        ]
+      }
+    },
+    {
+      "name": "privileged",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": true,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": [
+          "privileged"
+        ]
+      }
+    },
+    {
+      "name": "capabilities_not_dropped",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "NET_RAW"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": [
+          "cap_drop"
+        ]
+      }
+    },
+    {
+      "name": "privilege_escalation",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": false,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": [
+          "no_new_privileges"
+        ]
+      }
+    },
+    {
+      "name": "host_mount",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [
+          "/example:/data:ro"
+        ],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": [
+          "mounts"
+        ]
+      }
+    },
+    {
+      "name": "memory_upper_boundary",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 512,
+        "pids_limit": 128
+      },
+      "expected": {
+        "issues": []
+      }
+    },
+    {
+      "name": "unbounded_resources",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 0,
+        "pids_limit": 0
+      },
+      "expected": {
+        "issues": [
+          "memory_mb",
+          "pids_limit"
+        ]
+      }
+    },
+    {
+      "name": "over_budget",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 513,
+        "pids_limit": 129
+      },
+      "expected": {
+        "issues": [
+          "memory_mb",
+          "pids_limit"
+        ]
+      }
+    },
+    {
+      "name": "named_user",
+      "input": {
+        "network": "none",
+        "user": "worker",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": [
+          "user"
+        ]
+      }
+    },
+    {
+      "name": "all_caps_and_extra",
+      "input": {
+        "network": "none",
+        "user": "1000:1000",
+        "read_only": true,
+        "privileged": false,
+        "cap_drop": [
+          "ALL",
+          "NET_RAW"
+        ],
+        "no_new_privileges": true,
+        "mounts": [],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": []
+      }
+    },
+    {
+      "name": "combined",
+      "input": {
+        "network": "host",
+        "user": "1000",
+        "read_only": false,
+        "privileged": false,
+        "cap_drop": [
+          "ALL"
+        ],
+        "no_new_privileges": true,
+        "mounts": [
+          "tmp"
+        ],
+        "memory_mb": 256,
+        "pids_limit": 64
+      },
+      "expected": {
+        "issues": [
+          "mounts",
+          "network",
+          "read_only",
+          "user"
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

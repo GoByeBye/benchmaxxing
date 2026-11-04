@@ -63,6 +63,182 @@
         }
       }
     },
+    "/api/v1/endpoints": {
+      "get": {
+        "summary": "Endpoints",
+        "operationId": "endpoints_api_v1_endpoints_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Endpoint"
+                  },
+                  "type": "array",
+                  "title": "Response Endpoints Api V1 Endpoints Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add Endpoint",
+        "operationId": "add_endpoint_api_v1_endpoints_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndpointInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Endpoint"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/endpoints/{endpoint_id}": {
+      "put": {
+        "summary": "Update Endpoint",
+        "operationId": "update_endpoint_api_v1_endpoints__endpoint_id__put",
+        "parameters": [
+          {
+            "name": "endpoint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Endpoint Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndpointInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Endpoint"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Endpoint",
+        "operationId": "delete_endpoint_api_v1_endpoints__endpoint_id__delete",
+        "parameters": [
+          {
+            "name": "endpoint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Endpoint Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/endpoints/{endpoint_id}/models": {
+      "post": {
+        "summary": "Endpoint Models",
+        "operationId": "endpoint_models_api_v1_endpoints__endpoint_id__models_post",
+        "parameters": [
+          {
+            "name": "endpoint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Endpoint Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDiscovery"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks": {
       "get": {
         "summary": "Tasks",
@@ -961,6 +1137,141 @@
         ],
         "title": "DoctorReport"
       },
+      "Endpoint": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "offline",
+              "api"
+            ],
+            "title": "Mode",
+            "default": "offline"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Base Url",
+            "default": "http://127.0.0.1:8080/v1"
+          },
+          "api_key_env": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Env"
+          },
+          "api_style": {
+            "type": "string",
+            "enum": [
+              "chat_completions",
+              "responses"
+            ],
+            "title": "Api Style",
+            "default": "chat_completions"
+          },
+          "responses_reasoning": {
+            "type": "boolean",
+            "title": "Responses Reasoning",
+            "default": false
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "title": "Model Ids"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "id"
+        ],
+        "title": "Endpoint"
+      },
+      "EndpointInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "offline",
+              "api"
+            ],
+            "title": "Mode",
+            "default": "offline"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Base Url",
+            "default": "http://127.0.0.1:8080/v1"
+          },
+          "api_key_env": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Env"
+          },
+          "api_style": {
+            "type": "string",
+            "enum": [
+              "chat_completions",
+              "responses"
+            ],
+            "title": "Api Style",
+            "default": "chat_completions"
+          },
+          "responses_reasoning": {
+            "type": "boolean",
+            "title": "Responses Reasoning",
+            "default": false
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "title": "Model Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "EndpointInput"
+      },
       "FetchRequest": {
         "properties": {
           "suite_id": {
@@ -1123,6 +1434,20 @@
               }
             ],
             "title": "Api Key Env"
+          },
+          "api_style": {
+            "type": "string",
+            "enum": [
+              "chat_completions",
+              "responses"
+            ],
+            "title": "Api Style",
+            "default": "chat_completions"
+          },
+          "responses_reasoning": {
+            "type": "boolean",
+            "title": "Responses Reasoning",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -1131,6 +1456,28 @@
           "model"
         ],
         "title": "InferenceProfile"
+      },
+      "ModelDiscovery": {
+        "properties": {
+          "endpoint_id": {
+            "type": "string",
+            "title": "Endpoint Id"
+          },
+          "model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Model Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "endpoint_id",
+          "model_ids"
+        ],
+        "title": "ModelDiscovery"
       },
       "PreparationJob": {
         "properties": {
