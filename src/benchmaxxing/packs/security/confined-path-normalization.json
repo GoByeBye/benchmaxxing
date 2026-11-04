@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "id": "security.confined-path-normalization",
+  "version": "1.0.0",
+  "title": "Normalize paths inside a virtual root",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "path-validation",
+    "normalization"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for payload[\"paths\"], a list of strings representing paths relative to a virtual root. Return {\"normalized\":[normalized_string_or_null,...]}. This is a lexical policy and must not access the filesystem. Treat backslash as slash. Reject a path if it begins with a slash after conversion, starts with an ASCII drive prefix such as C:, contains any ASCII control character (codes 0–31 or 127), or would climb above the virtual root at any point. Remove empty and \".\" components; \"..\" removes one existing component, but is rejected when none exists. Join remaining components with \"/\" and use \".\" when the result is the root. Thus an initially escaping path cannot be repaired by later components. Unicode names and percent signs are ordinary characters; do not URL-decode or expand \"~\". All inputs are strings; invalid paths produce null individually rather than failing the entire batch. Preserve the input. This task does not claim to resolve filesystem symlinks.",
+  "files": {
+    "solution.py": "\"\"\"Implement the defensive policy in solve(payload).\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"basic_components\\\",\\\"input\\\":{\\\"paths\\\":[\\\"a/b\\\",\\\"a//./b\\\",\\\"./\\\"]},\\\"expected\\\":{\\\"normalized\\\":[\\\"a/b\\\",\\\"a/b\\\",\\\".\\\"]}},{\\\"name\\\":\\\"parent_components\\\",\\\"input\\\":{\\\"paths\\\":[\\\"a/b/../c\\\",\\\"a/../../b\\\",\\\"..\\\"]},\\\"expected\\\":{\\\"normalized\\\":[\\\"a/c\\\",null,null]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import re\n    results = []\n    for original in payload[\"paths\"]:\n        path = original.replace(\"\\\\\", \"/\")\n        if path.startswith(\"/\") or re.match(r\"^[A-Za-z]:\", path) or any(ord(ch) < 32 or ord(ch) == 127 for ch in path):\n            results.append(None)\n            continue\n        parts = []\n        rejected = False\n        for part in path.split(\"/\"):\n            if part in (\"\", \".\"):\n                continue\n            if part == \"..\":\n                if not parts:\n                    rejected = True\n                    break\n                parts.pop()\n            else:\n                parts.append(part)\n        results.append(None if rejected else \"/\".join(parts) or \".\")\n    return {\"normalized\": results}\n",
+  "bad_solution": "def solve(payload):\n    import posixpath\n    return {\"normalized\": [posixpath.normpath(path.replace(\"\\\\\", \"/\")).lstrip(\"/\") for path in payload[\"paths\"]]}\n",
+  "cases": [
+    {
+      "name": "basic_components",
+      "input": {
+        "paths": [
+          "a/b",
+          "a//./b",
+          "./"
+        ]
+      },
+      "expected": {
+        "normalized": [
+          "a/b",
+          "a/b",
+          "."
+        ]
+      }
+    },
+    {
+      "name": "parent_components",
+      "input": {
+        "paths": [
+          "a/b/../c",
+          "a/../../b",
+          ".."
+        ]
+      },
+      "expected": {
+        "normalized": [
+          "a/c",
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "absolute_and_drives",
+      "input": {
+        "paths": [
+          "/config",
+          "\\config",
+          "C:\\temp",
+          "D:notes"
+        ]
+      },
+      "expected": {
+        "normalized": [
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "windows_separators",
+      "input": {
+        "paths": [
+          "team\\draft\\..\\final",
+          "..\\outside"
+        ]
+      },
+      "expected": {
+        "normalized": [
+          "team/final",
+          null
+        ]
+      }
+    },
+    {
+      "name": "unicode_and_literals",
+      "input": {
+        "paths": [
+          "måling/结果",
+          "~/notes",
+          "..%2Fprivate",
+          "a/.../b"
+        ]
+      },
+      "expected": {
+        "normalized": [
+          "måling/结果",
+          "~/notes",
+          "..%2Fprivate",
+          "a/.../b"
+        ]
+      }
+    },
+    {
+      "name": "controls",
+      "input": {
+        "paths": [
+          "a\u0000b",
+          "a\nb",
+          "a\tb",
+          "ab"
+        ]
+      },
+      "expected": {
+        "normalized": [
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    {
+      "name": "root_results",
+      "input": {
+        "paths": [
+          "",
+          "a/..",
+          "a/b/../..",
+          "../a/.."
+        ]
+      },
+      "expected": {
+        "normalized": [
+          ".",
+          ".",
+          ".",
+          null
+        ]
+      }
+    },
+    {
+      "name": "network_path",
+      "input": {
+        "paths": [
+          "\\\\server\\share",
+          "a\\\\b\\"
+        ]
+      },
+      "expected": {
+        "normalized": [
+          null,
+          "a/b"
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

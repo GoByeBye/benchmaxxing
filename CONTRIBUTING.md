@@ -25,6 +25,10 @@ Every grader needs known-good and known-bad fixtures. Changes to reference task
 assets invalidate preparation hashes. Changes to measurement conditions require
 task/harness/grader version changes and an explanation of comparability.
 
+See [task pack authoring](docs/task-packs.md) for the installed JSON contract.
+Run `benchmaxxing validate-packs`, refresh preparation with `prepare --no-pull`
+when the local image already exists, and validate every added fixture in Docker.
+
 Never execute candidate code on the host, add downloads to the run path, place
 keys in configurations, or mount hidden grading material into a candidate.
 Treat trace content as data when displaying it. New domain implementations follow

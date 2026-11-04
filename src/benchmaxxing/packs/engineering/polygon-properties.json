@@ -1,0 +1,262 @@
+{
+  "schema_version": 1,
+  "id": "engineering.polygon-properties",
+  "version": "1.0.0",
+  "title": "Area, centroid, and perimeter of a polygon",
+  "category": "engineering",
+  "difficulty": "medium",
+  "tags": [
+    "geometry",
+    "centroid",
+    "shoelace",
+    "units"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload), where vertices is an ordered boundary of a simple planar polygon in meters. The boundary may be clockwise or counterclockwise and may repeat its first vertex once at the end. Remove that optional repeated closing vertex from the calculation, without mutating the input. Return {\"area_m2\":positive_area,\"centroid_m\":[cx,cy],\"perimeter_m\":length}. The centroid is the uniform-area centroid, not the average of vertices. Close the last edge to the first. If fewer than three vertices remain, return {\"error\":\"too_few_vertices\"}; if the absolute shoelace twice-area is <=1e-12, return {\"error\":\"degenerate\"}. Other inputs are valid finite pairs with no self-intersections; zero-area cases are permitted for validation. Absolute/relative tolerance 1e-8.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to the task specification.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-8, rel_tol=1e-8)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"rectangle\\\",\\\"input\\\":{\\\"vertices\\\":[[0,0],[4,0],[4,2],[0,2]]},\\\"expected\\\":{\\\"area_m2\\\":8,\\\"centroid_m\\\":[2,1],\\\"perimeter_m\\\":12}},{\\\"name\\\":\\\"right_triangle\\\",\\\"input\\\":{\\\"vertices\\\":[[0,0],[4,0],[0,3]]},\\\"expected\\\":{\\\"area_m2\\\":6,\\\"centroid_m\\\":[1.3333333333333333,1],\\\"perimeter_m\\\":12}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import math\n    vertices = payload[\"vertices\"]\n    points = vertices[:-1] if len(vertices) > 1 and vertices[0] == vertices[-1] else vertices[:]\n    if len(points) < 3:\n        return {\"error\": \"too_few_vertices\"}\n    edges = list(zip(points, points[1:] + points[:1]))\n    crosses = [a[0] * b[1] - b[0] * a[1] for a, b in edges]\n    twice_area = math.fsum(crosses)\n    if abs(twice_area) <= 1e-12:\n        return {\"error\": \"degenerate\"}\n    cx = math.fsum((a[0] + b[0]) * cross for (a, b), cross in zip(edges, crosses)) / (3 * twice_area)\n    cy = math.fsum((a[1] + b[1]) * cross for (a, b), cross in zip(edges, crosses)) / (3 * twice_area)\n    perimeter = math.fsum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in edges)\n    return {\"area_m2\": abs(twice_area) / 2, \"centroid_m\": [cx, cy], \"perimeter_m\": perimeter}\n",
+  "bad_solution": "def solve(payload):\n    import math\n    p = payload[\"vertices\"]\n    edges = list(zip(p, p[1:] + p[:1]))\n    area = abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in edges)) / 2\n    return {\"area_m2\": area, \"centroid_m\": [sum(x for x, y in p) / len(p), sum(y for x, y in p) / len(p)], \"perimeter_m\": sum(math.hypot(b[0]-a[0], b[1]-a[1]) for a, b in edges)}\n",
+  "cases": [
+    {
+      "name": "rectangle",
+      "input": {
+        "vertices": [
+          [
+            0,
+            0
+          ],
+          [
+            4,
+            0
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            0,
+            2
+          ]
+        ]
+      },
+      "expected": {
+        "area_m2": 8,
+        "centroid_m": [
+          2,
+          1
+        ],
+        "perimeter_m": 12
+      }
+    },
+    {
+      "name": "right_triangle",
+      "input": {
+        "vertices": [
+          [
+            0,
+            0
+          ],
+          [
+            4,
+            0
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      },
+      "expected": {
+        "area_m2": 6,
+        "centroid_m": [
+          1.3333333333333333,
+          1
+        ],
+        "perimeter_m": 12
+      }
+    },
+    {
+      "name": "clockwise",
+      "input": {
+        "vertices": [
+          [
+            0,
+            2
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            4,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "expected": {
+        "area_m2": 8,
+        "centroid_m": [
+          2,
+          1
+        ],
+        "perimeter_m": 12
+      }
+    },
+    {
+      "name": "translated",
+      "input": {
+        "vertices": [
+          [
+            10,
+            -5
+          ],
+          [
+            12,
+            -5
+          ],
+          [
+            12,
+            -1
+          ],
+          [
+            10,
+            -1
+          ]
+        ]
+      },
+      "expected": {
+        "area_m2": 8,
+        "centroid_m": [
+          11,
+          -3
+        ],
+        "perimeter_m": 12
+      }
+    },
+    {
+      "name": "concave_l_shape",
+      "input": {
+        "vertices": [
+          [
+            0,
+            0
+          ],
+          [
+            3,
+            0
+          ],
+          [
+            3,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            3
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      },
+      "expected": {
+        "area_m2": 5,
+        "centroid_m": [
+          1.1,
+          1.1
+        ],
+        "perimeter_m": 12
+      }
+    },
+    {
+      "name": "repeated_closure",
+      "input": {
+        "vertices": [
+          [
+            0,
+            0
+          ],
+          [
+            4,
+            0
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "expected": {
+        "area_m2": 8,
+        "centroid_m": [
+          2,
+          1
+        ],
+        "perimeter_m": 12
+      }
+    },
+    {
+      "name": "collinear",
+      "input": {
+        "vertices": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            2,
+            2
+          ]
+        ]
+      },
+      "expected": {
+        "error": "degenerate"
+      }
+    },
+    {
+      "name": "too_few",
+      "input": {
+        "vertices": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "expected": {
+        "error": "too_few_vertices"
+      }
+    }
+  ],
+  "atol": 1e-8,
+  "rtol": 1e-8,
+  "preserve_input": true
+}

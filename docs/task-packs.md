@@ -1,0 +1,89 @@
+# Original task packs
+
+The installed catalog contains 41 tasks and 324 grading checks: 15 programming,
+10 numerical engineering, 6 defensive security, 6 terminal and 4 synthetic policy
+decision tasks. The original interval-merging task retains its existing identity
+and public-asset hash. The new harness identity is `benchmaxxing-tools/2`.
+
+## Running the catalog
+
+```sh
+benchmaxxing tasks
+benchmaxxing tasks --category security
+benchmaxxing validate-packs
+benchmaxxing prepare --no-pull
+benchmaxxing run --task terminal.release-manifest
+benchmaxxing suite --category engineering --repeat 2 --config examples/strata-qwen.toml
+```
+
+Stop the local service before preparation. Omit `--no-pull` only when explicitly
+preparing an image from a registry. Neither execution nor validation installs
+dependencies. A suite submits individual run records; one worker executes them
+sequentially. Each trial gets its own trace, result, artifacts and export. Ctrl+C
+cancels queued suite attempts and requests cancellation of active work.
+
+The UI searches task titles, IDs, tags and descriptions; filters by category;
+shows instructions and rubrics; and can queue the filtered catalog with 1–5
+attempts per task. Category coverage is based on loaded history, limited to the
+latest 1,000 attempts, and distinguishes graded task coverage from passed attempts.
+It is not a comparable aggregate across different participants or settings.
+
+## Pack contract
+
+Add a JSON file under `src/benchmaxxing/packs/<category>/`. Restart the controller
+after changing installed packs, validate, and prepare again. The authoritative
+schema is `TaskDefinition` in `src/benchmaxxing/task.py`; all unknown fields are
+rejected. Each definition includes:
+
+- A stable `id`, semantic `version`, title, category, difficulty and tags.
+- A precise prompt with inputs, outputs, tie breaking, units and error behavior.
+- Public UTF-8 workspace `files`, including `public_tests.py`; TASK.md is generated.
+- `kind: python` with a starter solution.py and named single-argument entrypoint,
+  or `kind: json` with a submission.json artifact contract.
+- Good and deliberately incorrect reference submissions retained by the controller.
+- Named cases with literal expected values. Python cases supply one JSON input;
+  artifact cases use a path of object keys/list indices into the submitted JSON.
+- Explicit absolute/relative numeric tolerances and input-preservation requirements.
+
+Only the prompt and public files enter the candidate container. The HTTP catalog
+does not expose private cases or fixtures. Python submissions run in a fresh
+grading container; comparisons happen outside it. Booleans are not treated as
+numbers, JSON object keys and list ordering matter, and NaN/Infinity are rejected.
+Terminal artifacts are compared as data. The reference fixtures never execute on
+the host. All authored code currently uses the Python standard library.
+
+The task hash covers the complete canonical definition, so changing a check or
+reference fixture invalidates preparation. Increment the task version when
+changing its benchmark conditions. Grader identities include task/version.
+Exports include the original public asset snapshot and submitted artifact; use
+the matching installed pack and grader version for re-evaluation.
+
+## Refusal and security scope
+
+Refusal packs ask for a structured decision against a written synthetic policy.
+They cover both refusal and permitted compliance, including document injection.
+They require exactly the declared fields and cannot hide extra content in ignored
+keys. Expected/observed decisions are stored in `metadata.refusal_assessment`;
+the run's provider-refusal field and correctness score remain distinct. These
+tasks do not claim to measure nuanced natural-language refusal quality.
+
+Security tasks cover defensive parsing, normalization, policy and state analysis.
+Engineering tasks assess specified simplified formulas and numerical behavior;
+they are not certifications for real-world engineering design. Interactive browser
+apps, offensive labs, Blender and CAD are separate future packs with their own
+environments and graders.
+
+## Required validation
+
+`validate-packs` checks definitions and paths but does not establish correct
+expectations. Run all fixtures in Docker before accepting a pack:
+
+```sh
+# Set BENCHMAXXING_DOCKER_TESTS=1 and BENCHMAXXING_TEST_DATA_DIR to prepared data.
+pytest tests/integration/test_packs_docker.py -q
+```
+
+Every pack must pass its public examples and all independent checks with the good
+fixture, and fail at least one check with the bad fixture. Independently review
+literal expected answers; never generate them by blindly invoking the candidate
+reference solution. Keep tasks original and preserve the AGPL-3.0-only license.

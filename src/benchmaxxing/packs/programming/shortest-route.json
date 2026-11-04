@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "id": "python.shortest-route",
+  "version": "1.0.0",
+  "title": "Canonical shortest directed route",
+  "category": "programming",
+  "difficulty": "hard",
+  "tags": [
+    "graphs",
+    "shortest-path",
+    "zero-weights"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload). Input: nodes (distinct strings), edges ([from, to, nonnegative_integer_cost]),\nstart and target (listed nodes). Edges are directed; parallel edges and zero-cost cycles are allowed.\nReturn {\"cost\": total_cost, \"path\": node_names}. Minimize total cost, then number of edges, then the\nentire path lexicographically using Python string ordering. If unreachable, return {\"cost\": null,\n\"path\": []}. If start equals target, the empty walk costs zero and its path is [start].\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"nodes\": [\"s\", \"a\", \"t\"], \"edges\": [[\"s\", \"t\", 9], [\"s\", \"a\", 2], [\"a\", \"t\", 3]], \"start\": \"s\", \"target\": \"t\"}`; output: `{\"cost\": 5, \"path\": [\"s\", \"a\", \"t\"]}`.\n- Input: `{\"nodes\": [\"s\", \"t\"], \"edges\": [], \"start\": \"s\", \"target\": \"t\"}`; output: `{\"cost\": null, \"path\": []}`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport heapq\n\ndef solve(payload):\n    graph = {node: [] for node in payload[\"nodes\"]}\n    for start, end, weight in payload[\"edges\"]:\n        graph[start].append((end, weight))\n    initial = (0, 0, (payload[\"start\"],))\n    best = {payload[\"start\"]: initial}\n    queue = [initial]\n    while queue:\n        cost, hops, path = heapq.heappop(queue)\n        node = path[-1]\n        if best[node] != (cost, hops, path):\n            continue\n        if node == payload[\"target\"]:\n            return {\"cost\": cost, \"path\": list(path)}\n        for end, weight in graph[node]:\n            candidate = (cost + weight, hops + 1, path + (end,))\n            if end not in best or candidate[0] < best[end][0]:\n                best[end] = candidate\n                heapq.heappush(queue, candidate)\n    return {\"cost\": None, \"path\": []}\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"weighted\", \"input\": {\"nodes\": [\"s\", \"a\", \"t\"], \"edges\": [[\"s\", \"t\", 9], [\"s\", \"a\", 2], [\"a\", \"t\", 3]], \"start\": \"s\", \"target\": \"t\"}, \"expected\": {\"cost\": 5, \"path\": [\"s\", \"a\", \"t\"]}}, {\"name\": \"unreachable\", \"input\": {\"nodes\": [\"s\", \"t\"], \"edges\": [], \"start\": \"s\", \"target\": \"t\"}, \"expected\": {\"cost\": null, \"path\": []}}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport heapq\n\ndef solve(payload):\n    graph = {node: [] for node in payload[\"nodes\"]}\n    for start, end, weight in payload[\"edges\"]:\n        graph[start].append((end, weight))\n    initial = (0, 0, (payload[\"start\"],))\n    best = {payload[\"start\"]: initial}\n    queue = [initial]\n    while queue:\n        cost, hops, path = heapq.heappop(queue)\n        node = path[-1]\n        if best[node] != (cost, hops, path):\n            continue\n        if node == payload[\"target\"]:\n            return {\"cost\": cost, \"path\": list(path)}\n        for end, weight in graph[node]:\n            candidate = (cost + weight, hops + 1, path + (end,))\n            if end not in best or candidate < best[end]:\n                best[end] = candidate\n                heapq.heappush(queue, candidate)\n    return {\"cost\": None, \"path\": []}\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport heapq\n\ndef solve(payload):\n    graph = {node: [] for node in payload[\"nodes\"]}\n    for start, end, weight in payload[\"edges\"]:\n        graph[start].append((end, weight))\n    initial = (0, 0, (payload[\"start\"],))\n    best = {payload[\"start\"]: initial}\n    queue = [initial]\n    while queue:\n        cost, hops, path = heapq.heappop(queue)\n        node = path[-1]\n        if best[node] != (cost, hops, path):\n            continue\n        if node == payload[\"target\"]:\n            return {\"cost\": cost, \"path\": list(path)}\n        for end, weight in graph[node]:\n            candidate = (cost + weight, hops + 1, path + (end,))\n            if end not in best or candidate[0] < best[end][0]:\n                best[end] = candidate\n                heapq.heappush(queue, candidate)\n    return {\"cost\": None, \"path\": []}\n",
+  "cases": [
+    {
+      "name": "same_node",
+      "input": {
+        "nodes": [
+          "s",
+          "a"
+        ],
+        "edges": [
+          [
+            "s",
+            "a",
+            0
+          ],
+          [
+            "a",
+            "s",
+            0
+          ]
+        ],
+        "start": "s",
+        "target": "s"
+      },
+      "expected": {
+        "cost": 0,
+        "path": [
+          "s"
+        ]
+      }
+    },
+    {
+      "name": "direction_matters",
+      "input": {
+        "nodes": [
+          "s",
+          "t"
+        ],
+        "edges": [
+          [
+            "t",
+            "s",
+            1
+          ]
+        ],
+        "start": "s",
+        "target": "t"
+      },
+      "expected": {
+        "cost": null,
+        "path": []
+      }
+    },
+    {
+      "name": "weighted_detour",
+      "input": {
+        "nodes": [
+          "s",
+          "a",
+          "b",
+          "t"
+        ],
+        "edges": [
+          [
+            "s",
+            "t",
+            20
+          ],
+          [
+            "s",
+            "a",
+            2
+          ],
+          [
+            "a",
+            "b",
+            3
+          ],
+          [
+            "b",
+            "t",
+            4
+          ]
+        ],
+        "start": "s",
+        "target": "t"
+      },
+      "expected": {
+        "cost": 9,
+        "path": [
+          "s",
+          "a",
+          "b",
+          "t"
+        ]
+      }
+    },
+    {
+      "name": "fewer_edges_after_discovery",
+      "input": {
+        "nodes": [
+          "s",
+          "a",
+          "b",
+          "c",
+          "t"
+        ],
+        "edges": [
+          [
+            "s",
+            "a",
+            0
+          ],
+          [
+            "a",
+            "b",
+            0
+          ],
+          [
+            "b",
+            "t",
+            2
+          ],
+          [
+            "s",
+            "c",
+            1
+          ],
+          [
+            "c",
+            "t",
+            1
+          ]
+        ],
+        "start": "s",
+        "target": "t"
+      },
+      "expected": {
+        "cost": 2,
+        "path": [
+          "s",
+          "c",
+          "t"
+        ]
+      }
+    },
+    {
+      "name": "lexical_after_discovery",
+      "input": {
+        "nodes": [
+          "s",
+          "a",
+          "b",
+          "t"
+        ],
+        "edges": [
+          [
+            "s",
+            "b",
+            0
+          ],
+          [
+            "b",
+            "t",
+            2
+          ],
+          [
+            "s",
+            "a",
+            1
+          ],
+          [
+            "a",
+            "t",
+            1
+          ]
+        ],
+        "start": "s",
+        "target": "t"
+      },
+      "expected": {
+        "cost": 2,
+        "path": [
+          "s",
+          "a",
+          "t"
+        ]
+      }
+    },
+    {
+      "name": "parallel_edges",
+      "input": {
+        "nodes": [
+          "s",
+          "a",
+          "t"
+        ],
+        "edges": [
+          [
+            "s",
+            "a",
+            8
+          ],
+          [
+            "s",
+            "a",
+            0
+          ],
+          [
+            "a",
+            "t",
+            1
+          ]
+        ],
+        "start": "s",
+        "target": "t"
+      },
+      "expected": {
+        "cost": 1,
+        "path": [
+          "s",
+          "a",
+          "t"
+        ]
+      }
+    },
+    {
+      "name": "zero_cycle",
+      "input": {
+        "nodes": [
+          "s",
+          "a",
+          "t"
+        ],
+        "edges": [
+          [
+            "s",
+            "a",
+            0
+          ],
+          [
+            "a",
+            "s",
+            0
+          ],
+          [
+            "a",
+            "t",
+            1
+          ],
+          [
+            "s",
+            "t",
+            4
+          ]
+        ],
+        "start": "s",
+        "target": "t"
+      },
+      "expected": {
+        "cost": 1,
+        "path": [
+          "s",
+          "a",
+          "t"
+        ]
+      }
+    },
+    {
+      "name": "whole_path_lexical",
+      "input": {
+        "nodes": [
+          "s",
+          "a",
+          "b",
+          "c",
+          "z",
+          "t"
+        ],
+        "edges": [
+          [
+            "s",
+            "b",
+            1
+          ],
+          [
+            "b",
+            "c",
+            1
+          ],
+          [
+            "c",
+            "t",
+            1
+          ],
+          [
+            "s",
+            "a",
+            1
+          ],
+          [
+            "a",
+            "z",
+            1
+          ],
+          [
+            "z",
+            "t",
+            1
+          ]
+        ],
+        "start": "s",
+        "target": "t"
+      },
+      "expected": {
+        "cost": 3,
+        "path": [
+          "s",
+          "a",
+          "z",
+          "t"
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

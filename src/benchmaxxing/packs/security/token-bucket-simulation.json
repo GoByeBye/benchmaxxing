@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "id": "security.token-bucket-simulation",
+  "version": "1.0.0",
+  "title": "Simulate a token-bucket limiter",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "rate-limiting",
+    "simulation",
+    "time"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for a token bucket. capacity>0, refill_per_second>=0, and optional initial_tokens (default capacity) define the policy. Requests are [{\"time\":seconds,\"cost\":tokens},...] with finite nonnegative time in nondecreasing order and strictly positive cost. Start at time 0. Before each request, refill by elapsed_time*refill_per_second, capped at capacity. Accept if tokens+1e-12>=cost, subtract the cost and clamp a tiny negative result to zero; otherwise deny without consuming tokens. Advance time even for denied requests. Return {\"allowed\":[booleans...],\"remaining_tokens\":tokens}. Do not refill beyond the final request time. Invalid capacity/refill/initial balance returns {\"error\":\"invalid_policy\"}; a negative or decreasing time or cost<=0 returns {\"error\":\"invalid_request\"}. Policy checks precede requests. Empty requests are valid. Do not mutate input. Token values use absolute tolerance 1e-9 and zero relative tolerance; booleans are exact.",
+  "files": {
+    "solution.py": "\"\"\"Implement the defensive policy in solve(payload).\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-9, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"burst_and_refill\\\",\\\"input\\\":{\\\"capacity\\\":2,\\\"refill_per_second\\\":1,\\\"requests\\\":[{\\\"time\\\":0,\\\"cost\\\":1},{\\\"time\\\":0,\\\"cost\\\":1},{\\\"time\\\":0,\\\"cost\\\":1},{\\\"time\\\":1,\\\"cost\\\":1}]},\\\"expected\\\":{\\\"allowed\\\":[true,true,false,true],\\\"remaining_tokens\\\":0}},{\\\"name\\\":\\\"over_capacity_request\\\",\\\"input\\\":{\\\"capacity\\\":4,\\\"refill_per_second\\\":2,\\\"requests\\\":[{\\\"time\\\":2,\\\"cost\\\":5}]},\\\"expected\\\":{\\\"allowed\\\":[false],\\\"remaining_tokens\\\":4}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    capacity, rate = payload[\"capacity\"], payload[\"refill_per_second\"]\n    tokens = payload.get(\"initial_tokens\", capacity)\n    if capacity <= 0 or rate < 0 or tokens < 0 or tokens > capacity:\n        return {\"error\": \"invalid_policy\"}\n    previous = 0\n    allowed = []\n    for request in payload[\"requests\"]:\n        now, cost = request[\"time\"], request[\"cost\"]\n        if now < previous or now < 0 or cost <= 0:\n            return {\"error\": \"invalid_request\"}\n        tokens = min(capacity, tokens + (now - previous) * rate)\n        accepted = tokens + 1e-12 >= cost\n        if accepted:\n            tokens = max(0.0, tokens - cost)\n        allowed.append(accepted)\n        previous = now\n    return {\"allowed\": allowed, \"remaining_tokens\": tokens}\n",
+  "bad_solution": "def solve(payload):\n    tokens = payload.get(\"initial_tokens\", payload[\"capacity\"])\n    allowed = []\n    for request in payload[\"requests\"]:\n        accepted = tokens >= request[\"cost\"]\n        if accepted:\n            tokens -= request[\"cost\"]\n        allowed.append(accepted)\n    return {\"allowed\": allowed, \"remaining_tokens\": tokens}\n",
+  "cases": [
+    {
+      "name": "burst_and_refill",
+      "input": {
+        "capacity": 2,
+        "refill_per_second": 1,
+        "requests": [
+          {
+            "time": 0,
+            "cost": 1
+          },
+          {
+            "time": 0,
+            "cost": 1
+          },
+          {
+            "time": 0,
+            "cost": 1
+          },
+          {
+            "time": 1,
+            "cost": 1
+          }
+        ]
+      },
+      "expected": {
+        "allowed": [
+          true,
+          true,
+          false,
+          true
+        ],
+        "remaining_tokens": 0
+      }
+    },
+    {
+      "name": "over_capacity_request",
+      "input": {
+        "capacity": 4,
+        "refill_per_second": 2,
+        "requests": [
+          {
+            "time": 2,
+            "cost": 5
+          }
+        ]
+      },
+      "expected": {
+        "allowed": [
+          false
+        ],
+        "remaining_tokens": 4
+      }
+    },
+    {
+      "name": "denied_requests_advance_time",
+      "input": {
+        "capacity": 3,
+        "refill_per_second": 0.5,
+        "initial_tokens": 1,
+        "requests": [
+          {
+            "time": 0,
+            "cost": 2
+          },
+          {
+            "time": 2,
+            "cost": 2
+          },
+          {
+            "time": 4,
+            "cost": 0.5
+          }
+        ]
+      },
+      "expected": {
+        "allowed": [
+          false,
+          true,
+          true
+        ],
+        "remaining_tokens": 0.5
+      }
+    },
+    {
+      "name": "fractional_refill",
+      "input": {
+        "capacity": 5,
+        "refill_per_second": 2,
+        "initial_tokens": 0,
+        "requests": [
+          {
+            "time": 1,
+            "cost": 1
+          },
+          {
+            "time": 1.5,
+            "cost": 2
+          },
+          {
+            "time": 4,
+            "cost": 5
+          }
+        ]
+      },
+      "expected": {
+        "allowed": [
+          true,
+          true,
+          true
+        ],
+        "remaining_tokens": 0
+      }
+    },
+    {
+      "name": "floating_boundary",
+      "input": {
+        "capacity": 1,
+        "refill_per_second": 0.1,
+        "initial_tokens": 0,
+        "requests": [
+          {
+            "time": 1,
+            "cost": 0.1
+          },
+          {
+            "time": 2,
+            "cost": 0.2
+          },
+          {
+            "time": 3,
+            "cost": 0.2
+          }
+        ]
+      },
+      "expected": {
+        "allowed": [
+          true,
+          false,
+          true
+        ],
+        "remaining_tokens": 0
+      }
+    },
+    {
+      "name": "empty_requests",
+      "input": {
+        "capacity": 4,
+        "refill_per_second": 0,
+        "initial_tokens": 2,
+        "requests": []
+      },
+      "expected": {
+        "allowed": [],
+        "remaining_tokens": 2
+      }
+    },
+    {
+      "name": "invalid_policy",
+      "input": {
+        "capacity": 0,
+        "refill_per_second": 1,
+        "requests": []
+      },
+      "expected": {
+        "error": "invalid_policy"
+      }
+    },
+    {
+      "name": "decreasing_time",
+      "input": {
+        "capacity": 2,
+        "refill_per_second": 1,
+        "requests": [
+          {
+            "time": 2,
+            "cost": 1
+          },
+          {
+            "time": 1,
+            "cost": 1
+          }
+        ]
+      },
+      "expected": {
+        "error": "invalid_request"
+      }
+    },
+    {
+      "name": "zero_cost",
+      "input": {
+        "capacity": 2,
+        "refill_per_second": 1,
+        "requests": [
+          {
+            "time": 0,
+            "cost": 0
+          }
+        ]
+      },
+      "expected": {
+        "error": "invalid_request"
+      }
+    }
+  ],
+  "atol": 1e-9,
+  "rtol": 0,
+  "preserve_input": true
+}

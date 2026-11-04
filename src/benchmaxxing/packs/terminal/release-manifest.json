@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "id": "terminal.release-manifest",
+  "version": "1.0.0",
+  "title": "Build a reproducible release manifest",
+  "category": "terminal",
+  "difficulty": "medium",
+  "tags": [
+    "hashing",
+    "filesystem",
+    "release"
+  ],
+  "kind": "json",
+  "prompt": "Inspect project/ and produce a release manifest. Include only .py, .md and .txt regular files.\nExclude any path with a component starting with '.' or a component exactly 'build'. Paths are relative\nto project/, use '/', and sort by Python string order. Hash exact UTF-8 file bytes with SHA-256;\ndo not strip newlines. Output files (sorted objects with exactly path,size,sha256), file_count,\ntotal_bytes, extensions (extension with leading dot -> included count), empty_files (sorted paths),\nand excluded (all excluded regular file paths, sorted). A zero-byte file has size0 and the SHA-256\nof the empty byte string. No symlinks are present.\n\nWrite a UTF-8 JSON object to submission.json. Do not modify the supplied inputs. Run python public_tests.py for a structure check, then call submit. Extra object keys are ignored; all listed fields are required. All paths are relative to /workspace; no network or third-party packages are needed.\n",
+  "rubric": "",
+  "files": {
+    "project/app/main.py": "print('hello')\n",
+    "project/app/helpers.py": "VALUE = 42\n",
+    "project/README.md": "# Example\n",
+    "project/data/empty.txt": "",
+    "project/data/a b.txt": "alpha\nbeta\n",
+    "project/.private/token.txt": "SYNTHETIC-DO-NOT-PACK\n",
+    "project/build/generated.txt": "ignore\n",
+    "project/cache.tmp": "ignore\n",
+    "public_tests.py": "import json\nfrom pathlib import Path\nanswer=json.loads(Path('submission.json').read_text())\nassert isinstance(answer,dict)\nassert set(['files', 'file_count', 'total_bytes', 'extensions', 'empty_files', 'excluded']).issubset(answer), 'Missing required fields'\nprint('Public structure check passed; values are independently graded.')\n"
+  },
+  "good_solution": "{\n  \"files\": [\n    {\n      \"path\": \"README.md\",\n      \"size\": 10,\n      \"sha256\": \"8ef0b048ad51a9d2ccaf9177716d7c83159a1d8c22fd37aa2b7d03c11b21b40d\"\n    },\n    {\n      \"path\": \"app/helpers.py\",\n      \"size\": 11,\n      \"sha256\": \"09cbf5ae13a643a9b023da1035c60c5018731d5d9633a86d61b19b4e3f3aa7eb\"\n    },\n    {\n      \"path\": \"app/main.py\",\n      \"size\": 15,\n      \"sha256\": \"03e693d9f2f687e0f40e36a8df7fcb4d1c22974012b7c2a55c000eb30f305824\"\n    },\n    {\n      \"path\": \"data/a b.txt\",\n      \"size\": 11,\n      \"sha256\": \"e49c81e2d2f84e259d40e2fb8192f3bcd198b355184845d76d8f58807d0d78ee\"\n    },\n    {\n      \"path\": \"data/empty.txt\",\n      \"size\": 0,\n      \"sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"\n    }\n  ],\n  \"file_count\": 5,\n  \"total_bytes\": 47,\n  \"extensions\": {\n    \".md\": 1,\n    \".py\": 2,\n    \".txt\": 2\n  },\n  \"empty_files\": [\n    \"data/empty.txt\"\n  ],\n  \"excluded\": [\n    \".private/token.txt\",\n    \"build/generated.txt\",\n    \"cache.tmp\"\n  ]\n}\n",
+  "bad_solution": "{\n  \"files\": [],\n  \"file_count\": 5,\n  \"total_bytes\": 47,\n  \"extensions\": {\n    \".md\": 1,\n    \".py\": 2,\n    \".txt\": 2\n  },\n  \"empty_files\": [\n    \"data/empty.txt\"\n  ],\n  \"excluded\": [\n    \".private/token.txt\",\n    \"build/generated.txt\",\n    \"cache.tmp\"\n  ]\n}\n",
+  "cases": [
+    {
+      "name": "files",
+      "path": [
+        "files"
+      ],
+      "expected": [
+        {
+          "path": "README.md",
+          "size": 10,
+          "sha256": "8ef0b048ad51a9d2ccaf9177716d7c83159a1d8c22fd37aa2b7d03c11b21b40d"
+        },
+        {
+          "path": "app/helpers.py",
+          "size": 11,
+          "sha256": "09cbf5ae13a643a9b023da1035c60c5018731d5d9633a86d61b19b4e3f3aa7eb"
+        },
+        {
+          "path": "app/main.py",
+          "size": 15,
+          "sha256": "03e693d9f2f687e0f40e36a8df7fcb4d1c22974012b7c2a55c000eb30f305824"
+        },
+        {
+          "path": "data/a b.txt",
+          "size": 11,
+          "sha256": "e49c81e2d2f84e259d40e2fb8192f3bcd198b355184845d76d8f58807d0d78ee"
+        },
+        {
+          "path": "data/empty.txt",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    {
+      "name": "file_count",
+      "path": [
+        "file_count"
+      ],
+      "expected": 5
+    },
+    {
+      "name": "total_bytes",
+      "path": [
+        "total_bytes"
+      ],
+      "expected": 47
+    },
+    {
+      "name": "extensions",
+      "path": [
+        "extensions"
+      ],
+      "expected": {
+        ".md": 1,
+        ".py": 2,
+        ".txt": 2
+      }
+    },
+    {
+      "name": "empty_files",
+      "path": [
+        "empty_files"
+      ],
+      "expected": [
+        "data/empty.txt"
+      ]
+    },
+    {
+      "name": "excluded",
+      "path": [
+        "excluded"
+      ],
+      "expected": [
+        ".private/token.txt",
+        "build/generated.txt",
+        "cache.tmp"
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

@@ -1,0 +1,328 @@
+{
+  "schema_version": 1,
+  "id": "security.acl-specificity",
+  "version": "1.0.0",
+  "title": "Resolve access rules by explicit specificity",
+  "category": "security",
+  "difficulty": "hard",
+  "tags": [
+    "defensive",
+    "authorization",
+    "precedence",
+    "policy"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) with rules and requests. Each rule has principal, resource, action and effect (\"allow\" or \"deny\"); each request has principal, resource and action. Principal/action \"*\" match any value; other values must match exactly. Resource \"*\" matches any path; an exact absolute path matches itself; an absolute prefix ending \"/*\" matches descendants with at least one character after the prefix slash, not the base path itself. Paths are canonical, case-sensitive, contain no \".\"/\"..\" components or duplicate slashes, and have no trailing slash except root \"/\". For matching rules, maximize the specificity tuple (resource_kind, resource_prefix_length, principal_is_exact, action_is_exact), lexicographically: exact resource kind=2 with length=len(resource); prefix kind=1 with length=len(resource_without_final_star); \"*\" kind=0 with length=0. Thus resource specificity takes precedence over principal/action specificity. Among rules tied at maximum specificity, deny wins. No matching rule means deny. Return {\"decisions\":[\"allow\"|\"deny\",...]} in request order. Return {\"error\":\"invalid_rule\"} before evaluating requests if any rule effect is invalid or its resource pattern is neither \"*\" nor an absolute path with no wildcard nor an absolute trailing-\"/*\" pattern with exactly one star. Other fields and path structure are valid. Do not mutate input.",
+  "files": {
+    "solution.py": "\"\"\"Implement the defensive policy in solve(payload).\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"exact_denial_over_prefix\\\",\\\"input\\\":{\\\"rules\\\":[{\\\"principal\\\":\\\"*\\\",\\\"resource\\\":\\\"/reports/*\\\",\\\"action\\\":\\\"read\\\",\\\"effect\\\":\\\"allow\\\"},{\\\"principal\\\":\\\"*\\\",\\\"resource\\\":\\\"/reports/private\\\",\\\"action\\\":\\\"read\\\",\\\"effect\\\":\\\"deny\\\"}],\\\"requests\\\":[{\\\"principal\\\":\\\"alice\\\",\\\"resource\\\":\\\"/reports/public\\\",\\\"action\\\":\\\"read\\\"},{\\\"principal\\\":\\\"alice\\\",\\\"resource\\\":\\\"/reports/private\\\",\\\"action\\\":\\\"read\\\"},{\\\"principal\\\":\\\"alice\\\",\\\"resource\\\":\\\"/reports/public\\\",\\\"action\\\":\\\"write\\\"}]},\\\"expected\\\":{\\\"decisions\\\":[\\\"allow\\\",\\\"deny\\\",\\\"deny\\\"]}},{\\\"name\\\":\\\"specific_grant\\\",\\\"input\\\":{\\\"rules\\\":[{\\\"principal\\\":\\\"*\\\",\\\"resource\\\":\\\"*\\\",\\\"action\\\":\\\"*\\\",\\\"effect\\\":\\\"deny\\\"},{\\\"principal\\\":\\\"alice\\\",\\\"resource\\\":\\\"/reports/private\\\",\\\"action\\\":\\\"read\\\",\\\"effect\\\":\\\"allow\\\"}],\\\"requests\\\":[{\\\"principal\\\":\\\"alice\\\",\\\"resource\\\":\\\"/reports/private\\\",\\\"action\\\":\\\"read\\\"},{\\\"principal\\\":\\\"bob\\\",\\\"resource\\\":\\\"/reports/private\\\",\\\"action\\\":\\\"read\\\"}]},\\\"expected\\\":{\\\"decisions\\\":[\\\"allow\\\",\\\"deny\\\"]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    rules = payload[\"rules\"]\n    for rule in rules:\n        resource = rule[\"resource\"]\n        pattern_ok = resource == \"*\" or (resource.startswith(\"/\") and (\"*\" not in resource or (resource.endswith(\"/*\") and resource.count(\"*\") == 1)))\n        if rule[\"effect\"] not in {\"allow\", \"deny\"} or not pattern_ok:\n            return {\"error\": \"invalid_rule\"}\n    decisions = []\n    for request in payload[\"requests\"]:\n        matches = []\n        for rule in rules:\n            if rule[\"principal\"] not in {\"*\", request[\"principal\"]} or rule[\"action\"] not in {\"*\", request[\"action\"]}:\n                continue\n            pattern, path = rule[\"resource\"], request[\"resource\"]\n            if pattern == \"*\":\n                resource_rank = (0, 0)\n            elif pattern.endswith(\"/*\"):\n                prefix = pattern[:-1]\n                if not path.startswith(prefix) or len(path) <= len(prefix):\n                    continue\n                resource_rank = (1, len(prefix))\n            elif pattern == path:\n                resource_rank = (2, len(pattern))\n            else:\n                continue\n            rank = resource_rank + (int(rule[\"principal\"] != \"*\"), int(rule[\"action\"] != \"*\"))\n            matches.append((rank, rule[\"effect\"]))\n        if not matches:\n            decisions.append(\"deny\")\n        else:\n            best = max(rank for rank, effect in matches)\n            decisions.append(\"deny\" if any(rank == best and effect == \"deny\" for rank, effect in matches) else \"allow\")\n    return {\"decisions\": decisions}\n",
+  "bad_solution": "def solve(payload):\n    decisions = []\n    for request in payload[\"requests\"]:\n        result = \"deny\"\n        for rule in payload[\"rules\"]:\n            path = rule[\"resource\"].rstrip(\"*\")\n            if rule[\"principal\"] in (\"*\", request[\"principal\"]) and rule[\"action\"] in (\"*\", request[\"action\"]) and (rule[\"resource\"] == \"*\" or request[\"resource\"].startswith(path)):\n                result = rule[\"effect\"]\n                break\n        decisions.append(result)\n    return {\"decisions\": decisions}\n",
+  "cases": [
+    {
+      "name": "exact_denial_over_prefix",
+      "input": {
+        "rules": [
+          {
+            "principal": "*",
+            "resource": "/reports/*",
+            "action": "read",
+            "effect": "allow"
+          },
+          {
+            "principal": "*",
+            "resource": "/reports/private",
+            "action": "read",
+            "effect": "deny"
+          }
+        ],
+        "requests": [
+          {
+            "principal": "alice",
+            "resource": "/reports/public",
+            "action": "read"
+          },
+          {
+            "principal": "alice",
+            "resource": "/reports/private",
+            "action": "read"
+          },
+          {
+            "principal": "alice",
+            "resource": "/reports/public",
+            "action": "write"
+          }
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "specific_grant",
+      "input": {
+        "rules": [
+          {
+            "principal": "*",
+            "resource": "*",
+            "action": "*",
+            "effect": "deny"
+          },
+          {
+            "principal": "alice",
+            "resource": "/reports/private",
+            "action": "read",
+            "effect": "allow"
+          }
+        ],
+        "requests": [
+          {
+            "principal": "alice",
+            "resource": "/reports/private",
+            "action": "read"
+          },
+          {
+            "principal": "bob",
+            "resource": "/reports/private",
+            "action": "read"
+          }
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "prefix_boundary",
+      "input": {
+        "rules": [
+          {
+            "principal": "*",
+            "resource": "/team/*",
+            "action": "*",
+            "effect": "allow"
+          }
+        ],
+        "requests": [
+          {
+            "principal": "u",
+            "resource": "/team",
+            "action": "read"
+          },
+          {
+            "principal": "u",
+            "resource": "/team/a",
+            "action": "read"
+          },
+          {
+            "principal": "u",
+            "resource": "/teammate/a",
+            "action": "read"
+          },
+          {
+            "principal": "u",
+            "resource": "/",
+            "action": "read"
+          }
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "deny",
+          "allow",
+          "deny",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "principal_specificity",
+      "input": {
+        "rules": [
+          {
+            "principal": "*",
+            "resource": "/team/*",
+            "action": "read",
+            "effect": "allow"
+          },
+          {
+            "principal": "alice",
+            "resource": "/team/*",
+            "action": "read",
+            "effect": "deny"
+          }
+        ],
+        "requests": [
+          {
+            "principal": "alice",
+            "resource": "/team/doc",
+            "action": "read"
+          },
+          {
+            "principal": "bob",
+            "resource": "/team/doc",
+            "action": "read"
+          }
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "deny",
+          "allow"
+        ]
+      }
+    },
+    {
+      "name": "action_specificity",
+      "input": {
+        "rules": [
+          {
+            "principal": "alice",
+            "resource": "/team/*",
+            "action": "*",
+            "effect": "allow"
+          },
+          {
+            "principal": "alice",
+            "resource": "/team/*",
+            "action": "delete",
+            "effect": "deny"
+          }
+        ],
+        "requests": [
+          {
+            "principal": "alice",
+            "resource": "/team/doc",
+            "action": "read"
+          },
+          {
+            "principal": "alice",
+            "resource": "/team/doc",
+            "action": "delete"
+          }
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "deny_wins_tie",
+      "input": {
+        "rules": [
+          {
+            "principal": "u",
+            "resource": "/a",
+            "action": "read",
+            "effect": "allow"
+          },
+          {
+            "principal": "u",
+            "resource": "/a",
+            "action": "read",
+            "effect": "deny"
+          }
+        ],
+        "requests": [
+          {
+            "principal": "u",
+            "resource": "/a",
+            "action": "read"
+          }
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "longer_prefix_before_principal",
+      "input": {
+        "rules": [
+          {
+            "principal": "alice",
+            "resource": "/team/*",
+            "action": "read",
+            "effect": "deny"
+          },
+          {
+            "principal": "*",
+            "resource": "/team/public/*",
+            "action": "read",
+            "effect": "allow"
+          }
+        ],
+        "requests": [
+          {
+            "principal": "alice",
+            "resource": "/team/public/doc",
+            "action": "read"
+          },
+          {
+            "principal": "alice",
+            "resource": "/team/private/doc",
+            "action": "read"
+          }
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "allow",
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "no_rules",
+      "input": {
+        "rules": [],
+        "requests": [
+          {
+            "principal": "u",
+            "resource": "/",
+            "action": "read"
+          }
+        ]
+      },
+      "expected": {
+        "decisions": [
+          "deny"
+        ]
+      }
+    },
+    {
+      "name": "invalid_effect",
+      "input": {
+        "rules": [
+          {
+            "principal": "*",
+            "resource": "*",
+            "action": "*",
+            "effect": "audit"
+          }
+        ],
+        "requests": []
+      },
+      "expected": {
+        "error": "invalid_rule"
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

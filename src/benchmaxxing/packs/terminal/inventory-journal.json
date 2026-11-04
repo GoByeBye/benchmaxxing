@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "id": "terminal.inventory-journal",
+  "version": "1.0.0",
+  "title": "Replay an inventory event journal",
+  "category": "terminal",
+  "difficulty": "medium",
+  "tags": [
+    "event-sourcing",
+    "jsonl",
+    "state"
+  ],
+  "kind": "json",
+  "prompt": "Inspect data/initial.json and data/events.jsonl. Events have unique seq, event_id, sku and signed\ndelta. Sort by numeric seq, then deduplicate event_id keeping the lowest seq. Unknown SKUs start at0.\nReject an event if stock+delta would be negative; rejection leaves stock unchanged. Output stock\n(final counts, including rejected new SKUs at0), accepted (event_ids in processing order), rejected\n(event_ids in processing order), duplicates (discarded duplicate event_ids in seq order),\ntotal_units (sum final stock), and zero_stock (sorted SKUs whose final count is0).\nExample stockA=2 and delta-3 is rejected, while delta-2 is accepted.\n\nWrite a UTF-8 JSON object to submission.json. Do not modify the supplied inputs. Run python public_tests.py for a structure check, then call submit. Extra object keys are ignored; all listed fields are required. All paths are relative to /workspace; no network or third-party packages are needed.\n",
+  "rubric": "",
+  "files": {
+    "data/initial.json": "{\"A\":5,\"B\":0}",
+    "data/events.jsonl": "{\"seq\": 8, \"event_id\": \"e6\", \"sku\": \"C\", \"delta\": -2}\n{\"seq\": 2, \"event_id\": \"e2\", \"sku\": \"A\", \"delta\": -4}\n{\"seq\": 1, \"event_id\": \"e1\", \"sku\": \"A\", \"delta\": -2}\n{\"seq\": 3, \"event_id\": \"e3\", \"sku\": \"B\", \"delta\": 3}\n{\"seq\": 5, \"event_id\": \"e4\", \"sku\": \"C\", \"delta\": 2}\n{\"seq\": 4, \"event_id\": \"e1\", \"sku\": \"A\", \"delta\": 99}\n{\"seq\": 6, \"event_id\": \"e5\", \"sku\": \"B\", \"delta\": -3}\n{\"seq\": 7, \"event_id\": \"e7\", \"sku\": \"D\", \"delta\": -1}\n",
+    "public_tests.py": "import json\nfrom pathlib import Path\nanswer=json.loads(Path('submission.json').read_text())\nassert isinstance(answer,dict)\nassert set(['stock', 'accepted', 'rejected', 'duplicates', 'total_units', 'zero_stock']).issubset(answer), 'Missing required fields'\nprint('Public structure check passed; values are independently graded.')\n"
+  },
+  "good_solution": "{\n  \"stock\": {\n    \"A\": 3,\n    \"B\": 0,\n    \"C\": 0,\n    \"D\": 0\n  },\n  \"accepted\": [\n    \"e1\",\n    \"e3\",\n    \"e4\",\n    \"e5\",\n    \"e6\"\n  ],\n  \"rejected\": [\n    \"e2\",\n    \"e7\"\n  ],\n  \"duplicates\": [\n    \"e1\"\n  ],\n  \"total_units\": 3,\n  \"zero_stock\": [\n    \"B\",\n    \"C\",\n    \"D\"\n  ]\n}\n",
+  "bad_solution": "{\n  \"stock\": \"incorrect\",\n  \"accepted\": [\n    \"e1\",\n    \"e3\",\n    \"e4\",\n    \"e5\",\n    \"e6\"\n  ],\n  \"rejected\": [\n    \"e2\",\n    \"e7\"\n  ],\n  \"duplicates\": [\n    \"e1\"\n  ],\n  \"total_units\": 3,\n  \"zero_stock\": [\n    \"B\",\n    \"C\",\n    \"D\"\n  ]\n}\n",
+  "cases": [
+    {
+      "name": "stock",
+      "path": [
+        "stock"
+      ],
+      "expected": {
+        "A": 3,
+        "B": 0,
+        "C": 0,
+        "D": 0
+      }
+    },
+    {
+      "name": "accepted",
+      "path": [
+        "accepted"
+      ],
+      "expected": [
+        "e1",
+        "e3",
+        "e4",
+        "e5",
+        "e6"
+      ]
+    },
+    {
+      "name": "rejected",
+      "path": [
+        "rejected"
+      ],
+      "expected": [
+        "e2",
+        "e7"
+      ]
+    },
+    {
+      "name": "duplicates",
+      "path": [
+        "duplicates"
+      ],
+      "expected": [
+        "e1"
+      ]
+    },
+    {
+      "name": "total_units",
+      "path": [
+        "total_units"
+      ],
+      "expected": 3
+    },
+    {
+      "name": "zero_stock",
+      "path": [
+        "zero_stock"
+      ],
+      "expected": [
+        "B",
+        "C",
+        "D"
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

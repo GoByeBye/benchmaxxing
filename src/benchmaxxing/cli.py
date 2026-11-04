@@ -80,6 +80,12 @@ def prepare(
     image: Annotated[
         str, typer.Option(help="Explicit source image to pull and pin")
     ] = "python:3.13-slim",
+    pull: Annotated[
+        bool,
+        typer.Option(
+            "--pull/--no-pull", help="Use --no-pull to pin an already installed image offline"
+        ),
+    ] = True,
 ) -> None:
     """Explicitly download and pin the reference environment before running offline."""
     from filelock import FileLock, Timeout
@@ -90,7 +96,7 @@ def prepare(
     directory.mkdir(parents=True, exist_ok=True)
     try:
         with FileLock(str(directory / "controller.lock"), timeout=0):
-            _print(prepare_environment(directory, image=image))
+            _print(prepare_environment(directory, image=image, pull=pull))
     except Timeout:
         typer.echo("Stop the active controller before preparing this data directory.", err=True)
         raise typer.Exit(2) from None
@@ -143,10 +149,18 @@ def run(
     key_env: Annotated[
         str | None, typer.Option(help="Environment variable holding the API key")
     ] = None,
+    task: Annotated[
+        str | None, typer.Option("--task", help="Installed task ID (see tasks)")
+    ] = None,
 ) -> None:
     """Run a task; attach to the local service or use a headless controller."""
     try:
         spec = _load_spec(config, participant, variant, endpoint, model, api, key_env)
+        if task is not None:
+            spec = RunSpec.model_validate({**spec.model_dump(), "task_id": task})
+        from benchmaxxing.task import get_task
+
+        get_task(spec.task_id)
     except (ValueError, ValidationError, OSError):
         typer.echo(
             "Invalid run configuration. Check fields, profile, and endpoint settings.", err=True
@@ -204,6 +218,148 @@ def run(
             owner.stop()
     _print(record.model_dump(mode="json"))
     raise typer.Exit(0 if record.status == "passed" else 1 if record.status == "failed" else 2)
+
+
+@app.command("tasks")
+def tasks_command(
+    category: Annotated[str | None, typer.Option(help="Filter by task category")] = None,
+) -> None:
+    """List installed task identities, rubrics and check counts without Docker."""
+    from benchmaxxing.task import list_tasks
+
+    tasks = [task for task in list_tasks() if category is None or task.category == category]
+    if not tasks:
+        typer.echo("No tasks match that category.", err=True)
+        raise typer.Exit(2)
+    _print([task.model_dump(mode="json") for task in tasks])
+
+
+@app.command("validate-packs")
+def validate_packs() -> None:
+    """Validate installed pack contracts/assets; never execute candidate code on host."""
+    from benchmaxxing.task import definitions, list_tasks
+
+    definitions.cache_clear()
+    try:
+        tasks = list_tasks()
+    except ValueError as exc:
+        typer.echo(f"Pack validation failed: {exc}", err=True)
+        raise typer.Exit(2) from None
+    _print(
+        {
+            "valid": True,
+            "tasks": len(tasks),
+            "checks": sum(t.check_count for t in tasks),
+            "categories": sorted({t.category for t in tasks}),
+        }
+    )
+
+
+@app.command()
+def suite(
+    data_dir: DataOption = None,
+    config: Annotated[
+        Path | None, typer.Option(help="Shared participant and budget configuration")
+    ] = None,
+    category: Annotated[
+        str | None, typer.Option(help="Run a category; omit to run all installed tasks")
+    ] = None,
+    task: Annotated[
+        list[str] | None, typer.Option("--task", help="Repeat for explicit task IDs")
+    ] = None,
+    repeat: Annotated[int, typer.Option(min=1, max=5, help="Independent attempts per task")] = 1,
+    variant: Annotated[
+        str | None, typer.Option(help="Scripted fixture: good, bad, or refuse")
+    ] = None,
+) -> None:
+    """Queue a serial suite through the shared controller; every trial has its own run ID."""
+    from benchmaxxing.task import list_tasks
+
+    try:
+        base = _load_spec(config, None, variant, None, None, False, None)
+        catalog = list_tasks()
+        selected = [
+            t
+            for t in catalog
+            if (category is None or t.category == category) and (not task or t.id in task)
+        ]
+        if not selected or (task and set(task) - {t.id for t in selected}):
+            raise ValueError("Unknown task or empty category selection")
+        specs = [
+            RunSpec.model_validate({**base.model_dump(), "task_id": t.id})
+            for _ in range(repeat)
+            for t in selected
+        ]
+    except (ValueError, OSError):
+        typer.echo(
+            "Invalid suite selection or configuration. Use `tasks` to list installed IDs.", err=True
+        )
+        raise typer.Exit(2) from None
+    directory = resolve_data_dir(data_dir)
+    remote = _remote(directory)
+    records: list[RunRecord] = []
+    owner: Controller | None = None
+    try:
+        if remote is not None:
+            client, headers = remote
+            for spec in specs:
+                response = client.post(
+                    "/api/v1/runs", json=spec.model_dump(mode="json"), headers=headers
+                )
+                response.raise_for_status()
+                records.append(RunRecord.model_validate(response.json()))
+            for index, record in enumerate(records):
+                while record.status not in TERMINAL_STATUSES:
+                    time.sleep(0.2)
+                    response = client.get(f"/api/v1/runs/{record.id}")
+                    response.raise_for_status()
+                    record = RunRecord.model_validate(response.json()["run"])
+                records[index] = record
+                typer.echo(f"{record.spec.task_id}: {record.status} ({record.id})", err=True)
+        else:
+            owner = Controller(directory)
+            owner.start()
+            records = [owner.submit(spec) for spec in specs]
+            for index, record in enumerate(records):
+                while record.status not in TERMINAL_STATUSES:
+                    time.sleep(0.2)
+                    record = owner.store.get_run(record.id)
+                records[index] = record
+                typer.echo(f"{record.spec.task_id}: {record.status} ({record.id})", err=True)
+    except (KeyboardInterrupt, httpx.HTTPError, ControllerBusy, RecoveryPending) as exc:
+        if remote is not None:
+            for record in records:
+                try:
+                    remote[0].post(f"/api/v1/runs/{record.id}/cancel", headers=remote[1])
+                except httpx.HTTPError:
+                    pass
+        typer.echo("Suite stopped; partial run evidence remains in history.", err=True)
+        raise typer.Exit(130 if isinstance(exc, KeyboardInterrupt) else 2) from None
+    finally:
+        if remote is not None:
+            remote[0].close()
+        if owner is not None:
+            owner.stop()
+    _print(
+        {
+            "attempts": len(records),
+            "task_count": len(selected),
+            "repeat": repeat,
+            "results": [
+                {
+                    "id": r.id,
+                    "task_id": r.spec.task_id,
+                    "status": r.status,
+                    "score": r.score.score if r.score else None,
+                    "refusal": r.refusal,
+                }
+                for r in records
+            ],
+        }
+    )
+    if all(r.status == "passed" for r in records):
+        raise typer.Exit(0)
+    raise typer.Exit(2 if any(r.status not in {"passed", "failed"} for r in records) else 1)
 
 
 @app.command()

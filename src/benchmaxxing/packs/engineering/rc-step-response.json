@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "id": "engineering.rc-step-response",
+  "version": "1.0.0",
+  "title": "RC circuit step response",
+  "category": "engineering",
+  "difficulty": "easy",
+  "tags": [
+    "circuits",
+    "transient-response",
+    "units"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for a first-order RC circuit with resistance_ohm, capacitance_f, source_v, initial_v, and times_s. Return {\"voltages_v\":[V(t),...]} in supplied time order, using V(t)=source_v+(initial_v-source_v)*exp(-t/(R*C)). R and C must be strictly positive: otherwise return {\"error\":\"invalid_circuit\"}. After checking the circuit, reject any negative time with {\"error\":\"negative_time\"}. Empty times are valid. All numbers are finite; products and exponents in valid tests are representable. Time is seconds and capacitance is farads, not microfarads. Do not mutate input. Absolute and relative tolerance 1e-8.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to the task specification.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-8, rel_tol=1e-8)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"charging\\\",\\\"input\\\":{\\\"resistance_ohm\\\":1000,\\\"capacitance_f\\\":0.001,\\\"source_v\\\":5,\\\"initial_v\\\":0,\\\"times_s\\\":[0,1,2]},\\\"expected\\\":{\\\"voltages_v\\\":[0,3.1606027941427883,4.323323583816936]}},{\\\"name\\\":\\\"discharging\\\",\\\"input\\\":{\\\"resistance_ohm\\\":2000,\\\"capacitance_f\\\":0.001,\\\"source_v\\\":0,\\\"initial_v\\\":10,\\\"times_s\\\":[0,2,4]},\\\"expected\\\":{\\\"voltages_v\\\":[10,3.6787944117144233,1.353352832366127]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import math\n    resistance, capacitance = payload[\"resistance_ohm\"], payload[\"capacitance_f\"]\n    if resistance <= 0 or capacitance <= 0:\n        return {\"error\": \"invalid_circuit\"}\n    if any(t < 0 for t in payload[\"times_s\"]):\n        return {\"error\": \"negative_time\"}\n    source, initial = payload[\"source_v\"], payload[\"initial_v\"]\n    tau = resistance * capacitance\n    return {\"voltages_v\": [source + (initial - source) * math.exp(-t / tau) for t in payload[\"times_s\"]]}\n",
+  "bad_solution": "def solve(payload):\n    import math\n    tau = payload[\"resistance_ohm\"] * payload[\"capacitance_f\"]\n    return {\"voltages_v\": [payload[\"source_v\"] * (1 - math.exp(-t / tau)) for t in payload[\"times_s\"]]}\n",
+  "cases": [
+    {
+      "name": "charging",
+      "input": {
+        "resistance_ohm": 1000,
+        "capacitance_f": 0.001,
+        "source_v": 5,
+        "initial_v": 0,
+        "times_s": [
+          0,
+          1,
+          2
+        ]
+      },
+      "expected": {
+        "voltages_v": [
+          0,
+          3.1606027941427883,
+          4.323323583816936
+        ]
+      }
+    },
+    {
+      "name": "discharging",
+      "input": {
+        "resistance_ohm": 2000,
+        "capacitance_f": 0.001,
+        "source_v": 0,
+        "initial_v": 10,
+        "times_s": [
+          0,
+          2,
+          4
+        ]
+      },
+      "expected": {
+        "voltages_v": [
+          10,
+          3.6787944117144233,
+          1.353352832366127
+        ]
+      }
+    },
+    {
+      "name": "already_equilibrated",
+      "input": {
+        "resistance_ohm": 2,
+        "capacitance_f": 3,
+        "source_v": 3,
+        "initial_v": 3,
+        "times_s": [
+          0,
+          1,
+          100
+        ]
+      },
+      "expected": {
+        "voltages_v": [
+          3,
+          3,
+          3
+        ]
+      }
+    },
+    {
+      "name": "negative_step",
+      "input": {
+        "resistance_ohm": 500,
+        "capacitance_f": 0.001,
+        "source_v": -2,
+        "initial_v": 2,
+        "times_s": [
+          0,
+          0.5,
+          1
+        ]
+      },
+      "expected": {
+        "voltages_v": [
+          2,
+          -0.5284822353142307,
+          -1.4586588670535492
+        ]
+      }
+    },
+    {
+      "name": "unsorted_times",
+      "input": {
+        "resistance_ohm": 1000,
+        "capacitance_f": 0.001,
+        "source_v": 5,
+        "initial_v": 0,
+        "times_s": [
+          2,
+          0,
+          1
+        ]
+      },
+      "expected": {
+        "voltages_v": [
+          4.323323583816936,
+          0,
+          3.1606027941427883
+        ]
+      }
+    },
+    {
+      "name": "empty_times",
+      "input": {
+        "resistance_ohm": 1,
+        "capacitance_f": 1,
+        "source_v": 1,
+        "initial_v": 0,
+        "times_s": []
+      },
+      "expected": {
+        "voltages_v": []
+      }
+    },
+    {
+      "name": "zero_resistance",
+      "input": {
+        "resistance_ohm": 0,
+        "capacitance_f": 1,
+        "source_v": 1,
+        "initial_v": 0,
+        "times_s": [
+          0
+        ]
+      },
+      "expected": {
+        "error": "invalid_circuit"
+      }
+    },
+    {
+      "name": "negative_time",
+      "input": {
+        "resistance_ohm": 1,
+        "capacitance_f": 1,
+        "source_v": 1,
+        "initial_v": 0,
+        "times_s": [
+          -1
+        ]
+      },
+      "expected": {
+        "error": "negative_time"
+      }
+    }
+  ],
+  "atol": 1e-8,
+  "rtol": 1e-8,
+  "preserve_input": true
+}

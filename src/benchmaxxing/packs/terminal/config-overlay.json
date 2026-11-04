@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "id": "terminal.config-overlay",
+  "version": "1.0.0",
+  "title": "Resolve layered application configuration",
+  "category": "terminal",
+  "difficulty": "medium",
+  "tags": [
+    "configuration",
+    "json",
+    "precedence"
+  ],
+  "kind": "json",
+  "prompt": "Read config/default.json, config/production.json and config/environment.json.\nDeep-merge default then production: objects merge recursively; every non-object (including arrays\nand null) replaces the old value. Apply environment last: its keys are dotted object paths and its\nvalues are JSON-encoded strings that must be decoded once. Create missing intermediate objects.\nOutput config (complete merged object), endpoint (http or https based on tls.enabled, then host:port),\nretry_budget_ms (retries*timeout_ms), features (copy final features list), log_level (copy log.level),\nand database_pool (copy database.pool). Null remains null; arrays do not concatenate.\nExample environment {\"port\":\"9000\"} sets integer9000, not string\"9000\".\n\nWrite a UTF-8 JSON object to submission.json. Do not modify the supplied inputs. Run python public_tests.py for a structure check, then call submit. Extra object keys are ignored; all listed fields are required. All paths are relative to /workspace; no network or third-party packages are needed.\n",
+  "rubric": "",
+  "files": {
+    "config/default.json": "{\"host\": \"localhost\", \"port\": 8080, \"tls\": {\"enabled\": false}, \"retries\": 2, \"timeout_ms\": 100, \"features\": [\"base\"], \"log\": {\"level\": \"info\", \"json\": false}, \"database\": {\"pool\": 4, \"replica\": \"old\"}}",
+    "config/production.json": "{\"host\": \"service.internal\", \"tls\": {\"enabled\": true}, \"retries\": 3, \"features\": [\"audit\"], \"log\": {\"json\": true}, \"database\": {\"replica\": null}}",
+    "config/environment.json": "{\"port\": \"8443\", \"timeout_ms\": \"250\", \"database.pool\": \"12\", \"log.level\": \"\\\"warn\\\"\"}",
+    "public_tests.py": "import json\nfrom pathlib import Path\nanswer=json.loads(Path('submission.json').read_text())\nassert isinstance(answer,dict)\nassert set(['config', 'endpoint', 'retry_budget_ms', 'features', 'log_level', 'database_pool']).issubset(answer), 'Missing required fields'\nprint('Public structure check passed; values are independently graded.')\n"
+  },
+  "good_solution": "{\n  \"config\": {\n    \"host\": \"service.internal\",\n    \"port\": 8443,\n    \"tls\": {\n      \"enabled\": true\n    },\n    \"retries\": 3,\n    \"timeout_ms\": 250,\n    \"features\": [\n      \"audit\"\n    ],\n    \"log\": {\n      \"level\": \"warn\",\n      \"json\": true\n    },\n    \"database\": {\n      \"pool\": 12,\n      \"replica\": null\n    }\n  },\n  \"endpoint\": \"https://service.internal:8443\",\n  \"retry_budget_ms\": 750,\n  \"features\": [\n    \"audit\"\n  ],\n  \"log_level\": \"warn\",\n  \"database_pool\": 12\n}\n",
+  "bad_solution": "{\n  \"config\": \"incorrect\",\n  \"endpoint\": \"https://service.internal:8443\",\n  \"retry_budget_ms\": 750,\n  \"features\": [\n    \"audit\"\n  ],\n  \"log_level\": \"warn\",\n  \"database_pool\": 12\n}\n",
+  "cases": [
+    {
+      "name": "config",
+      "path": [
+        "config"
+      ],
+      "expected": {
+        "host": "service.internal",
+        "port": 8443,
+        "tls": {
+          "enabled": true
+        },
+        "retries": 3,
+        "timeout_ms": 250,
+        "features": [
+          "audit"
+        ],
+        "log": {
+          "level": "warn",
+          "json": true
+        },
+        "database": {
+          "pool": 12,
+          "replica": null
+        }
+      }
+    },
+    {
+      "name": "endpoint",
+      "path": [
+        "endpoint"
+      ],
+      "expected": "https://service.internal:8443"
+    },
+    {
+      "name": "retry_budget_ms",
+      "path": [
+        "retry_budget_ms"
+      ],
+      "expected": 750
+    },
+    {
+      "name": "features",
+      "path": [
+        "features"
+      ],
+      "expected": [
+        "audit"
+      ]
+    },
+    {
+      "name": "log_level",
+      "path": [
+        "log_level"
+      ],
+      "expected": "warn"
+    },
+    {
+      "name": "database_pool",
+      "path": [
+        "database_pool"
+      ],
+      "expected": 12
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "id": "python.ttl-cache",
+  "version": "1.0.0",
+  "title": "Expiring cache replay with replacement",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "state-machines",
+    "time",
+    "caching"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting a list of operations in nondecreasing integer time order. Operations\nare {\"op\":\"put\",\"time\":t,\"key\":string,\"value\":JSON_value,\"ttl\":nonnegative_integer} or\n{\"op\":\"get\",\"time\":t,\"key\":string}. Before each operation expire every key whose expiration <= t.\nA put replaces both value and expiration, setting expiration to t+ttl; ttl zero removes that key\nimmediately. A get returns the stored value or null on a miss and does not extend expiration. Equal\ntimestamps preserve input operation order. Return {\"gets\": get_results, \"items\": [[key,value],...]}\nwhere items are the keys still alive after the final operation, sorted by Python string ordering.\nAn empty operation list returns empty gets and items. Times may be negative. Values may be null.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `[{\"op\": \"put\", \"time\": 0, \"key\": \"a\", \"value\": 2, \"ttl\": 5}, {\"op\": \"get\", \"time\": 4, \"key\": \"a\"}]`; output: `{\"gets\": [2], \"items\": [[\"a\", 2]]}`.\n- Input: `[{\"op\": \"put\", \"time\": 0, \"key\": \"a\", \"value\": 2, \"ttl\": 5}, {\"op\": \"get\", \"time\": 6, \"key\": \"a\"}]`; output: `{\"gets\": [null], \"items\": []}`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    cache, answers = {}, []\n    for operation in payload:\n        now = operation['time']\n        cache = {key: item for key, item in cache.items() if item[1] >= now}\n        key = operation['key']\n        if operation['op'] == 'get':\n            answers.append(cache[key][0] if key in cache else None)\n        else:\n            expires = now + operation['ttl']\n            if expires >= now:\n                cache[key] = (operation['value'], expires)\n            else:\n                cache.pop(key, None)\n    return {'gets': answers, 'items': [[key, cache[key][0]] for key in sorted(cache)]}\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"alive\", \"input\": [{\"op\": \"put\", \"time\": 0, \"key\": \"a\", \"value\": 2, \"ttl\": 5}, {\"op\": \"get\", \"time\": 4, \"key\": \"a\"}], \"expected\": {\"gets\": [2], \"items\": [[\"a\", 2]]}}, {\"name\": \"expired\", \"input\": [{\"op\": \"put\", \"time\": 0, \"key\": \"a\", \"value\": 2, \"ttl\": 5}, {\"op\": \"get\", \"time\": 6, \"key\": \"a\"}], \"expected\": {\"gets\": [null], \"items\": []}}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    cache, answers = {}, []\n    for operation in payload:\n        now = operation['time']\n        cache = {key: item for key, item in cache.items() if item[1] > now}\n        key = operation['key']\n        if operation['op'] == 'get':\n            answers.append(cache[key][0] if key in cache else None)\n        else:\n            expires = now + operation['ttl']\n            if expires > now:\n                cache[key] = (operation['value'], expires)\n            else:\n                cache.pop(key, None)\n    return {'gets': answers, 'items': [[key, cache[key][0]] for key in sorted(cache)]}\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    cache, answers = {}, []\n    for operation in payload:\n        now = operation['time']\n        cache = {key: item for key, item in cache.items() if item[1] >= now}\n        key = operation['key']\n        if operation['op'] == 'get':\n            answers.append(cache[key][0] if key in cache else None)\n        else:\n            expires = now + operation['ttl']\n            if expires >= now:\n                cache[key] = (operation['value'], expires)\n            else:\n                cache.pop(key, None)\n    return {'gets': answers, 'items': [[key, cache[key][0]] for key in sorted(cache)]}\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": [],
+      "expected": {
+        "gets": [],
+        "items": []
+      }
+    },
+    {
+      "name": "exact_expiration",
+      "input": [
+        {
+          "op": "put",
+          "time": 0,
+          "key": "a",
+          "value": 9,
+          "ttl": 5
+        },
+        {
+          "op": "get",
+          "time": 5,
+          "key": "a"
+        }
+      ],
+      "expected": {
+        "gets": [
+          null
+        ],
+        "items": []
+      }
+    },
+    {
+      "name": "zero_ttl_replaces",
+      "input": [
+        {
+          "op": "put",
+          "time": 0,
+          "key": "a",
+          "value": 9,
+          "ttl": 10
+        },
+        {
+          "op": "put",
+          "time": 1,
+          "key": "a",
+          "value": 2,
+          "ttl": 0
+        },
+        {
+          "op": "get",
+          "time": 1,
+          "key": "a"
+        }
+      ],
+      "expected": {
+        "gets": [
+          null
+        ],
+        "items": []
+      }
+    },
+    {
+      "name": "replacement_extends",
+      "input": [
+        {
+          "op": "put",
+          "time": 0,
+          "key": "a",
+          "value": 1,
+          "ttl": 2
+        },
+        {
+          "op": "put",
+          "time": 1,
+          "key": "a",
+          "value": 7,
+          "ttl": 10
+        },
+        {
+          "op": "get",
+          "time": 2,
+          "key": "a"
+        }
+      ],
+      "expected": {
+        "gets": [
+          7
+        ],
+        "items": [
+          [
+            "a",
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "name": "replacement_shortens",
+      "input": [
+        {
+          "op": "put",
+          "time": 0,
+          "key": "a",
+          "value": 1,
+          "ttl": 20
+        },
+        {
+          "op": "put",
+          "time": 1,
+          "key": "a",
+          "value": 7,
+          "ttl": 2
+        },
+        {
+          "op": "get",
+          "time": 3,
+          "key": "a"
+        }
+      ],
+      "expected": {
+        "gets": [
+          null
+        ],
+        "items": []
+      }
+    },
+    {
+      "name": "equal_times_ordered",
+      "input": [
+        {
+          "op": "get",
+          "time": 2,
+          "key": "a"
+        },
+        {
+          "op": "put",
+          "time": 2,
+          "key": "a",
+          "value": false,
+          "ttl": 1
+        },
+        {
+          "op": "get",
+          "time": 2,
+          "key": "a"
+        },
+        {
+          "op": "put",
+          "time": 2,
+          "key": "b",
+          "value": [],
+          "ttl": 0
+        }
+      ],
+      "expected": {
+        "gets": [
+          null,
+          false
+        ],
+        "items": [
+          [
+            "a",
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "unrelated_get_expires_all",
+      "input": [
+        {
+          "op": "put",
+          "time": -3,
+          "key": "z",
+          "value": 1,
+          "ttl": 3
+        },
+        {
+          "op": "put",
+          "time": -2,
+          "key": "a",
+          "value": 2,
+          "ttl": 10
+        },
+        {
+          "op": "get",
+          "time": 0,
+          "key": "missing"
+        }
+      ],
+      "expected": {
+        "gets": [
+          null
+        ],
+        "items": [
+          [
+            "a",
+            2
+          ]
+        ]
+      }
+    },
+    {
+      "name": "sorted_live_values",
+      "input": [
+        {
+          "op": "put",
+          "time": 4,
+          "key": "z",
+          "value": null,
+          "ttl": 10
+        },
+        {
+          "op": "put",
+          "time": 4,
+          "key": "a",
+          "value": {
+            "n": 1
+          },
+          "ttl": 2
+        },
+        {
+          "op": "get",
+          "time": 5,
+          "key": "z"
+        }
+      ],
+      "expected": {
+        "gets": [
+          null
+        ],
+        "items": [
+          [
+            "a",
+            {
+              "n": 1
+            }
+          ],
+          [
+            "z",
+            null
+          ]
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

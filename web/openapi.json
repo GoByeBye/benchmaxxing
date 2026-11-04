@@ -89,17 +89,41 @@
       "get": {
         "summary": "List Runs",
         "operationId": "list_runs_api_v1_runs_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 1,
+              "default": 1000,
+              "title": "Limit"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/RunRecord"
                   },
-                  "type": "array",
                   "title": "Response List Runs Api V1 Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -110,14 +134,14 @@
         "summary": "Start Run",
         "operationId": "start_run_api_v1_runs_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RunSpec"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -698,7 +722,8 @@
           },
           "task_id": {
             "type": "string",
-            "const": "python.interval-merge",
+            "maxLength": 100,
+            "pattern": "^[a-z][a-z0-9_-]*\\.[a-z0-9-]+$",
             "title": "Task Id",
             "default": "python.interval-merge"
           },
@@ -839,6 +864,48 @@
           "image": {
             "type": "string",
             "title": "Image"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "python",
+              "json"
+            ],
+            "title": "Kind",
+            "default": "python"
+          },
+          "submission_file": {
+            "type": "string",
+            "title": "Submission File",
+            "default": "solution.py"
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "easy",
+              "medium",
+              "hard"
+            ],
+            "title": "Difficulty",
+            "default": "easy"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "check_count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Check Count",
+            "default": 8
+          },
+          "rubric": {
+            "type": "string",
+            "title": "Rubric",
+            "default": ""
           }
         },
         "additionalProperties": false,

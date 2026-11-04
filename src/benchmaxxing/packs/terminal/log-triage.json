@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "id": "terminal.log-triage",
+  "version": "1.0.0",
+  "title": "Triage a rotated service log",
+  "category": "terminal",
+  "difficulty": "medium",
+  "tags": [
+    "logs",
+    "deduplication",
+    "terminal"
+  ],
+  "kind": "json",
+  "prompt": "Inspect logs/current.log and logs/archive.log.\nEach valid line is timestamp|service|level|request_id|status. Ignore blank lines, lines beginning #,\nand malformed lines (exactly five fields; level INFO/WARN/ERROR; status is three decimal digits).\nDeduplicate by request_id: keep the lexicographically latest timestamp, then prefer current.log\nover archive.log on ties. Output records (retained count), errors (ERROR count), warnings (WARN count),\nfailed_ids (status >=500, sorted), service_counts (all retained by service), and latest_timestamp\n(maximum retained timestamp). Timestamps are sortable UTC strings. Example: a newer INFO record\nreplaces an older ERROR with the same ID; count the retained record only.\n\nWrite a UTF-8 JSON object to submission.json. Do not modify the supplied inputs. Run python public_tests.py for a structure check, then call submit. Extra object keys are ignored; all listed fields are required. All paths are relative to /workspace; no network or third-party packages are needed.\n",
+  "rubric": "",
+  "files": {
+    "logs/archive.log": "# previous\n2026-01-01T08:00:00Z|api|ERROR|a1|503\n2026-01-01T08:01:00Z|worker|WARN|w1|429\n2026-01-01T08:02:00Z|api|INFO|a2|200\n2026-01-01T08:03:00Z|db|ERROR|d1|500\nmalformed\n",
+    "logs/current.log": "2026-01-01T08:04:00Z|api|INFO|a1|200\n2026-01-01T08:05:00Z|api|ERROR|a3|502\n2026-01-01T08:06:00Z|worker|WARN|w2|429\n2026-01-01T08:03:00Z|db|WARN|d1|200\n2026-01-01T08:07:00Z|api|INFO|a4|204\n2026-01-01T08:08:00Z|api|DEBUG|bad|200\n",
+    "public_tests.py": "import json\nfrom pathlib import Path\nanswer=json.loads(Path('submission.json').read_text())\nassert isinstance(answer,dict)\nassert set(['records', 'errors', 'warnings', 'failed_ids', 'service_counts', 'latest_timestamp']).issubset(answer), 'Missing required fields'\nprint('Public structure check passed; values are independently graded.')\n"
+  },
+  "good_solution": "{\n  \"records\": 7,\n  \"errors\": 1,\n  \"warnings\": 3,\n  \"failed_ids\": [\n    \"a3\"\n  ],\n  \"service_counts\": {\n    \"api\": 4,\n    \"worker\": 2,\n    \"db\": 1\n  },\n  \"latest_timestamp\": \"2026-01-01T08:07:00Z\"\n}\n",
+  "bad_solution": "{\n  \"records\": \"incorrect\",\n  \"errors\": 1,\n  \"warnings\": 3,\n  \"failed_ids\": [\n    \"a3\"\n  ],\n  \"service_counts\": {\n    \"api\": 4,\n    \"worker\": 2,\n    \"db\": 1\n  },\n  \"latest_timestamp\": \"2026-01-01T08:07:00Z\"\n}\n",
+  "cases": [
+    {
+      "name": "records",
+      "path": [
+        "records"
+      ],
+      "expected": 7
+    },
+    {
+      "name": "errors",
+      "path": [
+        "errors"
+      ],
+      "expected": 1
+    },
+    {
+      "name": "warnings",
+      "path": [
+        "warnings"
+      ],
+      "expected": 3
+    },
+    {
+      "name": "failed_ids",
+      "path": [
+        "failed_ids"
+      ],
+      "expected": [
+        "a3"
+      ]
+    },
+    {
+      "name": "service_counts",
+      "path": [
+        "service_counts"
+      ],
+      "expected": {
+        "api": 4,
+        "worker": 2,
+        "db": 1
+      }
+    },
+    {
+      "name": "latest_timestamp",
+      "path": [
+        "latest_timestamp"
+      ],
+      "expected": "2026-01-01T08:07:00Z"
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

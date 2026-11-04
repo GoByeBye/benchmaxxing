@@ -46,7 +46,9 @@ class InferenceProfile(Contract):
 
 class RunSpec(Contract):
     schema_version: Literal[1] = 1
-    task_id: Literal["python.interval-merge"] = "python.interval-merge"
+    task_id: str = Field(
+        default="python.interval-merge", pattern=r"^[a-z][a-z0-9_-]*\.[a-z0-9-]+$", max_length=100
+    )
     participant: Literal["scripted", "openai"] = "scripted"
     scripted_variant: Literal["good", "bad", "refuse"] = "good"
     inference: InferenceProfile | None = None
@@ -134,6 +136,12 @@ class TaskSpec(Contract):
     description: str
     task_hash: str
     image: str
+    kind: Literal["python", "json"] = "python"
+    submission_file: str = "solution.py"
+    difficulty: Literal["easy", "medium", "hard"] = "easy"
+    tags: list[str] = Field(default_factory=list)
+    check_count: int = Field(default=8, ge=1)
+    rubric: str = ""
 
 
 class RunDetail(Contract):

@@ -1,0 +1,290 @@
+{
+  "schema_version": 1,
+  "id": "security.authentication-failure-windows",
+  "version": "1.0.0",
+  "title": "Detect authentication failure bursts",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "log-analysis",
+    "sliding-window",
+    "state-machines"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) with positive integer window_s and threshold, plus events sorted by nondecreasing time. Each event has integer time>=0, user (string), and outcome \"failure\" or \"success\". Per user, track failures in the half-open window (time-window_s, time], so failures exactly window_s old expire. A success clears that user's history. On each failure, prune expired failures, measure the count before adding this failure, then add it. Emit an alert only when the count crosses from below threshold to at least threshold. This can happen again after expiry or a success; continuing failures above threshold do not repeatedly alert. Return {\"alerts\":[{\"user\":user,\"time\":time,\"count\":new_count},...]} in event order. Equal timestamps are separate events. Invalid window_s<=0 or threshold<=0 returns {\"error\":\"invalid_policy\"} before processing. Other fields and ordering are valid. Do not mutate input.",
+  "files": {
+    "solution.py": "\"\"\"Implement the defensive policy in solve(payload).\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"threshold_crossing\\\",\\\"input\\\":{\\\"window_s\\\":5,\\\"threshold\\\":3,\\\"events\\\":[{\\\"time\\\":0,\\\"user\\\":\\\"alice\\\",\\\"outcome\\\":\\\"failure\\\"},{\\\"time\\\":1,\\\"user\\\":\\\"alice\\\",\\\"outcome\\\":\\\"failure\\\"},{\\\"time\\\":2,\\\"user\\\":\\\"alice\\\",\\\"outcome\\\":\\\"failure\\\"}]},\\\"expected\\\":{\\\"alerts\\\":[{\\\"user\\\":\\\"alice\\\",\\\"time\\\":2,\\\"count\\\":3}]}},{\\\"name\\\":\\\"no_repeat_above_threshold\\\",\\\"input\\\":{\\\"window_s\\\":5,\\\"threshold\\\":2,\\\"events\\\":[{\\\"time\\\":0,\\\"user\\\":\\\"alice\\\",\\\"outcome\\\":\\\"failure\\\"},{\\\"time\\\":1,\\\"user\\\":\\\"alice\\\",\\\"outcome\\\":\\\"failure\\\"},{\\\"time\\\":2,\\\"user\\\":\\\"alice\\\",\\\"outcome\\\":\\\"failure\\\"}]},\\\"expected\\\":{\\\"alerts\\\":[{\\\"user\\\":\\\"alice\\\",\\\"time\\\":1,\\\"count\\\":2}]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    from collections import defaultdict, deque\n    window, threshold = payload[\"window_s\"], payload[\"threshold\"]\n    if window <= 0 or threshold <= 0:\n        return {\"error\": \"invalid_policy\"}\n    failures = defaultdict(deque)\n    alerts = []\n    for event in payload[\"events\"]:\n        queue = failures[event[\"user\"]]\n        while queue and queue[0] <= event[\"time\"] - window:\n            queue.popleft()\n        if event[\"outcome\"] == \"success\":\n            queue.clear()\n            continue\n        previous = len(queue)\n        queue.append(event[\"time\"])\n        if previous < threshold <= len(queue):\n            alerts.append({\"user\": event[\"user\"], \"time\": event[\"time\"], \"count\": len(queue)})\n    return {\"alerts\": alerts}\n",
+  "bad_solution": "def solve(payload):\n    counts, alerts = {}, []\n    for event in payload[\"events\"]:\n        if event[\"outcome\"] == \"failure\":\n            user = event[\"user\"]\n            counts[user] = counts.get(user, 0) + 1\n            if counts[user] >= payload[\"threshold\"]:\n                alerts.append({\"user\": user, \"time\": event[\"time\"], \"count\": counts[user]})\n    return {\"alerts\": alerts}\n",
+  "cases": [
+    {
+      "name": "threshold_crossing",
+      "input": {
+        "window_s": 5,
+        "threshold": 3,
+        "events": [
+          {
+            "time": 0,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 1,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 2,
+            "user": "alice",
+            "outcome": "failure"
+          }
+        ]
+      },
+      "expected": {
+        "alerts": [
+          {
+            "user": "alice",
+            "time": 2,
+            "count": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "no_repeat_above_threshold",
+      "input": {
+        "window_s": 5,
+        "threshold": 2,
+        "events": [
+          {
+            "time": 0,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 1,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 2,
+            "user": "alice",
+            "outcome": "failure"
+          }
+        ]
+      },
+      "expected": {
+        "alerts": [
+          {
+            "user": "alice",
+            "time": 1,
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "exclusive_left_boundary",
+      "input": {
+        "window_s": 5,
+        "threshold": 2,
+        "events": [
+          {
+            "time": 0,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 5,
+            "user": "alice",
+            "outcome": "failure"
+          }
+        ]
+      },
+      "expected": {
+        "alerts": []
+      }
+    },
+    {
+      "name": "success_resets",
+      "input": {
+        "window_s": 10,
+        "threshold": 2,
+        "events": [
+          {
+            "time": 0,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 1,
+            "user": "alice",
+            "outcome": "success"
+          },
+          {
+            "time": 2,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 3,
+            "user": "alice",
+            "outcome": "failure"
+          }
+        ]
+      },
+      "expected": {
+        "alerts": [
+          {
+            "user": "alice",
+            "time": 3,
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "expiry_rearms",
+      "input": {
+        "window_s": 5,
+        "threshold": 2,
+        "events": [
+          {
+            "time": 0,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 1,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 7,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 8,
+            "user": "alice",
+            "outcome": "failure"
+          }
+        ]
+      },
+      "expected": {
+        "alerts": [
+          {
+            "user": "alice",
+            "time": 1,
+            "count": 2
+          },
+          {
+            "user": "alice",
+            "time": 8,
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "independent_users",
+      "input": {
+        "window_s": 10,
+        "threshold": 2,
+        "events": [
+          {
+            "time": 0,
+            "user": "alice",
+            "outcome": "failure"
+          },
+          {
+            "time": 1,
+            "user": "bob",
+            "outcome": "failure"
+          },
+          {
+            "time": 2,
+            "user": "bob",
+            "outcome": "failure"
+          },
+          {
+            "time": 3,
+            "user": "alice",
+            "outcome": "failure"
+          }
+        ]
+      },
+      "expected": {
+        "alerts": [
+          {
+            "user": "bob",
+            "time": 2,
+            "count": 2
+          },
+          {
+            "user": "alice",
+            "time": 3,
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "equal_timestamps",
+      "input": {
+        "window_s": 1,
+        "threshold": 2,
+        "events": [
+          {
+            "time": 0,
+            "user": "u",
+            "outcome": "failure"
+          },
+          {
+            "time": 0,
+            "user": "u",
+            "outcome": "failure"
+          }
+        ]
+      },
+      "expected": {
+        "alerts": [
+          {
+            "user": "u",
+            "time": 0,
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty_events",
+      "input": {
+        "window_s": 5,
+        "threshold": 2,
+        "events": []
+      },
+      "expected": {
+        "alerts": []
+      }
+    },
+    {
+      "name": "invalid_policy",
+      "input": {
+        "window_s": 0,
+        "threshold": 2,
+        "events": []
+      },
+      "expected": {
+        "error": "invalid_policy"
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "id": "engineering.beam-point-loads",
+  "version": "1.0.0",
+  "title": "Simply supported beam reactions and moments",
+  "category": "engineering",
+  "difficulty": "medium",
+  "tags": [
+    "statics",
+    "structures",
+    "beam",
+    "units"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for a simply supported beam of length_m > 0, with loads [{\"x_m\":position,\"force_n\":force},...] and probes_m. Loads are signed: positive force_n acts downward; negative acts upward. Supports are at x=0 and x=length_m. Return {\"left_reaction_n\":R0,\"right_reaction_n\":RL,\"moments_nm\":[M(x),...]} with upward reactions positive and sagging bending moment positive. Use RL=sum(F*x)/L, R0=sum(F)-RL, and M(x)=R0*x-sum(F*max(0,x-load_x)); include loads applied at supports. Return {\"error\":\"invalid_geometry\"} if L<=0 or any load/probe is outside [0,L], before computing reactions. Empty loads/probes are valid. All numbers are finite and object fields are present. Do not mutate inputs. Absolute/relative tolerance 1e-8.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to the task specification.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-8, rel_tol=1e-8)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"centered\\\",\\\"input\\\":{\\\"length_m\\\":2,\\\"loads\\\":[{\\\"x_m\\\":1,\\\"force_n\\\":100}],\\\"probes_m\\\":[0,0.5,1,1.5,2]},\\\"expected\\\":{\\\"left_reaction_n\\\":50,\\\"right_reaction_n\\\":50,\\\"moments_nm\\\":[0,25,50,25,0]}},{\\\"name\\\":\\\"asymmetric\\\",\\\"input\\\":{\\\"length_m\\\":10,\\\"loads\\\":[{\\\"x_m\\\":2,\\\"force_n\\\":100}],\\\"probes_m\\\":[1,2,5,10]},\\\"expected\\\":{\\\"left_reaction_n\\\":80,\\\"right_reaction_n\\\":20,\\\"moments_nm\\\":[80,160,100,0]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import math\n    length = payload[\"length_m\"]\n    loads, probes = payload[\"loads\"], payload[\"probes_m\"]\n    if length <= 0 or any(not 0 <= load[\"x_m\"] <= length for load in loads) or any(not 0 <= x <= length for x in probes):\n        return {\"error\": \"invalid_geometry\"}\n    right = math.fsum(load[\"force_n\"] * load[\"x_m\"] for load in loads) / length\n    left = math.fsum(load[\"force_n\"] for load in loads) - right\n    moments = [left * x - math.fsum(load[\"force_n\"] * max(0, x - load[\"x_m\"]) for load in loads) for x in probes]\n    return {\"left_reaction_n\": left, \"right_reaction_n\": right, \"moments_nm\": moments}\n",
+  "bad_solution": "def solve(payload):\n    loads = payload[\"loads\"]\n    half = sum(load[\"force_n\"] for load in loads) / 2\n    moments = [half * x - sum(load[\"force_n\"] * max(0, x - load[\"x_m\"]) for load in loads) for x in payload[\"probes_m\"]]\n    return {\"left_reaction_n\": half, \"right_reaction_n\": half, \"moments_nm\": moments}\n",
+  "cases": [
+    {
+      "name": "centered",
+      "input": {
+        "length_m": 2,
+        "loads": [
+          {
+            "x_m": 1,
+            "force_n": 100
+          }
+        ],
+        "probes_m": [
+          0,
+          0.5,
+          1,
+          1.5,
+          2
+        ]
+      },
+      "expected": {
+        "left_reaction_n": 50,
+        "right_reaction_n": 50,
+        "moments_nm": [
+          0,
+          25,
+          50,
+          25,
+          0
+        ]
+      }
+    },
+    {
+      "name": "asymmetric",
+      "input": {
+        "length_m": 10,
+        "loads": [
+          {
+            "x_m": 2,
+            "force_n": 100
+          }
+        ],
+        "probes_m": [
+          1,
+          2,
+          5,
+          10
+        ]
+      },
+      "expected": {
+        "left_reaction_n": 80,
+        "right_reaction_n": 20,
+        "moments_nm": [
+          80,
+          160,
+          100,
+          0
+        ]
+      }
+    },
+    {
+      "name": "multiple_loads",
+      "input": {
+        "length_m": 12,
+        "loads": [
+          {
+            "x_m": 2,
+            "force_n": 6
+          },
+          {
+            "x_m": 8,
+            "force_n": 12
+          }
+        ],
+        "probes_m": [
+          0,
+          2,
+          5,
+          8,
+          12
+        ]
+      },
+      "expected": {
+        "left_reaction_n": 9,
+        "right_reaction_n": 9,
+        "moments_nm": [
+          0,
+          18,
+          27,
+          36,
+          0
+        ]
+      }
+    },
+    {
+      "name": "support_loads",
+      "input": {
+        "length_m": 4,
+        "loads": [
+          {
+            "x_m": 0,
+            "force_n": 10
+          },
+          {
+            "x_m": 4,
+            "force_n": 20
+          }
+        ],
+        "probes_m": [
+          0,
+          1,
+          4
+        ]
+      },
+      "expected": {
+        "left_reaction_n": 10,
+        "right_reaction_n": 20,
+        "moments_nm": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "name": "upward_load",
+      "input": {
+        "length_m": 4,
+        "loads": [
+          {
+            "x_m": 2,
+            "force_n": -40
+          }
+        ],
+        "probes_m": [
+          0,
+          2,
+          4
+        ]
+      },
+      "expected": {
+        "left_reaction_n": -20,
+        "right_reaction_n": -20,
+        "moments_nm": [
+          0,
+          -40,
+          0
+        ]
+      }
+    },
+    {
+      "name": "unloaded",
+      "input": {
+        "length_m": 3,
+        "loads": [],
+        "probes_m": [
+          0,
+          2,
+          3
+        ]
+      },
+      "expected": {
+        "left_reaction_n": 0,
+        "right_reaction_n": 0,
+        "moments_nm": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "name": "invalid_length",
+      "input": {
+        "length_m": 0,
+        "loads": [],
+        "probes_m": []
+      },
+      "expected": {
+        "error": "invalid_geometry"
+      }
+    },
+    {
+      "name": "load_outside",
+      "input": {
+        "length_m": 2,
+        "loads": [
+          {
+            "x_m": 3,
+            "force_n": 1
+          }
+        ],
+        "probes_m": []
+      },
+      "expected": {
+        "error": "invalid_geometry"
+      }
+    }
+  ],
+  "atol": 1e-8,
+  "rtol": 1e-8,
+  "preserve_input": true
+}

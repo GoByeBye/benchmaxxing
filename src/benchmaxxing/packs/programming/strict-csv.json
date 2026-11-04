@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "id": "python.strict-csv",
+  "version": "1.0.0",
+  "title": "Strict single-record CSV parser",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "parsing",
+    "text",
+    "error-position"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting a string containing exactly one comma-separated record. Return\n{\"fields\": [strings]} on success or {\"error\": zero_based_character_index} for the first invalid position.\nAn empty record has one empty field. Empty fields and a trailing comma are legal. A field beginning\nwith a double quote is quoted: doubled quotes represent one literal quote, and all other characters\n(including commas, CR and LF) are literal until its closing quote. Only comma or end may follow a\nclosing quote. In an unquoted field, any double quote, CR or LF is invalid. Spaces are preserved;\nwhitespace before a quote does not start a quoted field. An unclosed quoted field errors at len(payload).\nIndices count Python Unicode characters, not UTF-8 bytes. Do not strip line endings or whitespace.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `\"red,green,blue\"`; output: `{\"fields\": [\"red\", \"green\", \"blue\"]}`.\n- Input: `\"\\\"red,green\\\",blue\"`; output: `{\"fields\": [\"red,green\", \"blue\"]}`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    return {\"fields\": [field.strip().strip('\"').replace('\"\"', '\"') for field in payload.split(',')]}\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"plain\", \"input\": \"red,green,blue\", \"expected\": {\"fields\": [\"red\", \"green\", \"blue\"]}}, {\"name\": \"quoted\", \"input\": \"\\\\\"red,green\\\\\",blue\", \"expected\": {\"fields\": [\"red,green\", \"blue\"]}}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    fields = []\n    i, n = 0, len(payload)\n    while True:\n        chars = []\n        if i < n and payload[i] == '\"':\n            i += 1\n            while True:\n                if i == n:\n                    return {\"error\": n}\n                if payload[i] != '\"':\n                    chars.append(payload[i])\n                    i += 1\n                elif i + 1 < n and payload[i + 1] == '\"':\n                    chars.append('\"')\n                    i += 2\n                else:\n                    i += 1\n                    break\n            if i < n and payload[i] != ',':\n                return {\"error\": i}\n        else:\n            while i < n and payload[i] != ',':\n                if payload[i] in '\\r\\n\"':\n                    return {\"error\": i}\n                chars.append(payload[i])\n                i += 1\n        fields.append(''.join(chars))\n        if i == n:\n            return {\"fields\": fields}\n        i += 1\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    return {\"fields\": [field.strip().strip('\"').replace('\"\"', '\"') for field in payload.split(',')]}\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": "",
+      "expected": {
+        "fields": [
+          ""
+        ]
+      }
+    },
+    {
+      "name": "trailing",
+      "input": "a,b,",
+      "expected": {
+        "fields": [
+          "a",
+          "b",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "quoted_empty",
+      "input": "\"\"",
+      "expected": {
+        "fields": [
+          ""
+        ]
+      }
+    },
+    {
+      "name": "escaped_quote",
+      "input": "\"a,b\",\"c\"\"d\",e",
+      "expected": {
+        "fields": [
+          "a,b",
+          "c\"d",
+          "e"
+        ]
+      }
+    },
+    {
+      "name": "spaces",
+      "input": " alpha , beta ",
+      "expected": {
+        "fields": [
+          " alpha ",
+          " beta "
+        ]
+      }
+    },
+    {
+      "name": "unquoted_quote",
+      "input": "abc\"def",
+      "expected": {
+        "error": 3
+      }
+    },
+    {
+      "name": "unclosed",
+      "input": "\"abc",
+      "expected": {
+        "error": 4
+      }
+    },
+    {
+      "name": "after_quote",
+      "input": "\"a\" x,b",
+      "expected": {
+        "error": 3
+      }
+    },
+    {
+      "name": "bare_newline",
+      "input": "a\nb",
+      "expected": {
+        "error": 1
+      }
+    },
+    {
+      "name": "quoted_newline_unicode",
+      "input": "\"ø\nβ\",c",
+      "expected": {
+        "fields": [
+          "ø\nβ",
+          "c"
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

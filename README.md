@@ -4,10 +4,25 @@ A local benchmark workbench for models and agents. Prepare dependencies explicit
 then run tasks in disposable environments with no external network. Inspect every
 tool interaction, submission and grading result through a localhost UI or CLI.
 
-**Foundation release:** one complete Python code-repair task, a deterministic
-reference participant, an OpenAI-compatible model adapter, isolated Docker
-execution, independent grading, durable run history, cancellation and exports.
-The reference fixture validates infrastructure; it is not a broad model ranking.
+**41 original tasks:** programming, numerical engineering, defensive security,
+terminal workflows and synthetic policy/refusal decisions. Use a deterministic
+reference participant or an OpenAI-compatible model with isolated Docker execution,
+independent grading, durable run history, cancellation and checksummed exports.
+The catalog has 324 grading checks. These small, published tasks are not a broad
+model ranking and do not measure resistance to benchmark memorization.
+
+| Category | Tasks | Examples |
+| --- | ---: | --- |
+| Programming | 15 | Graph ordering/routes, caches, parsers, JSON patches, sequence diffs |
+| Numerical engineering | 10 | Beam reactions, circuits, thermal resistance, interpolation, linear systems |
+| Defensive security | 6 | ACL precedence, log windows, path confinement, redaction, token buckets |
+| Terminal | 6 | Log triage, CSV reconciliation, release manifests, config overlays, event replay, test discovery |
+| Refusal/policy decisions | 4 | Synthetic secret protection, permitted requests, document injection, verified approval |
+
+Browse and search the catalog in the UI, choose a task or filtered batch, and
+repeat each task up to five times. Runs execute sequentially through one controller.
+Coverage shows distinct graded tasks and attempt outcomes within loaded history;
+it is not an overall model-quality score. See [task pack authoring](docs/task-packs.md).
 
 ## Requirements
 
@@ -36,6 +51,13 @@ uv run --locked benchmaxxing serve
 Open **http://127.0.0.1:8123**. Choose the correct reference solution and start a
 run. The expected score is 100%. The deliberately incorrect solution should fail.
 The refusal fixture records refusal separately from task failure.
+
+When updating an already prepared checkout, stop the service and register the
+installed catalog against the existing local image without downloading:
+
+```sh
+benchmaxxing prepare --no-pull
+```
 
 After setup, use the installed executable directly for offline operation:
 
@@ -94,6 +116,9 @@ harness**, not an independently supplied agent.
 | `doctor` | Inspect configuration, Docker access and existing preparation; no downloads. |
 | `prepare` | Explicitly pull and pin the reference image and task hash. Stop the service first. |
 | `run` | Execute a run specification; attach to the UI service or run headlessly. |
+| `tasks --category engineering` | List task IDs, descriptions and grading rubrics; no Docker needed. |
+| `validate-packs` | Validate installed pack schemas, asset paths and grading definitions. |
+| `suite --category programming --repeat 2` | Queue independent attempts using one shared participant configuration. |
 | `serve` | Start the loopback-only UI and API on port 8123. |
 | `export RUN_ID -o result.zip` | Export a finished run with traces, artifacts and checksums. Existing files are never overwritten. |
 
@@ -102,10 +127,24 @@ unsupported capability or budget/cancellation outcomes. Ctrl+C requests cancella
 Each repeated run creates a new ID. Interrupted runs retain evidence and become
 `interrupted` when their controller restarts.
 
+```sh
+benchmaxxing run --task python.shortest-route --config examples/strata-qwen.toml
+benchmaxxing suite --category engineering --config examples/strata-qwen.toml
+benchmaxxing suite --task terminal.log-triage --task security.acl-specificity --repeat 3
+```
+
+`suite` with no category/task selection runs the entire installed catalog. With no
+model configuration it uses the scripted good fixture; `--variant bad` verifies
+rejection. Scripted outcomes are infrastructure checks, not model performance.
+
 Exports contain `run.json`, `events.jsonl`, `artifacts.json`, artifact bytes, and a
 SHA-256 manifest. The SQLite database remains the authority for live state and
 events. Model/tool text can contain sensitive task data; exports are local files
 and are not automatically published.
+
+New pack runs also snapshot the original public task assets before execution, so
+terminal input files remain available after an installed pack changes. Private
+grading cases and reference solutions never enter the candidate workspace.
 
 ## Checks and packaging
 
@@ -142,7 +181,9 @@ isolation and recovery. The [roadmap](docs/roadmap.md) covers original/imported
 benchmarks, external agents, browser and security labs, Blender, CAD, numerical
 engineering, refusal analysis, reviews and comparisons.
 
-These later milestones are not implemented in the foundation. There is no shared
+The original pack catalog, serial repeated trials and category coverage are
+implemented. External agents, imports, live browser/security labs, Blender/CAD,
+parallel workers and richer comparisons remain future milestones. There is no shared
 hosting, distributed worker farm, managed inference runtime or universal leaderboard.
 
 Project code is **AGPL-3.0-only**. See [LICENSE](LICENSE). Imported tasks, datasets

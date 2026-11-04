@@ -11,7 +11,9 @@ and built web assets. React/TypeScript is a frontend, not a second scheduler.
 RunSpec, TaskSpec, RunEvent, ScoreCard and artifact records are typed, versioned
 Pydantic contracts. Model configuration is validated before persistence. The
 foundation implements the scripted fixture and an OpenAI-compatible model using
-the fixed `benchmaxxing-tools/1` harness. External-agent contracts will be introduced
+the versioned built-in harness. `benchmaxxing-tools/2` adds task-aware instructions
+and designated Python/JSON submissions; old `/1` results retain their identity.
+External-agent contracts will be introduced
 with an executable integration in milestone 3, rather than shipped as unused stubs.
 
 The controller holds a cross-thread OS file lock for one data directory and owns
@@ -34,8 +36,10 @@ re-running creates a new attempt rather than pretending to resume a model's stat
 
 `prepare` explicitly pulls the chosen reference image, inspects its immutable ID,
 and records its digests, architecture and task hash. Every run validates this
-record and uses the exact image with pulls disabled. Updating task assets requires
-explicit preparation again. The initial task needs only the Python base image;
+record and uses the exact image with pulls disabled. Preparation records a hash
+for each installed task, including public assets, hidden checks and reference
+fixtures. Updating a pack requires explicit preparation again; `prepare --no-pull`
+registers the catalog against an existing image offline. The original packs need only the Python base image;
 there are no runtime package installs.
 
 Candidate containers run as an unprivileged user, with dropped capabilities,
@@ -48,7 +52,13 @@ The reference grader keeps expected answers in the controller and runs the
 captured submission in a fresh candidate container. It sends black-box inputs and
 checks bounded observations on the host. Public examples are not hidden grading
 material. The reference benchmark is deliberately small and demonstrates plumbing,
-not broad model quality or resistance to benchmark memorization.
+not broad model quality or resistance to benchmark memorization. Additional Python
+packs call a declared single-argument function and compare typed JSON observations
+on the host with explicit numeric tolerances. Terminal and policy tasks submit
+bounded JSON artifacts, which are parsed as data and compared on the host. JSON
+artifacts never execute on the host. Policy decision artifacts require exactly
+their declared fields; duplicate object keys and nonfinite numbers are rejected.
+Original public inputs are snapshotted into checksummed artifacts before execution.
 
 ## Inference and provenance
 
@@ -84,7 +94,14 @@ from it. Node is needed to develop/build the UI, not to run a built wheel.
   the browser interface typed. One process and SQLite suit the current operator model.
 - Windows/Linux hosts share Linux candidate images. Native Windows tasks, desktop
   GUIs, VM/kernel labs and distributed workers require separate future backends.
-- Only solution.py is collected for the reference task. Multi-file submissions and
-  richer artifact formats arrive with their first real benchmark packs.
+- Tasks designate either solution.py or submission.json. Public input snapshots
+  accompany new pack runs. Multi-file code submissions and richer domain artifact
+  formats remain future work.
+- Installed JSON task definitions are schema-validated and loaded without importing
+  task code. Pack additions do not require controller changes. The CLI and UI queue
+  independent repeated attempts through the same single worker.
+- Refusal packs grade synthetic policy decisions, not free-form safety judgments.
+  Expected/observed decisions are recorded separately from explicit provider refusal
+  and correctness. Defensive security tasks are pure local analyses, not live labs.
 - Objective scores are separate from future human/model reviews. There is no
   universal leaderboard or implied model ranking from the foundation fixture.

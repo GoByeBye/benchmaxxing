@@ -1,0 +1,281 @@
+{
+  "schema_version": 1,
+  "id": "python.prune-tree",
+  "version": "1.0.0",
+  "title": "Retain selected tree nodes and their ancestors",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "trees",
+    "recursion",
+    "structural-transformations"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload). Input is {\"tree\": node_or_null, \"keep\": [string_ids]}. Every node is exactly\n{\"id\": unique_string, \"children\": [nodes]}. Return a new tree containing exactly the existing IDs\nlisted in keep and all their ancestors. A kept node does not automatically retain its descendants.\nPreserve the original sibling order and the id/children shape. Return null if no existing node is\nkept, including when tree is null. Duplicate or unknown IDs in keep have no additional effect.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"tree\": {\"id\": \"r\", \"children\": [{\"id\": \"a\", \"children\": []}, {\"id\": \"b\", \"children\": []}]}, \"keep\": [\"b\"]}`; output: `{\"id\": \"r\", \"children\": [{\"id\": \"b\", \"children\": []}]}`.\n- Input: `{\"tree\": {\"id\": \"r\", \"children\": []}, \"keep\": []}`; output: `null`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\n\n\ndef solve(payload):\n    keep = set(payload['keep'])\n    def prune(node):\n        if node is None:\n            return None\n        if node['id'] in keep:\n            return copy.deepcopy(node)\n        children = []\n        for child in node['children']:\n            result = prune(child)\n            if result is not None:\n                children.append(result)\n        if node['id'] in keep or children:\n            return {'id': node['id'], 'children': children}\n        return None\n    return prune(payload['tree'])\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"leaf\", \"input\": {\"tree\": {\"id\": \"r\", \"children\": [{\"id\": \"a\", \"children\": []}, {\"id\": \"b\", \"children\": []}]}, \"keep\": [\"b\"]}, \"expected\": {\"id\": \"r\", \"children\": [{\"id\": \"b\", \"children\": []}]}}, {\"name\": \"none\", \"input\": {\"tree\": {\"id\": \"r\", \"children\": []}, \"keep\": []}, \"expected\": null}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    keep = set(payload['keep'])\n    def prune(node):\n        if node is None:\n            return None\n        children = []\n        for child in node['children']:\n            result = prune(child)\n            if result is not None:\n                children.append(result)\n        if node['id'] in keep or children:\n            return {'id': node['id'], 'children': children}\n        return None\n    return prune(payload['tree'])\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\n\n\ndef solve(payload):\n    keep = set(payload['keep'])\n    def prune(node):\n        if node is None:\n            return None\n        if node['id'] in keep:\n            return copy.deepcopy(node)\n        children = []\n        for child in node['children']:\n            result = prune(child)\n            if result is not None:\n                children.append(result)\n        if node['id'] in keep or children:\n            return {'id': node['id'], 'children': children}\n        return None\n    return prune(payload['tree'])\n",
+  "cases": [
+    {
+      "name": "empty_tree",
+      "input": {
+        "tree": null,
+        "keep": [
+          "missing"
+        ]
+      },
+      "expected": null
+    },
+    {
+      "name": "unknown_only",
+      "input": {
+        "tree": {
+          "id": "r",
+          "children": [
+            {
+              "id": "a",
+              "children": []
+            }
+          ]
+        },
+        "keep": [
+          "z"
+        ]
+      },
+      "expected": null
+    },
+    {
+      "name": "root_only",
+      "input": {
+        "tree": {
+          "id": "r",
+          "children": [
+            {
+              "id": "a",
+              "children": []
+            },
+            {
+              "id": "b",
+              "children": []
+            }
+          ]
+        },
+        "keep": [
+          "r"
+        ]
+      },
+      "expected": {
+        "id": "r",
+        "children": []
+      }
+    },
+    {
+      "name": "deep_leaf",
+      "input": {
+        "tree": {
+          "id": "r",
+          "children": [
+            {
+              "id": "a",
+              "children": [
+                {
+                  "id": "x",
+                  "children": []
+                },
+                {
+                  "id": "y",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "b",
+              "children": []
+            }
+          ]
+        },
+        "keep": [
+          "y"
+        ]
+      },
+      "expected": {
+        "id": "r",
+        "children": [
+          {
+            "id": "a",
+            "children": [
+              {
+                "id": "y",
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "sibling_order",
+      "input": {
+        "tree": {
+          "id": "r",
+          "children": [
+            {
+              "id": "z",
+              "children": []
+            },
+            {
+              "id": "a",
+              "children": []
+            },
+            {
+              "id": "m",
+              "children": []
+            }
+          ]
+        },
+        "keep": [
+          "m",
+          "z"
+        ]
+      },
+      "expected": {
+        "id": "r",
+        "children": [
+          {
+            "id": "z",
+            "children": []
+          },
+          {
+            "id": "m",
+            "children": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "kept_internal_prunes_unselected",
+      "input": {
+        "tree": {
+          "id": "r",
+          "children": [
+            {
+              "id": "a",
+              "children": [
+                {
+                  "id": "x",
+                  "children": []
+                },
+                {
+                  "id": "y",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "b",
+              "children": []
+            }
+          ]
+        },
+        "keep": [
+          "a",
+          "b"
+        ]
+      },
+      "expected": {
+        "id": "r",
+        "children": [
+          {
+            "id": "a",
+            "children": []
+          },
+          {
+            "id": "b",
+            "children": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "duplicates",
+      "input": {
+        "tree": {
+          "id": "r",
+          "children": [
+            {
+              "id": "a",
+              "children": []
+            }
+          ]
+        },
+        "keep": [
+          "a",
+          "a",
+          "unknown"
+        ]
+      },
+      "expected": {
+        "id": "r",
+        "children": [
+          {
+            "id": "a",
+            "children": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "root_and_one_descendant",
+      "input": {
+        "tree": {
+          "id": "r",
+          "children": [
+            {
+              "id": "a",
+              "children": [
+                {
+                  "id": "x",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "id": "b",
+              "children": [
+                {
+                  "id": "y",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        "keep": [
+          "r",
+          "y"
+        ]
+      },
+      "expected": {
+        "id": "r",
+        "children": [
+          {
+            "id": "b",
+            "children": [
+              {
+                "id": "y",
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

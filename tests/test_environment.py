@@ -102,7 +102,9 @@ def test_workspace_id_stable_and_separate(tmp_path):
 def test_container_create_uses_restricted_flags_and_pinned_image(tmp_path, monkeypatch):
     calls = []
     image_id = "sha256:" + "b" * 64
-    monkeypatch.setattr(environment, "preparation_info", lambda path: {"image_id": image_id})
+    monkeypatch.setattr(
+        environment, "preparation_info", lambda path, task_id: {"image_id": image_id}
+    )
 
     def docker(args, **kwargs):
         calls.append(args)

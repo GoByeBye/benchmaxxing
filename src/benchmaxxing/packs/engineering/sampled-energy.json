@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "id": "engineering.sampled-energy",
+  "version": "1.0.0",
+  "title": "Integrate sampled power",
+  "category": "engineering",
+  "difficulty": "easy",
+  "tags": [
+    "numerical-integration",
+    "trapezoids",
+    "units"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload), where payload[\"points\"] is a list of [time_seconds, power_watts] samples in supplied order. Integrate using the composite trapezoid rule on each actual interval, returning {\"energy_joules\": value}. Negative power contributes negative energy. Do not sort or assume equal spacing. Return {\"error\":\"too_few_points\"} for fewer than two samples, then {\"error\":\"time_order\"} if any time fails to be strictly greater than its predecessor. Other inputs are valid finite numbers and pairs. Do not mutate input. Numerical results use absolute and relative tolerance 1e-8.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to the task specification.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-8, rel_tol=1e-8)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"constant\\\",\\\"input\\\":{\\\"points\\\":[[0,3],[2,3]]},\\\"expected\\\":{\\\"energy_joules\\\":6}},{\\\"name\\\":\\\"nonuniform\\\",\\\"input\\\":{\\\"points\\\":[[0,0],[1,2],[3,2]]},\\\"expected\\\":{\\\"energy_joules\\\":5}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    points = payload[\"points\"]\n    if len(points) < 2:\n        return {\"error\": \"too_few_points\"}\n    if any(right[0] <= left[0] for left, right in zip(points, points[1:])):\n        return {\"error\": \"time_order\"}\n    import math\n    energy = math.fsum((right[0] - left[0]) * (left[1] + right[1]) / 2 for left, right in zip(points, points[1:]))\n    return {\"energy_joules\": energy}\n",
+  "bad_solution": "def solve(payload):\n    points = payload[\"points\"]\n    if len(points) < 2:\n        return {\"error\": \"too_few_points\"}\n    step = points[1][0] - points[0][0]\n    return {\"energy_joules\": step * sum((a[1] + b[1]) / 2 for a, b in zip(points, points[1:]))}\n",
+  "cases": [
+    {
+      "name": "constant",
+      "input": {
+        "points": [
+          [
+            0,
+            3
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "expected": {
+        "energy_joules": 6
+      }
+    },
+    {
+      "name": "nonuniform",
+      "input": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            2
+          ]
+        ]
+      },
+      "expected": {
+        "energy_joules": 5
+      }
+    },
+    {
+      "name": "three_slopes",
+      "input": {
+        "points": [
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            5
+          ],
+          [
+            5,
+            2
+          ]
+        ]
+      },
+      "expected": {
+        "energy_joules": 16.5
+      }
+    },
+    {
+      "name": "signed_power",
+      "input": {
+        "points": [
+          [
+            -2,
+            -2
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      },
+      "expected": {
+        "energy_joules": 1
+      }
+    },
+    {
+      "name": "fractional_times",
+      "input": {
+        "points": [
+          [
+            0,
+            2
+          ],
+          [
+            0.5,
+            4
+          ],
+          [
+            2,
+            0
+          ]
+        ]
+      },
+      "expected": {
+        "energy_joules": 4.5
+      }
+    },
+    {
+      "name": "repeated_time",
+      "input": {
+        "points": [
+          [
+            0,
+            2
+          ],
+          [
+            0,
+            4
+          ],
+          [
+            1,
+            5
+          ]
+        ]
+      },
+      "expected": {
+        "error": "time_order"
+      }
+    },
+    {
+      "name": "decreasing_time",
+      "input": {
+        "points": [
+          [
+            2,
+            2
+          ],
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "expected": {
+        "error": "time_order"
+      }
+    },
+    {
+      "name": "singleton",
+      "input": {
+        "points": [
+          [
+            0,
+            3
+          ]
+        ]
+      },
+      "expected": {
+        "error": "too_few_points"
+      }
+    },
+    {
+      "name": "zero_signal",
+      "input": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            0.1,
+            0
+          ],
+          [
+            10,
+            0
+          ]
+        ]
+      },
+      "expected": {
+        "energy_joules": 0
+      }
+    }
+  ],
+  "atol": 1e-8,
+  "rtol": 1e-8,
+  "preserve_input": true
+}

@@ -17,7 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from benchmaxxing.contracts import Budgets
-from benchmaxxing.task import DEFAULT_IMAGE, get_task, reference_files
+from benchmaxxing.task import DEFAULT_IMAGE, REFERENCE_ID, get_task, list_tasks, task_files
 
 WORKSPACE_LABEL = "org.benchmaxxing.workspace"
 RUN_LABEL = "org.benchmaxxing.run"
@@ -173,13 +173,14 @@ def _inspect_image(image: str) -> dict[str, Any]:
         raise EnvironmentError("Docker returned invalid image metadata") from exc
 
 
-def prepare(data_dir: Path, image: str = DEFAULT_IMAGE) -> dict[str, Any]:
+def prepare(data_dir: Path, image: str = DEFAULT_IMAGE, *, pull: bool = True) -> dict[str, Any]:
     """The only image-download entry point. Pin the actual content after pulling."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_./:@-]{0,511}", image):
         raise PreparationError("Invalid container image reference")
     data_dir = Path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
-    _require_success(_docker(["pull", image], timeout=600), "Image preparation failed")
+    if pull:
+        _require_success(_docker(["pull", image], timeout=600), "Image preparation failed")
     info = _inspect_image(image)
     manifest = {
         "schema_version": 1,
@@ -189,6 +190,7 @@ def prepare(data_dir: Path, image: str = DEFAULT_IMAGE) -> dict[str, Any]:
         "architecture": info.get("Architecture"),
         "os": info.get("Os"),
         "task_hash": get_task().task_hash,
+        "task_hashes": {task.id: task.task_hash for task in list_tasks()},
         "prepared_at": datetime.now(UTC).isoformat(),
     }
     if manifest["os"] != "linux":
@@ -199,7 +201,7 @@ def prepare(data_dir: Path, image: str = DEFAULT_IMAGE) -> dict[str, Any]:
     return manifest
 
 
-def preparation_info(data_dir: Path) -> dict[str, Any]:
+def preparation_info(data_dir: Path, task_id: str = REFERENCE_ID) -> dict[str, Any]:
     try:
         manifest: dict[str, Any] = json.loads((Path(data_dir) / PREPARED_FILE).read_text("utf-8"))
     except (OSError, ValueError) as exc:
@@ -208,8 +210,12 @@ def preparation_info(data_dir: Path) -> dict[str, Any]:
         ) from exc
     if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
         raise PreparationError("Unsupported preparation record; run `benchmaxxing prepare`.")
-    if manifest.get("task_hash") != get_task().task_hash:
-        raise PreparationError("Reference task changed; run `benchmaxxing prepare` again.")
+    hashes = manifest.get("task_hashes", {REFERENCE_ID: manifest.get("task_hash")})
+    if not isinstance(hashes, dict) or hashes.get(task_id) != get_task(task_id).task_hash:
+        raise PreparationError(
+            "Task assets are new or changed; run `benchmaxxing prepare --no-pull` "
+            "to register installed packs using the local image, or `prepare` to download it."
+        )
     image_id = manifest.get("image_id", "")
     if not isinstance(image_id, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id):
         raise PreparationError("Invalid prepared image ID; run `benchmaxxing prepare`.")
@@ -235,6 +241,15 @@ def doctor(data_dir: Path) -> dict[str, Any]:
         checks["docker_engine"] = {"error": str(exc)}
     try:
         checks["prepared"] = preparation_info(data_dir)
+        hashes = checks["prepared"].get(
+            "task_hashes", {REFERENCE_ID: checks["prepared"].get("task_hash")}
+        )
+        checks["catalog"] = {
+            "installed": len(list_tasks()),
+            "unprepared": [
+                task.id for task in list_tasks() if hashes.get(task.id) != task.task_hash
+            ],
+        }
     except EnvironmentError as exc:
         checks["prepared"] = {"error": str(exc)}
     ready = bool(
@@ -242,6 +257,7 @@ def doctor(data_dir: Path) -> dict[str, Any]:
         and isinstance(checks["docker_engine"], dict)
         and "error" not in checks["docker_engine"]
         and "error" not in checks["prepared"]
+        and not checks.get("catalog", {}).get("unprepared", [])
     )
     return {"ready": ready, "checks": checks}
 
@@ -313,10 +329,12 @@ class DockerEnvironment:
         cancel_event: threading.Event | None = None,
         *,
         deadline: float | None = None,
+        task_id: str = REFERENCE_ID,
     ):
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", run_id):
             raise ValueError("Invalid run ID")
         self.data_dir = Path(data_dir)
+        self.task_id = task_id
         self.run_id = run_id
         self.budgets = budgets
         self.cancel_event = cancel_event
@@ -357,7 +375,7 @@ class DockerEnvironment:
                 pass
 
     def start(self) -> None:
-        info = preparation_info(self.data_dir)
+        info = preparation_info(self.data_dir, self.task_id)
         self.image_id = info["image_id"]
         args = [
             "create",
@@ -411,7 +429,7 @@ class DockerEnvironment:
             _require_success(
                 self._operation(["start", self.name], timeout=30), "Could not start task container"
             )
-            for name, content in reference_files().items():
+            for name, content in task_files(self.task_id).items():
                 self.write_file(name, content.decode("utf-8"))
         except BaseException:
             self.close()
@@ -470,7 +488,7 @@ class DockerEnvironment:
         )
 
     def collect(self) -> bytes:
-        return self._read_bytes("solution.py", self.budgets.artifact_bytes)
+        return self._read_bytes(get_task(self.task_id).submission_file, self.budgets.artifact_bytes)
 
     def close(self) -> None:
         if self._created:

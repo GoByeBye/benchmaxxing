@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "id": "engineering.thermal-resistance-stack",
+  "version": "1.0.0",
+  "title": "Steady heat flow through a layered wall",
+  "category": "engineering",
+  "difficulty": "medium",
+  "tags": [
+    "heat-transfer",
+    "resistance-networks",
+    "units"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for one-dimensional steady conduction through layers in series. Each layer supplies thickness_m (nonnegative), conductivity_w_mk (positive), and area_m2 (positive). Boundary temperatures are hot_c and cold_c; the names do not require hot_c>=cold_c. Resistance is thickness/(conductivity*area) in K/W. Return {\"heat_flow_w\":Q,\"interface_temperatures_c\":[T0,...,Tn]} where Q=(hot_c-cold_c)/sum(R), T0=hot_c and Ti+1=Ti-Q*Ri. Include both boundaries, and preserve repeated temperatures across zero-thickness layers. Return {\"error\":\"invalid_layers\"} for no layers, an invalid layer dimension, or nonpositive total resistance. All supplied numbers are finite with representable arithmetic. Do not mutate input. Absolute/relative tolerance 1e-8.",
+  "files": {
+    "solution.py": "\"\"\"Implement solve(payload) according to the task specification.\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=1e-8, rel_tol=1e-8)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"single_layer_area\\\",\\\"input\\\":{\\\"layers\\\":[{\\\"thickness_m\\\":0.1,\\\"conductivity_w_mk\\\":2,\\\"area_m2\\\":0.5}],\\\"hot_c\\\":100,\\\"cold_c\\\":0},\\\"expected\\\":{\\\"heat_flow_w\\\":1000,\\\"interface_temperatures_c\\\":[100,0]}},{\\\"name\\\":\\\"equal_resistances\\\",\\\"input\\\":{\\\"layers\\\":[{\\\"thickness_m\\\":0.1,\\\"conductivity_w_mk\\\":1,\\\"area_m2\\\":1},{\\\"thickness_m\\\":0.2,\\\"conductivity_w_mk\\\":2,\\\"area_m2\\\":1}],\\\"hot_c\\\":80,\\\"cold_c\\\":20},\\\"expected\\\":{\\\"heat_flow_w\\\":300,\\\"interface_temperatures_c\\\":[80,50,20]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import math\n    layers = payload[\"layers\"]\n    if not layers or any(layer[\"thickness_m\"] < 0 or layer[\"conductivity_w_mk\"] <= 0 or layer[\"area_m2\"] <= 0 for layer in layers):\n        return {\"error\": \"invalid_layers\"}\n    resistances = [layer[\"thickness_m\"] / (layer[\"conductivity_w_mk\"] * layer[\"area_m2\"]) for layer in layers]\n    total = math.fsum(resistances)\n    if total <= 0:\n        return {\"error\": \"invalid_layers\"}\n    heat = (payload[\"hot_c\"] - payload[\"cold_c\"]) / total\n    temperatures = [payload[\"hot_c\"]]\n    accumulated = 0.0\n    for resistance in resistances:\n        accumulated += resistance\n        temperatures.append(payload[\"hot_c\"] - heat * accumulated)\n    return {\"heat_flow_w\": heat, \"interface_temperatures_c\": temperatures}\n",
+  "bad_solution": "def solve(payload):\n    layers = payload[\"layers\"]\n    total = sum(layer[\"thickness_m\"] / layer[\"conductivity_w_mk\"] for layer in layers)\n    heat = (payload[\"hot_c\"] - payload[\"cold_c\"]) / total\n    n = len(layers)\n    temperatures = [payload[\"hot_c\"] + (payload[\"cold_c\"] - payload[\"hot_c\"]) * i / n for i in range(n + 1)]\n    return {\"heat_flow_w\": heat, \"interface_temperatures_c\": temperatures}\n",
+  "cases": [
+    {
+      "name": "single_layer_area",
+      "input": {
+        "layers": [
+          {
+            "thickness_m": 0.1,
+            "conductivity_w_mk": 2,
+            "area_m2": 0.5
+          }
+        ],
+        "hot_c": 100,
+        "cold_c": 0
+      },
+      "expected": {
+        "heat_flow_w": 1000,
+        "interface_temperatures_c": [
+          100,
+          0
+        ]
+      }
+    },
+    {
+      "name": "equal_resistances",
+      "input": {
+        "layers": [
+          {
+            "thickness_m": 0.1,
+            "conductivity_w_mk": 1,
+            "area_m2": 1
+          },
+          {
+            "thickness_m": 0.2,
+            "conductivity_w_mk": 2,
+            "area_m2": 1
+          }
+        ],
+        "hot_c": 80,
+        "cold_c": 20
+      },
+      "expected": {
+        "heat_flow_w": 300,
+        "interface_temperatures_c": [
+          80,
+          50,
+          20
+        ]
+      }
+    },
+    {
+      "name": "unequal_resistances",
+      "input": {
+        "layers": [
+          {
+            "thickness_m": 1,
+            "conductivity_w_mk": 1,
+            "area_m2": 1
+          },
+          {
+            "thickness_m": 3,
+            "conductivity_w_mk": 1,
+            "area_m2": 1
+          }
+        ],
+        "hot_c": 100,
+        "cold_c": 20
+      },
+      "expected": {
+        "heat_flow_w": 20,
+        "interface_temperatures_c": [
+          100,
+          80,
+          20
+        ]
+      }
+    },
+    {
+      "name": "reverse_gradient",
+      "input": {
+        "layers": [
+          {
+            "thickness_m": 2,
+            "conductivity_w_mk": 0.5,
+            "area_m2": 1
+          }
+        ],
+        "hot_c": 0,
+        "cold_c": 100
+      },
+      "expected": {
+        "heat_flow_w": -25,
+        "interface_temperatures_c": [
+          0,
+          100
+        ]
+      }
+    },
+    {
+      "name": "isothermal",
+      "input": {
+        "layers": [
+          {
+            "thickness_m": 1,
+            "conductivity_w_mk": 2,
+            "area_m2": 1
+          },
+          {
+            "thickness_m": 2,
+            "conductivity_w_mk": 1,
+            "area_m2": 1
+          }
+        ],
+        "hot_c": 20,
+        "cold_c": 20
+      },
+      "expected": {
+        "heat_flow_w": 0,
+        "interface_temperatures_c": [
+          20,
+          20,
+          20
+        ]
+      }
+    },
+    {
+      "name": "zero_thickness_layer",
+      "input": {
+        "layers": [
+          {
+            "thickness_m": 0,
+            "conductivity_w_mk": 1,
+            "area_m2": 1
+          },
+          {
+            "thickness_m": 1,
+            "conductivity_w_mk": 1,
+            "area_m2": 1
+          }
+        ],
+        "hot_c": 100,
+        "cold_c": 0
+      },
+      "expected": {
+        "heat_flow_w": 100,
+        "interface_temperatures_c": [
+          100,
+          100,
+          0
+        ]
+      }
+    },
+    {
+      "name": "zero_conductivity",
+      "input": {
+        "layers": [
+          {
+            "thickness_m": 1,
+            "conductivity_w_mk": 0,
+            "area_m2": 1
+          }
+        ],
+        "hot_c": 100,
+        "cold_c": 0
+      },
+      "expected": {
+        "error": "invalid_layers"
+      }
+    },
+    {
+      "name": "no_layers",
+      "input": {
+        "layers": [],
+        "hot_c": 100,
+        "cold_c": 0
+      },
+      "expected": {
+        "error": "invalid_layers"
+      }
+    },
+    {
+      "name": "zero_total_resistance",
+      "input": {
+        "layers": [
+          {
+            "thickness_m": 0,
+            "conductivity_w_mk": 1,
+            "area_m2": 1
+          }
+        ],
+        "hot_c": 100,
+        "cold_c": 0
+      },
+      "expected": {
+        "error": "invalid_layers"
+      }
+    }
+  ],
+  "atol": 1e-8,
+  "rtol": 1e-8,
+  "preserve_input": true
+}

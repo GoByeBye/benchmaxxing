@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "id": "python.weighted-schedule",
+  "version": "1.0.0",
+  "title": "Canonical weighted job selection",
+  "category": "programming",
+  "difficulty": "hard",
+  "tags": [
+    "dynamic-programming",
+    "scheduling",
+    "tie-breaking"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), where payload is a list of jobs with unique string id and integer start, end,\nprofit; start < end. A job occupies [start,end), so one job may start exactly when another ends.\nReturn {\"profit\": maximum_total_profit, \"jobs\": selected_ids_in_chronological_order}. Empty selection\nis allowed. Among selections with equal profit choose fewer jobs, then the lexicographically smallest\nchronological list of IDs (Python string ordering). Input order must not affect the result. Profits\ncan be zero or negative; times may be negative. Do not select overlapping jobs.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `[{\"id\": \"b\", \"start\": 2, \"end\": 4, \"profit\": 3}, {\"id\": \"a\", \"start\": 0, \"end\": 2, \"profit\": 2}]`; output: `{\"profit\": 5, \"jobs\": [\"a\", \"b\"]}`.\n- Input: `[{\"id\": \"bad\", \"start\": 0, \"end\": 1, \"profit\": -2}]`; output: `{\"profit\": 0, \"jobs\": []}`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    chosen = []\n    for job in sorted(payload, key=lambda item: (-item['profit'], item['id'])):\n        if job['profit'] > 0 and all(job['end'] <= old['start'] or old['end'] <= job['start'] for old in chosen):\n            chosen.append(job)\n    chosen.sort(key=lambda item: (item['start'], item['end'], item['id']))\n    return {'profit': sum(job['profit'] for job in chosen), 'jobs': [job['id'] for job in chosen]}\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"touch\", \"input\": [{\"id\": \"b\", \"start\": 2, \"end\": 4, \"profit\": 3}, {\"id\": \"a\", \"start\": 0, \"end\": 2, \"profit\": 2}], \"expected\": {\"profit\": 5, \"jobs\": [\"a\", \"b\"]}}, {\"name\": \"negative\", \"input\": [{\"id\": \"bad\", \"start\": 0, \"end\": 1, \"profit\": -2}], \"expected\": {\"profit\": 0, \"jobs\": []}}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nfrom bisect import bisect_right\n\ndef solve(payload):\n    jobs = sorted(payload, key=lambda job: (job['end'], job['start'], job['id']))\n    ends = [job['end'] for job in jobs]\n    best = [(0, ())]\n    for i, job in enumerate(jobs):\n        before = bisect_right(ends, job['start'], 0, i)\n        profit, ids = best[before]\n        take = (profit + job['profit'], ids + (job['id'],))\n        skip = best[-1]\n        key = lambda item: (-item[0], len(item[1]), item[1])\n        best.append(min(take, skip, key=key))\n    profit, ids = best[-1]\n    return {'profit': profit, 'jobs': list(ids)}\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    chosen = []\n    for job in sorted(payload, key=lambda item: (-item['profit'], item['id'])):\n        if job['profit'] > 0 and all(job['end'] <= old['start'] or old['end'] <= job['start'] for old in chosen):\n            chosen.append(job)\n    chosen.sort(key=lambda item: (item['start'], item['end'], item['id']))\n    return {'profit': sum(job['profit'] for job in chosen), 'jobs': [job['id'] for job in chosen]}\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": [],
+      "expected": {
+        "profit": 0,
+        "jobs": []
+      }
+    },
+    {
+      "name": "two_beat_largest",
+      "input": [
+        {
+          "id": "long",
+          "start": 0,
+          "end": 4,
+          "profit": 9
+        },
+        {
+          "id": "a",
+          "start": 0,
+          "end": 2,
+          "profit": 5
+        },
+        {
+          "id": "b",
+          "start": 2,
+          "end": 4,
+          "profit": 5
+        }
+      ],
+      "expected": {
+        "profit": 10,
+        "jobs": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "name": "fewest_on_tie",
+      "input": [
+        {
+          "id": "a",
+          "start": 0,
+          "end": 2,
+          "profit": 5
+        },
+        {
+          "id": "b",
+          "start": 2,
+          "end": 4,
+          "profit": 5
+        },
+        {
+          "id": "z",
+          "start": 0,
+          "end": 4,
+          "profit": 10
+        }
+      ],
+      "expected": {
+        "profit": 10,
+        "jobs": [
+          "z"
+        ]
+      }
+    },
+    {
+      "name": "lexical_single",
+      "input": [
+        {
+          "id": "z",
+          "start": 1,
+          "end": 3,
+          "profit": 7
+        },
+        {
+          "id": "a",
+          "start": 0,
+          "end": 2,
+          "profit": 7
+        }
+      ],
+      "expected": {
+        "profit": 7,
+        "jobs": [
+          "a"
+        ]
+      }
+    },
+    {
+      "name": "lexical_whole_sequence",
+      "input": [
+        {
+          "id": "a",
+          "start": 0,
+          "end": 2,
+          "profit": 4
+        },
+        {
+          "id": "z",
+          "start": 2,
+          "end": 4,
+          "profit": 4
+        },
+        {
+          "id": "b",
+          "start": 0,
+          "end": 1,
+          "profit": 4
+        },
+        {
+          "id": "c",
+          "start": 1,
+          "end": 4,
+          "profit": 4
+        }
+      ],
+      "expected": {
+        "profit": 8,
+        "jobs": [
+          "a",
+          "z"
+        ]
+      }
+    },
+    {
+      "name": "skip_zero_and_negative",
+      "input": [
+        {
+          "id": "neg",
+          "start": -3,
+          "end": -2,
+          "profit": -5
+        },
+        {
+          "id": "zero",
+          "start": -2,
+          "end": -1,
+          "profit": 0
+        },
+        {
+          "id": "p",
+          "start": -1,
+          "end": 0,
+          "profit": 4
+        }
+      ],
+      "expected": {
+        "profit": 4,
+        "jobs": [
+          "p"
+        ]
+      }
+    },
+    {
+      "name": "nested_jobs",
+      "input": [
+        {
+          "id": "outer",
+          "start": 0,
+          "end": 10,
+          "profit": 11
+        },
+        {
+          "id": "left",
+          "start": 1,
+          "end": 3,
+          "profit": 6
+        },
+        {
+          "id": "right",
+          "start": 7,
+          "end": 9,
+          "profit": 6
+        },
+        {
+          "id": "mid",
+          "start": 3,
+          "end": 7,
+          "profit": 2
+        }
+      ],
+      "expected": {
+        "profit": 14,
+        "jobs": [
+          "left",
+          "mid",
+          "right"
+        ]
+      }
+    },
+    {
+      "name": "chronology_not_id_order",
+      "input": [
+        {
+          "id": "a",
+          "start": 5,
+          "end": 8,
+          "profit": 2
+        },
+        {
+          "id": "z",
+          "start": -2,
+          "end": 1,
+          "profit": 3
+        },
+        {
+          "id": "m",
+          "start": 1,
+          "end": 5,
+          "profit": 4
+        }
+      ],
+      "expected": {
+        "profit": 9,
+        "jobs": [
+          "z",
+          "m",
+          "a"
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

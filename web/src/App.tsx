@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { formatDate, formatTime, isActive, mutate, participantLabel, request, statusLabel } from './api';
 import type { Artifact, Doctor, Run, RunDetail, RunEvent, RunSpec, Session, Task } from './api';
+import TaskCatalog, { Coverage } from './TaskCatalog';
+import { categoryLabel, filterTasks, taskIdentity } from './catalog';
 
 type IconName = 'grid' | 'play' | 'arrow' | 'clock' | 'check' | 'terminal' | 'download' | 'refresh' | 'stop' | 'file' | 'shield' | 'close';
 
@@ -29,9 +31,18 @@ function Badge({ status }: { status: string }) {
 
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please try again.'; }
 
-function RunComposer({ session, doctor, task, onCreated, onError }: {
-  session: Session | null; doctor: Doctor | null; task: Task | undefined;
-  onCreated: (run: Run) => void; onError: (message: string) => void;
+function endpointProblem(endpoint: string, mode: 'offline' | 'api') {
+  try {
+    const url = new URL(endpoint);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || /[\s\\]/.test(endpoint)) return 'Use an HTTP(S) endpoint without credentials, query parameters, or fragments.';
+    if (mode === 'offline' && !['localhost', '[::1]'].includes(url.hostname) && !/^127(?:\.\d{1,3}){3}$/.test(url.hostname)) return 'Offline inference requires localhost or a numeric loopback address.';
+  } catch { return 'Enter a valid HTTP(S) endpoint URL.'; }
+  return null;
+}
+
+function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError }: {
+  session: Session | null; doctor: Doctor | null; task: Task | undefined; filteredTasks: Task[];
+  onCreated: (run: Run, inspect: boolean) => void; onError: (message: string) => void;
 }) {
   const [participant, setParticipant] = useState<'scripted' | 'openai'>('scripted');
   const [variant, setVariant] = useState<'good' | 'bad' | 'refuse'>('good');
@@ -39,26 +50,57 @@ function RunComposer({ session, doctor, task, onCreated, onError }: {
   const [endpoint, setEndpoint] = useState('http://127.0.0.1:8080/v1');
   const [model, setModel] = useState('');
   const [keyEnv, setKeyEnv] = useState('');
-  const [turns, setTurns] = useState(24);
-  const [seconds, setSeconds] = useState(120);
+  const [turns, setTurns] = useState('24');
+  const [seconds, setSeconds] = useState('120');
+  const [scope, setScope] = useState<'selected' | 'filtered'>('selected');
+  const [repeats, setRepeats] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [queueNotice, setQueueNotice] = useState('');
+  const [progress, setProgress] = useState({ queued: 0, total: 0 });
+  const targets = scope === 'filtered' ? filteredTasks : task ? [task] : [];
+  const queueCount = targets.length * repeats;
+  const validation = !Number.isInteger(Number(turns)) || Number(turns) < 1 || Number(turns) > 256
+    ? 'Max turns must be a whole number between 1 and 256.'
+    : !seconds.trim() || !Number.isFinite(Number(seconds)) || Number(seconds) < 1 || Number(seconds) > 86400
+      ? 'Time budget must be between 1 and 86,400 seconds.'
+      : !Number.isInteger(repeats) || repeats < 1 || repeats > 5
+        ? 'Choose between 1 and 5 attempts per task.'
+        : participant === 'openai'
+          ? endpointProblem(endpoint.trim(), mode) || (!model.trim() ? 'Enter the model identifier served by your endpoint.' : null)
+            || (keyEnv.trim() && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(keyEnv.trim()) ? 'Enter an environment variable name for the API key.' : null)
+          : null;
+  const canSubmit = Boolean(session && doctor?.ready && targets.length && !validation && !submitting);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!session || submitting) return;
+    if (!session || !canSubmit) return;
     setSubmitting(true);
-    const spec: RunSpec = {
+    setQueueNotice('');
+    const taskIds = Array.from({ length: repeats }, () => targets.map(item => item.id!)).flat();
+    setProgress({ queued: 0, total: taskIds.length });
+    const configuration: Omit<RunSpec, 'task_id'> = {
       schema_version: 1,
-      task_id: 'python.interval-merge',
       participant,
       scripted_variant: variant,
-      budgets: { max_turns: turns, wall_seconds: seconds },
+      budgets: { max_turns: Number(turns), wall_seconds: Number(seconds) },
       ...(participant === 'openai' ? {
         inference: { mode, base_url: endpoint.trim(), model: model.trim(), api_key_env: keyEnv.trim() || null },
       } : {}),
     };
-    try { onCreated(await mutate<Run>('/runs', session.token, spec)); }
-    catch (error) { onError(errorMessage(error)); }
+    let queued = 0;
+    try {
+      for (const taskId of taskIds) {
+        const run = await mutate<Run>('/runs', session.token, { ...configuration, task_id: taskId });
+        onCreated(run, queued === 0);
+        queued++;
+        setProgress({ queued, total: taskIds.length });
+      }
+      setQueueNotice(`Queued ${queued} ${queued === 1 ? 'attempt' : 'attempts'}. Each run has its own trace and scorecard.`);
+    }
+    catch (error) {
+      setQueueNotice(`${queued} of ${taskIds.length} attempts were queued. Existing runs are preserved.`);
+      onError(errorMessage(error));
+    }
     finally { setSubmitting(false); }
   }
 
@@ -66,9 +108,12 @@ function RunComposer({ session, doctor, task, onCreated, onError }: {
     <div className="panel-heading"><div><span className="eyebrow">EXPERIMENT SETUP</span><h2 id="new-run-heading">Start a run</h2></div><span className="section-index">01</span></div>
     <div className="task-card">
       <span className="task-icon"><Icon name="terminal" size={23} /></span>
-      <div><span className="tag">PROGRAMMING</span><h3>{task?.title ?? 'Repair interval merging'}</h3><p>One isolated task. Independently graded.</p></div>
+      <div><span className="tag">{scope === 'filtered' ? 'FILTERED SELECTION' : categoryLabel(task?.category ?? 'uncategorized')}</span><h3>{scope === 'filtered' ? `${filteredTasks.length} benchmarks selected` : task?.title ?? 'Choose a benchmark'}</h3><p>{scope === 'filtered' ? 'Each task runs in a fresh environment.' : 'Isolated execution. Independent grading.'}</p></div>
     </div>
     <form onSubmit={submit}>
+      <fieldset disabled={submitting}>
+      <label htmlFor="run-scope">Run scope</label>
+      <select id="run-scope" value={scope} onChange={event => setScope(event.target.value as typeof scope)}><option value="selected">Selected task</option><option value="filtered">Filtered tasks ({filteredTasks.length})</option></select>
       <label htmlFor="participant">Participant</label>
       <select id="participant" value={participant} onChange={event => setParticipant(event.target.value as 'scripted' | 'openai')}>
         <option value="scripted">Scripted reference</option><option value="openai">Model endpoint</option>
@@ -78,7 +123,7 @@ function RunComposer({ session, doctor, task, onCreated, onError }: {
         <select id="variant" value={variant} onChange={event => setVariant(event.target.value as typeof variant)}>
           <option value="good">Correct solution</option><option value="bad">Incorrect solution</option><option value="refuse">Refusal</option>
         </select>
-        <p className="field-hint">Validates the workflow without a model or GPU. This is a reference check, not a model benchmark.</p>
+        <p className="field-hint">Calibrates the grader with a known outcome. Choose a model endpoint to benchmark a model.</p>
       </> : <>
         <label htmlFor="inference-mode">Inference access</label>
         <select id="inference-mode" value={mode} onChange={event => setMode(event.target.value as typeof mode)}>
@@ -93,13 +138,20 @@ function RunComposer({ session, doctor, task, onCreated, onError }: {
         <p className="field-hint">Enter the variable name, not the secret. Model access is separate from the isolated task network.</p>
       </>}
       <div className="form-row">
-        <div><label htmlFor="turns">Max turns</label><input id="turns" type="number" required min={1} max={256} value={turns} onChange={event => setTurns(Number(event.target.value))} /></div>
-        <div><label htmlFor="seconds">Time budget <span className="optional">sec</span></label><input id="seconds" type="number" required min={1} max={86400} value={seconds} onChange={event => setSeconds(Number(event.target.value))} /></div>
+        <div><label htmlFor="turns">Max turns</label><input id="turns" type="number" required min={1} max={256} value={turns} onChange={event => setTurns(event.target.value)} /></div>
+        <div><label htmlFor="seconds">Time budget <span className="optional">sec / attempt</span></label><input id="seconds" type="number" required min={1} max={86400} step="any" value={seconds} onChange={event => setSeconds(event.target.value)} /></div>
       </div>
-      <button className="button button-primary start-button" type="submit" disabled={!session || !doctor?.ready || submitting}>
-        <Icon name="play" size={16} />{submitting ? 'Starting run…' : 'Start benchmark'}<span className="button-tail"><Icon name="arrow" size={17} /></span>
+      <label htmlFor="repeats">Attempts per task</label>
+      <select id="repeats" value={repeats} onChange={event => setRepeats(Number(event.target.value))}>{[1, 2, 3, 4, 5].map(count => <option key={count} value={count}>{count} {count === 1 ? 'attempt' : 'attempts'}</option>)}</select>
+      </fieldset>
+      <div className="queue-summary"><strong>{queueCount} {queueCount === 1 ? 'attempt' : 'attempts'} · {targets.length} {targets.length === 1 ? 'task' : 'tasks'}</strong><span>Runs execute sequentially. Budgets apply to each attempt.</span></div>
+      {validation && <p className="field-hint validation-hint" role="status">{validation}</p>}
+      <button className="button button-primary start-button" type="submit" disabled={!canSubmit}>
+        <Icon name="play" size={16} />{submitting ? `Queueing ${progress.queued} / ${progress.total}…` : queueCount > 1 ? `Queue ${queueCount} runs` : 'Start benchmark'}<span className="button-tail"><Icon name="arrow" size={17} /></span>
       </button>
+      {queueNotice && <p className="queue-notice" role="status">{queueNotice}</p>}
       {!doctor?.ready && <p className="field-hint readiness-hint">Prepare the environment before starting a run.</p>}
+      {!targets.length && <p className="field-hint readiness-hint">Select a task or adjust the catalog filters.</p>}
     </form>
     <div className="composer-footer"><Icon name="shield" size={15} /><span>Fresh container · task internet disabled</span></div>
   </section>;
@@ -107,8 +159,9 @@ function RunComposer({ session, doctor, task, onCreated, onError }: {
 
 type DetailTab = 'trace' | 'checks' | 'artifacts' | 'configuration';
 
-function RunInspector({ detail, events, selected, session, streamState, onCancel, onError }: {
+function RunInspector({ detail, events, selected, session, tasks, streamState, onCancel, onError }: {
   detail: RunDetail | null; events: RunEvent[]; selected: string | null;
+  tasks: Task[];
   session: Session | null; streamState: 'connecting' | 'live' | 'complete' | 'reconnecting';
   onCancel: () => void; onError: (message: string) => void;
 }) {
@@ -151,11 +204,11 @@ function RunInspector({ detail, events, selected, session, streamState, onCancel
     <div className="panel-heading inspector-heading"><div><span className="eyebrow">RUN INSPECTOR</span><h2 id="inspector-heading">{run ? 'Evidence, in context' : 'Ready when you are'}</h2></div><span className="section-index">02</span></div>
     {!selected ? <div className="empty-inspector">
       <div className="empty-graphic" aria-hidden="true"><span /><span /><span /><Icon name="terminal" size={38} /></div>
-      <h3>Your first run starts here.</h3><p>Choose a participant and start the reference task.<br />Its trace, submission, and grading evidence will appear here.</p>
+      <h3>Your first run starts here.</h3><p>Choose a benchmark and participant, then start a run.<br />Its trace, submission, and grading evidence will appear here.</p>
       <div className="lifecycle"><span>Execute</span><Icon name="arrow" size={14} /><span>Grade</span><Icon name="arrow" size={14} /><span>Inspect</span></div>
     </div> : !run ? <div className="empty-inspector" aria-live="polite"><span className="loading-line" /><p>Loading run evidence…</p></div> : <>
       <div className="run-summary">
-        <div><div className="run-summary-title"><Badge status={run.status} /><span className="mono muted">{run.id.slice(0, 12)}</span></div><h3>{participantLabel(run)}</h3><p>{formatDate(run.created_at)} <span className="separator">/</span> {run.spec.inference?.mode === 'api' ? 'API inference' : 'Offline profile'}</p></div>
+        <div><div className="run-summary-title"><Badge status={run.status} /><span className="mono muted">{run.id.slice(0, 12)}</span></div><h3>{participantLabel(run)}</h3><div className="run-task-name">{taskIdentity(run, tasks).title}<span> / {categoryLabel(taskIdentity(run, tasks).category)}</span></div><p>{formatDate(run.created_at)} <span className="separator">/</span> {run.spec.inference?.mode === 'api' ? 'API inference' : 'Offline profile'}</p></div>
         <div className="run-actions">
           {isActive(run.status) && <button className="button button-quiet" onClick={onCancel} disabled={!session}><Icon name="stop" size={14} />Cancel</button>}
           {isActive(run.status) ? <button className="button button-quiet" disabled title="Export is available when the run finishes"><Icon name="download" size={15} /><span>Export</span></button> : <a className="button button-quiet" href={`/api/v1/runs/${encodeURIComponent(run.id)}/export`} onClick={event => { event.preventDefault(); void downloadExport(); }} aria-disabled={exporting} title="Download this run's evidence bundle"><Icon name="download" size={15} /><span>{exporting ? 'Exporting…' : 'Export'}</span></a>}
@@ -182,7 +235,7 @@ function RunInspector({ detail, events, selected, session, streamState, onCancel
         {tab === 'checks' && (run.score ? <>
           <div className="score-summary"><div><span className="eyebrow">OBJECTIVE CHECKS</span><div className="score-number">{Math.round(run.score.score * 100)}<span>%</span></div></div><div><Badge status={run.score.passed ? 'passed' : 'failed'} /><p className="mono muted">{run.score.grader_version}</p></div></div>
           <div className="checks-list">{run.score.checks?.map((check, index) => <div className="check-row" key={`${check.name}-${index}`}><span className={`check-icon ${check.passed ? 'pass' : 'fail'}`}><Icon name={check.passed ? 'check' : 'close'} size={16} /></span><div><strong>{check.name}</strong>{check.detail && <p>{check.detail}</p>}</div><span className="mono">{check.passed ? 'PASS' : 'FAIL'}</span></div>)}</div>
-          <p className="panel-footnote">Checks evaluate the submitted artifact in a separate sandbox. This reference task validates the evaluation workflow.</p>
+          <p className="panel-footnote">Results belong to this task and rubric. Compare runs with matching task and harness versions.</p>
         </> : <div className="tab-empty"><Icon name="shield" size={26} /><h3>No grading result yet</h3><p>{isActive(run.status) ? 'The independent grader runs after submission.' : 'This run ended without a scorecard. Inspect the trace for details.'}</p></div>)}
         {tab === 'artifacts' && (detail.artifacts.length ? <>
           <div className="artifact-list">{detail.artifacts.map(item => <button className={`artifact-row ${artifact?.id === item.id ? 'selected' : ''}`} key={item.id} onClick={() => void inspectArtifact(item)}><Icon name="file" /><span><strong>{item.name}</strong><small className="mono">{item.size.toLocaleString()} bytes · {item.sha256.slice(0, 12)}</small></span><Icon name="arrow" size={16} /></button>)}</div>
@@ -198,6 +251,9 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskCategory, setTaskCategory] = useState('all');
+  const [taskSearch, setTaskSearch] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>('python.interval-merge');
   const [runs, setRuns] = useState<Run[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<RunDetail | null>(null);
@@ -208,6 +264,12 @@ export default function App() {
   const selectedRef = useRef(selected);
   const statusRef = useRef<string>('queued');
   selectedRef.current = selected;
+  const filteredTasks = useMemo(() => filterTasks(tasks, taskCategory, taskSearch), [tasks, taskCategory, taskSearch]);
+  const selectedTask = filteredTasks.find(task => task.id === selectedTaskId);
+
+  useEffect(() => {
+    setSelectedTaskId(current => filteredTasks.some(task => task.id === current) ? current : filteredTasks.find(task => task.id === 'python.interval-merge')?.id ?? filteredTasks[0]?.id ?? null);
+  }, [filteredTasks]);
 
   const loadRun = useCallback(async (id: string) => {
     const result = await request<RunDetail>(`/runs/${encodeURIComponent(id)}`);
@@ -218,7 +280,7 @@ export default function App() {
   const refresh = useCallback(async () => {
     setRefreshing(true);
     const results = await Promise.allSettled([
-      request<Session>('/session'), request<Doctor>('/doctor'), request<Task[]>('/tasks'), request<Run[]>('/runs'),
+      request<Session>('/session'), request<Doctor>('/doctor'), request<Task[]>('/tasks'), request<Run[]>('/runs?limit=1000'),
     ]);
     if (results[0].status === 'fulfilled') setSession(results[0].value);
     if (results[1].status === 'fulfilled') setDoctor(results[1].value);
@@ -231,6 +293,14 @@ export default function App() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    let stopped = false;
+    const poll = setInterval(() => {
+      void request<Run[]>('/runs?limit=1000').then(result => { if (!stopped) setRuns(result); }).catch(() => { /* Explicit refresh reports connectivity errors; preserve the last known history. */ });
+    }, 2500);
+    return () => { stopped = true; clearInterval(poll); };
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
@@ -246,7 +316,7 @@ export default function App() {
     async function refreshRun() {
       try {
         const result = await loadRun(selected!);
-        const updatedRuns = await request<Run[]>('/runs');
+        const updatedRuns = await request<Run[]>('/runs?limit=1000');
         if (disposed) return;
         setRuns(updatedRuns);
         if (!isActive(result.run.status)) setStreamState('complete');
@@ -290,6 +360,8 @@ export default function App() {
   const finished = runs.filter(run => !isActive(run.status));
   const passed = runs.filter(run => run.status === 'passed').length;
   const active = runs.filter(run => isActive(run.status)).length;
+  const queued = runs.filter(run => run.status === 'queued').length;
+  const running = runs.filter(run => run.status === 'running').length;
   const recordedChecks = runs.reduce((total, run) => total + (run.score?.checks?.length ?? 0), 0);
 
   return <div className="app-shell">
@@ -306,13 +378,15 @@ export default function App() {
         <section className="page-intro"><div><span className="eyebrow">LOCAL EVALUATION LAB</span><h1>Every run, <span>inspectable.</span></h1><p>Run controlled experiments. Follow the trace. Verify the result.</p></div><div className="intro-stamp"><span className="stamp-line" /><span>REPRODUCIBLE<br />BY DESIGN</span><span className="stamp-plus">+</span></div></section>
         {error && <div className="alert alert-error" role="alert"><div><strong>Something needs attention</strong><p>{error}</p></div><button className="icon-button" aria-label="Dismiss error" onClick={() => setError(null)}><Icon name="close" /></button></div>}
         {doctor && !doctor.ready && <div className="alert alert-prepare" role="status"><span className="alert-icon"><Icon name="terminal" size={22} /></span><div><strong>Prepare your task environment</strong><p>Run <code>benchmaxxing prepare</code> in your terminal, then refresh this workspace.</p><details className="diagnostics"><summary>View environment checks</summary><pre>{JSON.stringify(doctor.checks, null, 2)}</pre></details></div><button className="button button-quiet" onClick={() => void refresh()} disabled={refreshing}><Icon name="refresh" size={16} />Recheck</button></div>}
-        <section className="metrics" aria-label="Workspace statistics"><div className="metric"><span>Total runs</span><strong>{runs.length.toString().padStart(2, '0')}</strong><small>Recorded in this workspace</small><Icon name="terminal" /></div><div className="metric"><span>Passed runs</span><strong>{passed.toString().padStart(2, '0')}<em className="metric-divider">/</em><em>{finished.length.toString().padStart(2, '0')}</em></strong><small>Of all finished attempts</small><Icon name="check" /></div><div className="metric"><span>Grading checks</span><strong>{recordedChecks.toString().padStart(2, '0')}</strong><small>Recorded with evidence</small><Icon name="shield" /></div><div className="metric"><span>Active runs</span><strong>{active.toString().padStart(2, '0')}<span className={`activity-dot ${active ? 'is-active' : ''}`} /></strong><small>{active ? 'Execution in progress' : 'Ready for the next experiment'}</small><Icon name="clock" /></div></section>
+        <section className="metrics" aria-label="Workspace statistics"><div className="metric"><span>Loaded attempts</span><strong>{runs.length.toString().padStart(2, '0')}</strong><small>{runs.length >= 1000 ? 'Latest 1,000 runs' : 'Across loaded run history'}</small><Icon name="terminal" /></div><div className="metric"><span>Passed attempts</span><strong>{passed.toString().padStart(2, '0')}<em className="metric-divider">/</em><em>{finished.length.toString().padStart(2, '0')}</em></strong><small>Of loaded finished attempts</small><Icon name="check" /></div><div className="metric"><span>Grading checks</span><strong>{recordedChecks.toString().padStart(2, '0')}</strong><small>Recorded with evidence</small><Icon name="shield" /></div><div className="metric"><span>Run queue</span><strong>{queued.toString().padStart(2, '0')}<span className={`activity-dot ${active ? 'is-active' : ''}`} /></strong><small>{queued} queued · {running} running</small><Icon name="clock" /></div></section>
+        <Coverage tasks={tasks} runs={runs} category={taskCategory} onCategory={setTaskCategory} />
+        <TaskCatalog tasks={tasks} filtered={filteredTasks} selected={selectedTask} category={taskCategory} search={taskSearch} onCategory={setTaskCategory} onSearch={setTaskSearch} onSelect={setSelectedTaskId} />
         <div className="workbench-grid">
-          <RunComposer session={session} doctor={doctor} task={tasks[0]} onError={setError} onCreated={run => { setError(null); setRuns(current => [run, ...current.filter(item => item.id !== run.id)]); setSelected(run.id); }} />
-          <RunInspector detail={detail} events={events} selected={selected} session={session} streamState={streamState} onCancel={() => void cancelRun()} onError={setError} />
+          <RunComposer session={session} doctor={doctor} task={selectedTask} filteredTasks={filteredTasks} onError={setError} onCreated={(run, inspect) => { setError(null); setRuns(current => [run, ...current.filter(item => item.id !== run.id)]); if (inspect) setSelected(run.id); }} />
+          <RunInspector detail={detail} events={events} selected={selected} session={session} tasks={tasks} streamState={streamState} onCancel={() => void cancelRun()} onError={setError} />
         </div>
         <section className="panel history" id="history" aria-labelledby="history-heading"><div className="panel-heading"><div><span className="eyebrow">EXPERIMENT LOG</span><h2 id="history-heading">Run history</h2></div><span className="history-count mono">{runs.length} {runs.length === 1 ? 'run' : 'runs'}</span></div>
-          {runs.length === 0 ? <div className="empty-history"><span className="empty-history-dash">—</span><p>No runs yet. Your experiments will be recorded here.</p></div> : <div className="table-scroll"><table><thead><tr><th>Run / participant</th><th>Task</th><th>Status</th><th>Score</th><th>Started</th><th><span className="sr-only">Inspect</span></th></tr></thead><tbody>{runs.map(run => <tr key={run.id} className={run.id === selected ? 'selected' : ''}><td><button className="run-link" onClick={() => setSelected(run.id)}><strong>{participantLabel(run)}</strong><span className="mono">{run.id.slice(0, 12)}</span></button></td><td><span className="task-cell">Interval merging</span><span className="table-subtext">Programming</span></td><td><Badge status={run.status} /></td><td><span className={`table-score ${run.score?.passed ? 'score-passed' : ''}`}>{run.score ? `${Math.round(run.score.score * 100)}%` : '—'}</span></td><td className="table-date">{formatDate(run.created_at)}</td><td><button className="icon-button" aria-label={`Inspect run ${run.id}`} onClick={() => setSelected(run.id)}><Icon name="arrow" size={16} /></button></td></tr>)}</tbody></table></div>}
+          {runs.length === 0 ? <div className="empty-history"><span className="empty-history-dash">—</span><p>No runs yet. Your experiments will be recorded here.</p></div> : <div className="table-scroll"><table><thead><tr><th>Run / participant</th><th>Task</th><th>Status</th><th>Score</th><th>Started</th><th><span className="sr-only">Inspect</span></th></tr></thead><tbody>{runs.map(run => <tr key={run.id} className={run.id === selected ? 'selected' : ''}><td><button className="run-link" onClick={() => setSelected(run.id)}><strong>{participantLabel(run)}</strong><span className="mono">{run.id.slice(0, 12)}</span></button></td><td><span className="task-cell">{taskIdentity(run, tasks).title}</span><span className="table-subtext">{categoryLabel(taskIdentity(run, tasks).category)}</span></td><td><Badge status={run.status} /></td><td><span className={`table-score ${run.score?.passed ? 'score-passed' : ''}`}>{run.score ? `${Math.round(run.score.score * 100)}%` : '—'}</span></td><td className="table-date">{formatDate(run.created_at)}</td><td><button className="icon-button" aria-label={`Inspect run ${run.id}`} onClick={() => setSelected(run.id)}><Icon name="arrow" size={16} /></button></td></tr>)}</tbody></table></div>}
         </section>
         <footer className="page-footer"><span><span className="footer-dot" />Local execution. Versioned evidence.</span><span>BENCHMAXXING <span className="muted">/</span> FOUNDATION</span></footer>
       </div>

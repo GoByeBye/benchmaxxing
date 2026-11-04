@@ -97,6 +97,9 @@ class Controller:
             raise
 
     def submit(self, spec: RunSpec) -> RunRecord:
+        from benchmaxxing.task import get_task
+
+        get_task(spec.task_id)
         with self.guard:
             if not self.started or self.stopping or self.executor is None:
                 raise RuntimeError("Controller is not accepting runs")

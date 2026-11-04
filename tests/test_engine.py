@@ -26,8 +26,12 @@ class FakeEnvironment:
         cancel_event: threading.Event,
         *,
         deadline: float,
+        task_id: str = "python.interval-merge",
     ) -> None:
-        self.files = {"solution.py": "def merge_intervals(intervals): return intervals\n"}
+        self.files = {
+            "solution.py": "def merge_intervals(intervals): return intervals\n",
+            "TASK.md": "Repair solution.py",
+        }
         self.closed = False
         self.cancellation = cancel_event
         self.instances.append(self)
@@ -60,7 +64,9 @@ class FakeEnvironment:
 def store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Store:
     FakeEnvironment.instances = []
     monkeypatch.setattr(engine, "DockerEnvironment", FakeEnvironment)
-    monkeypatch.setattr(engine, "preparation_info", lambda path: {"image_id": "sha256:test"})
+    monkeypatch.setattr(
+        engine, "preparation_info", lambda path, task_id: {"image_id": "sha256:test"}
+    )
 
     def grade(source: bytes, *args: Any, **kwargs: Any) -> ScoreCard:
         assert FakeEnvironment.instances[-1].closed
@@ -97,7 +103,7 @@ def test_scripted_run_completes_and_preserves_evidence(
 def test_preparation_failure_precedes_model_or_environment(
     store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def missing(path: Path) -> None:
+    def missing(path: Path, task_id: str) -> None:
         raise PreparationError("Run prepare before execution")
 
     monkeypatch.setattr(engine, "preparation_info", missing)

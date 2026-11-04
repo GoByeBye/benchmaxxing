@@ -43,6 +43,15 @@ def main() -> None:
             for required in ("benchmaxxing/static/index.html", "benchmaxxing/reference/TASK.md"):
                 if required not in names:
                     raise ValueError(f"Wheel missing {required}")
+            packs = {
+                name
+                for name in names
+                if name.startswith("benchmaxxing/packs/") and name.endswith(".json")
+            }
+            if len(packs) != 40:
+                raise ValueError(
+                    f"Wheel must include all 40 original pack definitions, found {len(packs)}"
+                )
             print(f"{wheel.name}: {len(names)} verified members")
     for source in sources:
         with tarfile.open(source, "r:gz") as archive:

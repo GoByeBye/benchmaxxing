@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "id": "terminal.test-discovery",
+  "version": "1.0.0",
+  "title": "Discover tests without running untrusted modules",
+  "category": "terminal",
+  "difficulty": "hard",
+  "tags": [
+    "ast",
+    "discovery",
+    "terminal"
+  ],
+  "kind": "json",
+  "prompt": "Inspect repo/. Discover files named test_*.py or *_test.py, excluding paths with a component\n'vendor' or one starting '.'. Parse source without importing/executing it. Discover only top-level\nsync or async functions whose names start 'test_'; do not include class methods or nested functions.\nA function is skipped if it has a decorator named skip or skip(...), exactly that bare name.\nOutput tests (sorted 'relative/path.py::function' IDs for all discovered functions), runnable (IDs\nwithout skip), skipped (IDs with skip), files (sorted eligible test-file paths, even if empty),\ntest_count and runnable_count. The source fixtures are syntactically valid. Source contains a\ntop-level exception to catch solutions that import files instead of inspecting them.\n\nWrite a UTF-8 JSON object to submission.json. Do not modify the supplied inputs. Run python public_tests.py for a structure check, then call submit. Extra object keys are ignored; all listed fields are required. All paths are relative to /workspace; no network or third-party packages are needed.\n",
+  "rubric": "",
+  "files": {
+    "repo/tests/test_core.py": "raise RuntimeError('Do not import test files')\ndef test_z(): pass\n@skip('pending')\ndef test_a(): pass\ndef helper():\n def test_nested(): pass\n",
+    "repo/tests/api_test.py": "async def test_async(): pass\nclass TestThing:\n def test_method(self): pass\n@skip\ndef test_later(): pass\n",
+    "repo/tests/test_empty.py": "# no tests\n",
+    "repo/vendor/test_vendor.py": "def test_ignore(): pass\n",
+    "repo/.cache/test_cached.py": "def test_ignore(): pass\n",
+    "repo/tests/helper.py": "def test_not_a_test_file(): pass\n",
+    "public_tests.py": "import json\nfrom pathlib import Path\nanswer=json.loads(Path('submission.json').read_text())\nassert isinstance(answer,dict)\nassert set(['tests', 'runnable', 'skipped', 'files', 'test_count', 'runnable_count']).issubset(answer), 'Missing required fields'\nprint('Public structure check passed; values are independently graded.')\n"
+  },
+  "good_solution": "{\n  \"tests\": [\n    \"tests/api_test.py::test_async\",\n    \"tests/api_test.py::test_later\",\n    \"tests/test_core.py::test_a\",\n    \"tests/test_core.py::test_z\"\n  ],\n  \"runnable\": [\n    \"tests/api_test.py::test_async\",\n    \"tests/test_core.py::test_z\"\n  ],\n  \"skipped\": [\n    \"tests/api_test.py::test_later\",\n    \"tests/test_core.py::test_a\"\n  ],\n  \"files\": [\n    \"tests/api_test.py\",\n    \"tests/test_core.py\",\n    \"tests/test_empty.py\"\n  ],\n  \"test_count\": 4,\n  \"runnable_count\": 2\n}\n",
+  "bad_solution": "{\n  \"tests\": [],\n  \"runnable\": [\n    \"tests/api_test.py::test_async\",\n    \"tests/test_core.py::test_z\"\n  ],\n  \"skipped\": [\n    \"tests/api_test.py::test_later\",\n    \"tests/test_core.py::test_a\"\n  ],\n  \"files\": [\n    \"tests/api_test.py\",\n    \"tests/test_core.py\",\n    \"tests/test_empty.py\"\n  ],\n  \"test_count\": 4,\n  \"runnable_count\": 2\n}\n",
+  "cases": [
+    {
+      "name": "tests",
+      "path": [
+        "tests"
+      ],
+      "expected": [
+        "tests/api_test.py::test_async",
+        "tests/api_test.py::test_later",
+        "tests/test_core.py::test_a",
+        "tests/test_core.py::test_z"
+      ]
+    },
+    {
+      "name": "runnable",
+      "path": [
+        "runnable"
+      ],
+      "expected": [
+        "tests/api_test.py::test_async",
+        "tests/test_core.py::test_z"
+      ]
+    },
+    {
+      "name": "skipped",
+      "path": [
+        "skipped"
+      ],
+      "expected": [
+        "tests/api_test.py::test_later",
+        "tests/test_core.py::test_a"
+      ]
+    },
+    {
+      "name": "files",
+      "path": [
+        "files"
+      ],
+      "expected": [
+        "tests/api_test.py",
+        "tests/test_core.py",
+        "tests/test_empty.py"
+      ]
+    },
+    {
+      "name": "test_count",
+      "path": [
+        "test_count"
+      ],
+      "expected": 4
+    },
+    {
+      "name": "runnable_count",
+      "path": [
+        "runnable_count"
+      ],
+      "expected": 2
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

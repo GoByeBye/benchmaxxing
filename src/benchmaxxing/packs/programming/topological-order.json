@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "id": "python.topological-order",
+  "version": "1.0.0",
+  "title": "Lexicographic dependency ordering",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "graphs",
+    "topological-sort",
+    "tie-breaking"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), where payload has nodes (distinct strings) and edges ([before, after] pairs).\nAll edge endpoints are listed in nodes. Repeated edges count once; self edges are allowed.\nRepeatedly remove the lexicographically smallest currently available node with no incoming edge from\nremaining nodes. Return {\"order\": removed_nodes, \"blocked\": sorted_remaining_nodes}. A cycle does not\ndiscard already removable nodes. Blocked includes nodes downstream of cycles, not only cycle members.\nOrdering uses Python string ordering (Unicode code points), never the input order.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"nodes\": [\"c\", \"a\", \"b\"], \"edges\": [[\"a\", \"b\"], [\"b\", \"c\"]]}`; output: `{\"order\": [\"a\", \"b\", \"c\"], \"blocked\": []}`.\n- Input: `{\"nodes\": [\"a\", \"b\"], \"edges\": [[\"a\", \"b\"], [\"b\", \"a\"]]}`; output: `{\"order\": [], \"blocked\": [\"a\", \"b\"]}`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport heapq\n\ndef solve(payload):\n    graph = {node: set() for node in payload[\"nodes\"]}\n    indegree = dict.fromkeys(graph, 0)\n    for start, end in payload[\"edges\"]:\n        if end not in graph[start]:\n            graph[start].add(end)\n            indegree[end] += 1\n    ready = [node for node in graph if indegree[node] == 0]\n    ready.sort()\n    order = []\n    while ready:\n        node = ready.pop(0)\n        order.append(node)\n        for end in sorted(graph[node]):\n            indegree[end] -= 1\n            if indegree[end] == 0:\n                ready.append(end)\n    return {\"order\": order, \"blocked\": sorted(node for node in graph if indegree[node] > 0)}\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"chain\", \"input\": {\"nodes\": [\"c\", \"a\", \"b\"], \"edges\": [[\"a\", \"b\"], [\"b\", \"c\"]]}, \"expected\": {\"order\": [\"a\", \"b\", \"c\"], \"blocked\": []}}, {\"name\": \"cycle\", \"input\": {\"nodes\": [\"a\", \"b\"], \"edges\": [[\"a\", \"b\"], [\"b\", \"a\"]]}, \"expected\": {\"order\": [], \"blocked\": [\"a\", \"b\"]}}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport heapq\n\ndef solve(payload):\n    graph = {node: set() for node in payload[\"nodes\"]}\n    indegree = dict.fromkeys(graph, 0)\n    for start, end in payload[\"edges\"]:\n        if end not in graph[start]:\n            graph[start].add(end)\n            indegree[end] += 1\n    ready = [node for node in graph if indegree[node] == 0]\n    heapq.heapify(ready)\n    order = []\n    while ready:\n        node = heapq.heappop(ready)\n        order.append(node)\n        for end in graph[node]:\n            indegree[end] -= 1\n            if indegree[end] == 0:\n                heapq.heappush(ready, end)\n    return {\"order\": order, \"blocked\": sorted(node for node in graph if indegree[node] > 0)}\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport heapq\n\ndef solve(payload):\n    graph = {node: set() for node in payload[\"nodes\"]}\n    indegree = dict.fromkeys(graph, 0)\n    for start, end in payload[\"edges\"]:\n        if end not in graph[start]:\n            graph[start].add(end)\n            indegree[end] += 1\n    ready = [node for node in graph if indegree[node] == 0]\n    ready.sort()\n    order = []\n    while ready:\n        node = ready.pop(0)\n        order.append(node)\n        for end in sorted(graph[node]):\n            indegree[end] -= 1\n            if indegree[end] == 0:\n                ready.append(end)\n    return {\"order\": order, \"blocked\": sorted(node for node in graph if indegree[node] > 0)}\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": {
+        "nodes": [],
+        "edges": []
+      },
+      "expected": {
+        "order": [],
+        "blocked": []
+      }
+    },
+    {
+      "name": "ready_tie",
+      "input": {
+        "nodes": [
+          "c",
+          "a",
+          "b"
+        ],
+        "edges": [
+          [
+            "a",
+            "c"
+          ]
+        ]
+      },
+      "expected": {
+        "order": [
+          "a",
+          "b",
+          "c"
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "name": "newly_ready_precedes_waiting",
+      "input": {
+        "nodes": [
+          "z",
+          "b",
+          "a"
+        ],
+        "edges": [
+          [
+            "a",
+            "b"
+          ]
+        ]
+      },
+      "expected": {
+        "order": [
+          "a",
+          "b",
+          "z"
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "name": "duplicate_edges",
+      "input": {
+        "nodes": [
+          "c",
+          "b",
+          "a"
+        ],
+        "edges": [
+          [
+            "a",
+            "b"
+          ],
+          [
+            "a",
+            "b"
+          ],
+          [
+            "b",
+            "c"
+          ]
+        ]
+      },
+      "expected": {
+        "order": [
+          "a",
+          "b",
+          "c"
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "name": "cycle_and_downstream",
+      "input": {
+        "nodes": [
+          "e",
+          "d",
+          "c",
+          "b",
+          "a"
+        ],
+        "edges": [
+          [
+            "a",
+            "b"
+          ],
+          [
+            "b",
+            "a"
+          ],
+          [
+            "b",
+            "c"
+          ],
+          [
+            "d",
+            "e"
+          ]
+        ]
+      },
+      "expected": {
+        "order": [
+          "d",
+          "e"
+        ],
+        "blocked": [
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    },
+    {
+      "name": "self_edge",
+      "input": {
+        "nodes": [
+          "a",
+          "b"
+        ],
+        "edges": [
+          [
+            "a",
+            "a"
+          ]
+        ]
+      },
+      "expected": {
+        "order": [
+          "b"
+        ],
+        "blocked": [
+          "a"
+        ]
+      }
+    },
+    {
+      "name": "disconnected_dependencies",
+      "input": {
+        "nodes": [
+          "d",
+          "c",
+          "b",
+          "a"
+        ],
+        "edges": [
+          [
+            "a",
+            "d"
+          ],
+          [
+            "b",
+            "c"
+          ]
+        ]
+      },
+      "expected": {
+        "order": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "blocked": []
+      }
+    },
+    {
+      "name": "codepoint_order",
+      "input": {
+        "nodes": [
+          "a",
+          "2",
+          "A",
+          "10"
+        ],
+        "edges": [
+          [
+            "2",
+            "a"
+          ]
+        ]
+      },
+      "expected": {
+        "order": [
+          "10",
+          "2",
+          "A",
+          "a"
+        ],
+        "blocked": []
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

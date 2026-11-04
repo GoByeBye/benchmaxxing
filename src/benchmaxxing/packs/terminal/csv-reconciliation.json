@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "id": "terminal.csv-reconciliation",
+  "version": "1.0.0",
+  "title": "Reconcile invoices and payment reversals",
+  "category": "terminal",
+  "difficulty": "medium",
+  "tags": [
+    "csv",
+    "accounting",
+    "files"
+  ],
+  "kind": "json",
+  "prompt": "Read data/invoices.csv and data/payments.csv using CSV rules (quoted commas are valid).\nAmounts are signed integer cents. Invoice IDs are unique. Payment rows with duplicate payment_id\nare counted once, keeping the first row; negative payment amounts are reversals. Sum payments per\ninvoice. Ignore payments for unknown invoices when computing balances, but list their payment_ids\nin orphan_payments sorted. Output balances (object invoice_id -> invoice amount minus payments),\nunpaid_ids (positive balance), overpaid_ids (negative balance), settled_ids (zero balance),\norphan_payments, and total_outstanding (sum of positive balances). Sort all ID lists lexically.\nAn invoice for100 cents with payment150 has balance-50, overpaid, and contributes0 outstanding.\n\nWrite a UTF-8 JSON object to submission.json. Do not modify the supplied inputs. Run python public_tests.py for a structure check, then call submit. Extra object keys are ignored; all listed fields are required. All paths are relative to /workspace; no network or third-party packages are needed.\n",
+  "rubric": "",
+  "files": {
+    "data/invoices.csv": "invoice_id,customer,amount_cents\nI-1,\"Acme, Inc\",10000\nI-2,Beta,2500\nI-3,Gamma,500\nI-4,Delta,700\nI-5,Echo,0\n",
+    "data/payments.csv": "payment_id,invoice_id,amount_cents\np1,I-1,7000\np2,I-1,3000\np2,I-1,3000\np3,I-2,3000\np4,I-2,-100\np5,I-3,200\np6,UNKNOWN,999\np7,I-1,-500\n",
+    "public_tests.py": "import json\nfrom pathlib import Path\nanswer=json.loads(Path('submission.json').read_text())\nassert isinstance(answer,dict)\nassert set(['balances', 'unpaid_ids', 'overpaid_ids', 'settled_ids', 'orphan_payments', 'total_outstanding']).issubset(answer), 'Missing required fields'\nprint('Public structure check passed; values are independently graded.')\n"
+  },
+  "good_solution": "{\n  \"balances\": {\n    \"I-1\": 500,\n    \"I-2\": -400,\n    \"I-3\": 300,\n    \"I-4\": 700,\n    \"I-5\": 0\n  },\n  \"unpaid_ids\": [\n    \"I-1\",\n    \"I-3\",\n    \"I-4\"\n  ],\n  \"overpaid_ids\": [\n    \"I-2\"\n  ],\n  \"settled_ids\": [\n    \"I-5\"\n  ],\n  \"orphan_payments\": [\n    \"p6\"\n  ],\n  \"total_outstanding\": 1500\n}\n",
+  "bad_solution": "{\n  \"balances\": \"incorrect\",\n  \"unpaid_ids\": [\n    \"I-1\",\n    \"I-3\",\n    \"I-4\"\n  ],\n  \"overpaid_ids\": [\n    \"I-2\"\n  ],\n  \"settled_ids\": [\n    \"I-5\"\n  ],\n  \"orphan_payments\": [\n    \"p6\"\n  ],\n  \"total_outstanding\": 1500\n}\n",
+  "cases": [
+    {
+      "name": "balances",
+      "path": [
+        "balances"
+      ],
+      "expected": {
+        "I-1": 500,
+        "I-2": -400,
+        "I-3": 300,
+        "I-4": 700,
+        "I-5": 0
+      }
+    },
+    {
+      "name": "unpaid_ids",
+      "path": [
+        "unpaid_ids"
+      ],
+      "expected": [
+        "I-1",
+        "I-3",
+        "I-4"
+      ]
+    },
+    {
+      "name": "overpaid_ids",
+      "path": [
+        "overpaid_ids"
+      ],
+      "expected": [
+        "I-2"
+      ]
+    },
+    {
+      "name": "settled_ids",
+      "path": [
+        "settled_ids"
+      ],
+      "expected": [
+        "I-5"
+      ]
+    },
+    {
+      "name": "orphan_payments",
+      "path": [
+        "orphan_payments"
+      ],
+      "expected": [
+        "p6"
+      ]
+    },
+    {
+      "name": "total_outstanding",
+      "path": [
+        "total_outstanding"
+      ],
+      "expected": 1500
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

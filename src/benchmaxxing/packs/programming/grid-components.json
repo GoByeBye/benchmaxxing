@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "id": "python.grid-components",
+  "version": "1.0.0",
+  "title": "Orthogonal grid components and exposed edges",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "grids",
+    "flood-fill",
+    "connected-components"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting a rectangular list of rows containing only integer 0 or 1. Group 1\ncells by orthogonal connectivity (shared side, never diagonal). Return one {\"area\": cell_count,\n\"perimeter\": exposed_side_count, \"bounds\": [min_row,min_col,max_row,max_col]} record per component.\nBounds are inclusive and zero-based. Perimeter counts each cell side adjoining a 0 cell or the grid\nexterior, including sides around holes. Order components by their lexicographically smallest (row,col)\nmember, as encountered in a row-major scan. Empty grid and zero-width rows return []. Do not modify\nthe grid to mark visits. This is a discrete grid task; no diagonal or Euclidean perimeter is used.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `[[1, 1, 1]]`; output: `[{\"area\": 3, \"perimeter\": 8, \"bounds\": [0, 0, 0, 2]}]`.\n- Input: `[[0]]`; output: `[]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\nfrom collections import deque\n\ndef solve(payload):\n    rows = len(payload)\n    cols = len(payload[0]) if rows else 0\n    seen, components = set(), []\n    directions = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1))\n    for r in range(rows):\n        for c in range(cols):\n            if payload[r][c] != 1 or (r, c) in seen:\n                continue\n            queue = deque([(r, c)])\n            seen.add((r, c))\n            area, perimeter = 0, 0\n            bounds = [r, c, r, c]\n            while queue:\n                y, x = queue.popleft()\n                area += 1\n                bounds = [min(bounds[0], y), min(bounds[1], x), max(bounds[2], y), max(bounds[3], x)]\n                for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):\n                    ny, nx = y + dy, x + dx\n                    if not (0 <= ny < rows and 0 <= nx < cols) or payload[ny][nx] == 0:\n                        perimeter += 1\n                for dy, dx in directions:\n                    ny, nx = y + dy, x + dx\n                    if 0 <= ny < rows and 0 <= nx < cols and payload[ny][nx] == 1 and (ny, nx) not in seen:\n                        seen.add((ny, nx))\n                        queue.append((ny, nx))\n            components.append({'area': area, 'perimeter': perimeter, 'bounds': bounds})\n    return components\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"line\", \"input\": [[1, 1, 1]], \"expected\": [{\"area\": 3, \"perimeter\": 8, \"bounds\": [0, 0, 0, 2]}]}, {\"name\": \"water\", \"input\": [[0]], \"expected\": []}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nfrom collections import deque\n\ndef solve(payload):\n    rows = len(payload)\n    cols = len(payload[0]) if rows else 0\n    seen, components = set(), []\n    directions = ((1, 0), (-1, 0), (0, 1), (0, -1))\n    for r in range(rows):\n        for c in range(cols):\n            if payload[r][c] != 1 or (r, c) in seen:\n                continue\n            queue = deque([(r, c)])\n            seen.add((r, c))\n            area, perimeter = 0, 0\n            bounds = [r, c, r, c]\n            while queue:\n                y, x = queue.popleft()\n                area += 1\n                bounds = [min(bounds[0], y), min(bounds[1], x), max(bounds[2], y), max(bounds[3], x)]\n                for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):\n                    ny, nx = y + dy, x + dx\n                    if not (0 <= ny < rows and 0 <= nx < cols) or payload[ny][nx] == 0:\n                        perimeter += 1\n                for dy, dx in directions:\n                    ny, nx = y + dy, x + dx\n                    if 0 <= ny < rows and 0 <= nx < cols and payload[ny][nx] == 1 and (ny, nx) not in seen:\n                        seen.add((ny, nx))\n                        queue.append((ny, nx))\n            components.append({'area': area, 'perimeter': perimeter, 'bounds': bounds})\n    return components\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nfrom collections import deque\n\ndef solve(payload):\n    rows = len(payload)\n    cols = len(payload[0]) if rows else 0\n    seen, components = set(), []\n    directions = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1))\n    for r in range(rows):\n        for c in range(cols):\n            if payload[r][c] != 1 or (r, c) in seen:\n                continue\n            queue = deque([(r, c)])\n            seen.add((r, c))\n            area, perimeter = 0, 0\n            bounds = [r, c, r, c]\n            while queue:\n                y, x = queue.popleft()\n                area += 1\n                bounds = [min(bounds[0], y), min(bounds[1], x), max(bounds[2], y), max(bounds[3], x)]\n                for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):\n                    ny, nx = y + dy, x + dx\n                    if not (0 <= ny < rows and 0 <= nx < cols) or payload[ny][nx] == 0:\n                        perimeter += 1\n                for dy, dx in directions:\n                    ny, nx = y + dy, x + dx\n                    if 0 <= ny < rows and 0 <= nx < cols and payload[ny][nx] == 1 and (ny, nx) not in seen:\n                        seen.add((ny, nx))\n                        queue.append((ny, nx))\n            components.append({'area': area, 'perimeter': perimeter, 'bounds': bounds})\n    return components\n",
+  "cases": [
+    {
+      "name": "empty",
+      "input": [],
+      "expected": []
+    },
+    {
+      "name": "zero_width",
+      "input": [
+        [],
+        []
+      ],
+      "expected": []
+    },
+    {
+      "name": "all_zero",
+      "input": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "expected": []
+    },
+    {
+      "name": "single",
+      "input": [
+        [
+          1
+        ]
+      ],
+      "expected": [
+        {
+          "area": 1,
+          "perimeter": 4,
+          "bounds": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "diagonal_separate",
+      "input": [
+        [
+          1,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "expected": [
+        {
+          "area": 1,
+          "perimeter": 4,
+          "bounds": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "area": 1,
+          "perimeter": 4,
+          "bounds": [
+            1,
+            1,
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "name": "filled_rectangle",
+      "input": [
+        [
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1
+        ]
+      ],
+      "expected": [
+        {
+          "area": 6,
+          "perimeter": 10,
+          "bounds": [
+            0,
+            0,
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "name": "hole_perimeter",
+      "input": [
+        [
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1
+        ]
+      ],
+      "expected": [
+        {
+          "area": 8,
+          "perimeter": 16,
+          "bounds": [
+            0,
+            0,
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "name": "l_shape_and_diagonal",
+      "input": [
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          1,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "expected": [
+        {
+          "area": 3,
+          "perimeter": 8,
+          "bounds": [
+            0,
+            0,
+            1,
+            1
+          ]
+        },
+        {
+          "area": 1,
+          "perimeter": 4,
+          "bounds": [
+            2,
+            2,
+            2,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "name": "order_not_area",
+      "input": [
+        [
+          1,
+          0,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "expected": [
+        {
+          "area": 2,
+          "perimeter": 6,
+          "bounds": [
+            0,
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "area": 4,
+          "perimeter": 10,
+          "bounds": [
+            0,
+            2,
+            2,
+            3
+          ]
+        }
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

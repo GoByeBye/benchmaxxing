@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "id": "python.flatten-json",
+  "version": "1.0.0",
+  "title": "Lossless JSON leaf paths",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "json",
+    "trees",
+    "escaping"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting any JSON value. Return a list of {\"path\": string, \"value\": leaf}\nrecords for every leaf, sorted lexicographically by path using Python string ordering. A scalar,\nempty object, or empty array is a leaf; nonempty containers are traversed recursively. Paths use\nJSON Pointer notation: root is \"\", each object key is prefixed by '/', '~' becomes '~0', and '/'\nbecomes '~1', in that order. Array indices are zero-based decimal strings. Empty object keys are\nlegal. Preserve leaf value types. Sort paths as strings, so '/10' precedes '/2'.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"a\": [2, {\"b\": 3}]}`; output: `[{\"path\": \"/a/0\", \"value\": 2}, {\"path\": \"/a/1/b\", \"value\": 3}]`.\n- Input: `7`; output: `[{\"path\": \"\", \"value\": 7}]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    leaves = []\n    def visit(value, path):\n        if isinstance(value, dict) and value:\n            for key, child in value.items():\n                escaped = key\n                visit(child, path + '/' + escaped)\n        elif isinstance(value, list) and value:\n            for index, child in enumerate(value):\n                visit(child, path + '/' + str(index))\n        else:\n            leaves.append({'path': path, 'value': value})\n    visit(payload, '')\n    return sorted(leaves, key=lambda item: item['path'])\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"nested\", \"input\": {\"a\": [2, {\"b\": 3}]}, \"expected\": [{\"path\": \"/a/0\", \"value\": 2}, {\"path\": \"/a/1/b\", \"value\": 3}]}, {\"name\": \"scalar\", \"input\": 7, \"expected\": [{\"path\": \"\", \"value\": 7}]}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    leaves = []\n    def visit(value, path):\n        if isinstance(value, dict) and value:\n            for key, child in value.items():\n                escaped = key.replace('~', '~0').replace('/', '~1')\n                visit(child, path + '/' + escaped)\n        elif isinstance(value, list) and value:\n            for index, child in enumerate(value):\n                visit(child, path + '/' + str(index))\n        else:\n            leaves.append({'path': path, 'value': value})\n    visit(payload, '')\n    return sorted(leaves, key=lambda item: item['path'])\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    leaves = []\n    def visit(value, path):\n        if isinstance(value, dict) and value:\n            for key, child in value.items():\n                escaped = key\n                visit(child, path + '/' + escaped)\n        elif isinstance(value, list) and value:\n            for index, child in enumerate(value):\n                visit(child, path + '/' + str(index))\n        else:\n            leaves.append({'path': path, 'value': value})\n    visit(payload, '')\n    return sorted(leaves, key=lambda item: item['path'])\n",
+  "cases": [
+    {
+      "name": "empty_object",
+      "input": {},
+      "expected": [
+        {
+          "path": "",
+          "value": {}
+        }
+      ]
+    },
+    {
+      "name": "empty_array",
+      "input": [],
+      "expected": [
+        {
+          "path": "",
+          "value": []
+        }
+      ]
+    },
+    {
+      "name": "escaped_keys",
+      "input": {
+        "a/b": {
+          "~x": 1
+        },
+        "a": {
+          "b": 2
+        }
+      },
+      "expected": [
+        {
+          "path": "/a/b",
+          "value": 2
+        },
+        {
+          "path": "/a~1b/~0x",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "name": "lexical_indices",
+      "input": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "expected": [
+        {
+          "path": "/0",
+          "value": 0
+        },
+        {
+          "path": "/1",
+          "value": 1
+        },
+        {
+          "path": "/10",
+          "value": 10
+        },
+        {
+          "path": "/2",
+          "value": 2
+        },
+        {
+          "path": "/3",
+          "value": 3
+        },
+        {
+          "path": "/4",
+          "value": 4
+        },
+        {
+          "path": "/5",
+          "value": 5
+        },
+        {
+          "path": "/6",
+          "value": 6
+        },
+        {
+          "path": "/7",
+          "value": 7
+        },
+        {
+          "path": "/8",
+          "value": 8
+        },
+        {
+          "path": "/9",
+          "value": 9
+        }
+      ]
+    },
+    {
+      "name": "empty_keys",
+      "input": {
+        "": {
+          "": "x"
+        },
+        "z": []
+      },
+      "expected": [
+        {
+          "path": "//",
+          "value": "x"
+        },
+        {
+          "path": "/z",
+          "value": []
+        }
+      ]
+    },
+    {
+      "name": "null_root",
+      "input": null,
+      "expected": [
+        {
+          "path": "",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "container_leaves",
+      "input": [
+        {},
+        [],
+        {
+          "x": null
+        }
+      ],
+      "expected": [
+        {
+          "path": "/0",
+          "value": {}
+        },
+        {
+          "path": "/1",
+          "value": []
+        },
+        {
+          "path": "/2/x",
+          "value": null
+        }
+      ]
+    },
+    {
+      "name": "escape_order_and_types",
+      "input": {
+        "~1": false,
+        "/": "",
+        "~": 0
+      },
+      "expected": [
+        {
+          "path": "/~0",
+          "value": 0
+        },
+        {
+          "path": "/~01",
+          "value": false
+        },
+        {
+          "path": "/~1",
+          "value": ""
+        }
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

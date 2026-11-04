@@ -115,16 +115,22 @@ def create_app(
 
     @application.get("/api/v1/tasks", response_model=list[TaskSpec])
     def tasks() -> list[TaskSpec]:
-        from benchmaxxing.task import get_task
+        from benchmaxxing.task import list_tasks
 
-        return [get_task()]
+        return list_tasks()
 
     @application.get("/api/v1/runs", response_model=list[RunRecord])
-    def list_runs() -> list[RunRecord]:
-        return owner.store.list_runs()
+    def list_runs(limit: int = Query(default=1000, ge=1, le=10000)) -> list[RunRecord]:
+        return owner.store.list_runs(limit)
 
     @application.post("/api/v1/runs", response_model=RunRecord, status_code=201)
     def start_run(spec: RunSpec) -> RunRecord:
+        from benchmaxxing.task import get_task
+
+        try:
+            get_task(spec.task_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
         return owner.submit(spec)
 
     @application.get("/api/v1/runs/{run_id}", response_model=RunDetail)

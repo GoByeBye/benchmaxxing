@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "id": "python.integer-expression",
+  "version": "1.0.0",
+  "title": "Exact integer expression evaluation",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "parsing",
+    "integer-arithmetic",
+    "precedence"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload), accepting a nonempty valid arithmetic expression string and returning its exact\ninteger result. The grammar has nonnegative decimal integer literals, parentheses, unary + and -,\nand binary +, -, *, //. Unary signs bind strongest, then * and //, then + and -. Binary operators of\nequal precedence associate left to right. // is mathematical floor division, including for negative\noperands. Arbitrary whitespace may separate tokens, but cannot split a literal or the // token.\nEvery divisor evaluates to a nonzero integer. Use exact integer arithmetic; intermediate values and\nresults are not restricted to floating-point precision. Valid expressions only; error reporting is\nnot required. There are no exponentiation, true division, function calls or variable names.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `\"2 + 3 * 4\"`; output: `14`.\n- Input: `\"(2 + 3) * 4\"`; output: `20`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport re\n\ndef solve(payload):\n    tokens = re.findall(r'[0-9]+|//|[()+*-]', payload)\n    i = 0\n    def atom():\n        nonlocal i\n        token = tokens[i]\n        i += 1\n        if token == '+':\n            return atom()\n        if token == '-':\n            return -atom()\n        if token == '(':\n            value = expression()\n            i += 1\n            return value\n        return int(token)\n    def term():\n        nonlocal i\n        left = atom()\n        while i < len(tokens) and tokens[i] in ('*', '//'):\n            operator = tokens[i]\n            i += 1\n            right = atom()\n            left = left * right if operator == '*' else int(left / right)\n        return left\n    def expression():\n        nonlocal i\n        left = term()\n        while i < len(tokens) and tokens[i] in ('+', '-'):\n            operator = tokens[i]\n            i += 1\n            right = term()\n            left = left + right if operator == '+' else left - right\n        return left\n    return expression()\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"precedence\", \"input\": \"2 + 3 * 4\", \"expected\": 14}, {\"name\": \"parentheses\", \"input\": \"(2 + 3) * 4\", \"expected\": 20}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport re\n\ndef solve(payload):\n    tokens = re.findall(r'[0-9]+|//|[()+*-]', payload)\n    i = 0\n    def atom():\n        nonlocal i\n        token = tokens[i]\n        i += 1\n        if token == '+':\n            return atom()\n        if token == '-':\n            return -atom()\n        if token == '(':\n            value = expression()\n            i += 1\n            return value\n        return int(token)\n    def term():\n        nonlocal i\n        left = atom()\n        while i < len(tokens) and tokens[i] in ('*', '//'):\n            operator = tokens[i]\n            i += 1\n            right = atom()\n            left = left * right if operator == '*' else left // right\n        return left\n    def expression():\n        nonlocal i\n        left = term()\n        while i < len(tokens) and tokens[i] in ('+', '-'):\n            operator = tokens[i]\n            i += 1\n            right = term()\n            left = left + right if operator == '+' else left - right\n        return left\n    return expression()\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nimport re\n\ndef solve(payload):\n    tokens = re.findall(r'[0-9]+|//|[()+*-]', payload)\n    i = 0\n    def atom():\n        nonlocal i\n        token = tokens[i]\n        i += 1\n        if token == '+':\n            return atom()\n        if token == '-':\n            return -atom()\n        if token == '(':\n            value = expression()\n            i += 1\n            return value\n        return int(token)\n    def term():\n        nonlocal i\n        left = atom()\n        while i < len(tokens) and tokens[i] in ('*', '//'):\n            operator = tokens[i]\n            i += 1\n            right = atom()\n            left = left * right if operator == '*' else int(left / right)\n        return left\n    def expression():\n        nonlocal i\n        left = term()\n        while i < len(tokens) and tokens[i] in ('+', '-'):\n            operator = tokens[i]\n            i += 1\n            right = term()\n            left = left + right if operator == '+' else left - right\n        return left\n    return expression()\n",
+  "cases": [
+    {
+      "name": "zero",
+      "input": " 0 ",
+      "expected": 0
+    },
+    {
+      "name": "left_associative_division",
+      "input": "20 // 3 // 2",
+      "expected": 3
+    },
+    {
+      "name": "negative_numerator",
+      "input": "-7 // 3",
+      "expected": -3
+    },
+    {
+      "name": "negative_divisor",
+      "input": "7 // -3",
+      "expected": -3
+    },
+    {
+      "name": "nested_signs",
+      "input": "-(2 + 3) * (4 - 9)",
+      "expected": 25
+    },
+    {
+      "name": "mixed_precedence",
+      "input": "2 + 3 * 4 // 5 - 6",
+      "expected": -2
+    },
+    {
+      "name": "beyond_float_precision",
+      "input": "9007199254740993 // 1",
+      "expected": 9007199254740993
+    },
+    {
+      "name": "repeated_unary",
+      "input": "--5 + -(-2) * +3",
+      "expected": 11
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

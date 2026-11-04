@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "id": "security.response-header-policy",
+  "version": "1.0.0",
+  "title": "Evaluate a defined response-header policy",
+  "category": "security",
+  "difficulty": "medium",
+  "tags": [
+    "defensive",
+    "http-headers",
+    "policy-validation"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Implement solve(payload) for a deliberately limited header-audit rubric, not a complete production security assessment. Input has https (boolean) and headers, an ordered list of [name,value] string pairs. Strip surrounding whitespace and lowercase names and values for comparison. Evaluate the last occurrence of each name. Return {\"issues\":[codes...]} sorted lexicographically without duplicates. Add \"content_type\" unless x-content-type-options is exactly nosniff. Add \"framing\" unless x-frame-options is exactly deny or sameorigin. Add \"referrer\" unless referrer-policy is exactly no-referrer, same-origin, or strict-origin-when-cross-origin. Only when https=true, add \"hsts\" unless strict-transport-security contains exactly one semicolon-separated max-age=<digits> directive with integer value >=15552000 and an includesubdomains directive. Strip directive whitespace; unknown directives are ignored; internal whitespace or quotes in max-age are not accepted. For each required header appearing more than once, also add \"duplicate:<lowercase-header-name>\", even if its last value passes. HSTS is required and checked for duplicates only on HTTPS. Missing headers fail their value check. Other header names are ignored. Inputs are valid pairs; do not mutate them.",
+  "files": {
+    "solution.py": "\"\"\"Implement the defensive policy in solve(payload).\"\"\"\n\ndef solve(payload):\n    raise NotImplementedError(\"Implement solve(payload)\")\n",
+    "public_tests.py": "import copy\nimport json\nimport math\nfrom solution import solve\n\n\ndef close(actual, expected):\n    if isinstance(expected, bool) or expected is None:\n        return actual is expected\n    if isinstance(expected, (int, float)):\n        return isinstance(actual, (int, float)) and not isinstance(actual, bool) and math.isfinite(actual) and math.isclose(actual, expected, abs_tol=0, rel_tol=0)\n    if isinstance(expected, list):\n        return isinstance(actual, list) and len(actual) == len(expected) and all(close(a, e) for a, e in zip(actual, expected))\n    if isinstance(expected, dict):\n        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(close(actual[k], v) for k, v in expected.items())\n    return actual == expected\n\n\nCASES = json.loads(\"[{\\\"name\\\":\\\"secure_https\\\",\\\"input\\\":{\\\"https\\\":true,\\\"headers\\\":[[\\\"X-Content-Type-Options\\\",\\\"nosniff\\\"],[\\\"X-Frame-Options\\\",\\\"DENY\\\"],[\\\"Referrer-Policy\\\",\\\"no-referrer\\\"],[\\\"Strict-Transport-Security\\\",\\\"max-age=31536000; includeSubDomains\\\"]]},\\\"expected\\\":{\\\"issues\\\":[]}},{\\\"name\\\":\\\"missing_https_headers\\\",\\\"input\\\":{\\\"https\\\":true,\\\"headers\\\":[]},\\\"expected\\\":{\\\"issues\\\":[\\\"content_type\\\",\\\"framing\\\",\\\"hsts\\\",\\\"referrer\\\"]}}]\")\nfor case in CASES:\n    value = copy.deepcopy(case[\"input\"])\n    assert close(solve(value), case[\"expected\"]), case[\"name\"]\n    assert value == case[\"input\"], \"Do not mutate the input\"\nprint(\"Public examples passed\")\n"
+  },
+  "good_solution": "def solve(payload):\n    import re\n    from collections import Counter\n    counts = Counter()\n    values = {}\n    for name, value in payload[\"headers\"]:\n        name = name.strip().lower()\n        counts[name] += 1\n        values[name] = value.strip().lower()\n    required = {\"x-content-type-options\", \"x-frame-options\", \"referrer-policy\"}\n    issues = set()\n    if values.get(\"x-content-type-options\") != \"nosniff\":\n        issues.add(\"content_type\")\n    if values.get(\"x-frame-options\") not in {\"deny\", \"sameorigin\"}:\n        issues.add(\"framing\")\n    if values.get(\"referrer-policy\") not in {\"no-referrer\", \"same-origin\", \"strict-origin-when-cross-origin\"}:\n        issues.add(\"referrer\")\n    if payload[\"https\"]:\n        required.add(\"strict-transport-security\")\n        directives = [part.strip() for part in values.get(\"strict-transport-security\", \"\").split(\";\")]\n        ages = [int(match.group(1)) for part in directives if (match := re.fullmatch(r\"max-age=([0-9]+)\", part))]\n        age_directives = [part for part in directives if part.split(\"=\", 1)[0].strip() == \"max-age\"]\n        if len(ages) != 1 or len(age_directives) != 1 or ages[0] < 15552000 or \"includesubdomains\" not in directives:\n            issues.add(\"hsts\")\n    for name in required:\n        if counts[name] > 1:\n            issues.add(\"duplicate:\" + name)\n    return {\"issues\": sorted(issues)}\n",
+  "bad_solution": "def solve(payload):\n    names = {name.lower() for name, value in payload[\"headers\"]}\n    required = {\"x-content-type-options\": \"content_type\", \"x-frame-options\": \"framing\", \"referrer-policy\": \"referrer\"}\n    if payload[\"https\"]:\n        required[\"strict-transport-security\"] = \"hsts\"\n    return {\"issues\": sorted(code for name, code in required.items() if name not in names)}\n",
+  "cases": [
+    {
+      "name": "secure_https",
+      "input": {
+        "https": true,
+        "headers": [
+          [
+            "X-Content-Type-Options",
+            "nosniff"
+          ],
+          [
+            "X-Frame-Options",
+            "DENY"
+          ],
+          [
+            "Referrer-Policy",
+            "no-referrer"
+          ],
+          [
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains"
+          ]
+        ]
+      },
+      "expected": {
+        "issues": []
+      }
+    },
+    {
+      "name": "missing_https_headers",
+      "input": {
+        "https": true,
+        "headers": []
+      },
+      "expected": {
+        "issues": [
+          "content_type",
+          "framing",
+          "hsts",
+          "referrer"
+        ]
+      }
+    },
+    {
+      "name": "http_ignores_hsts",
+      "input": {
+        "https": false,
+        "headers": []
+      },
+      "expected": {
+        "issues": [
+          "content_type",
+          "framing",
+          "referrer"
+        ]
+      }
+    },
+    {
+      "name": "case_and_whitespace",
+      "input": {
+        "https": true,
+        "headers": [
+          [
+            " X-Content-Type-Options ",
+            " NoSnIfF "
+          ],
+          [
+            "x-FRAME-options",
+            " sameORIGIN "
+          ],
+          [
+            "Referrer-policy",
+            "strict-origin-when-cross-origin"
+          ],
+          [
+            "strict-transport-security",
+            " MAX-AGE=15552000 ; INCLUDESUBDOMAINS ; preload "
+          ]
+        ]
+      },
+      "expected": {
+        "issues": []
+      }
+    },
+    {
+      "name": "weak_hsts",
+      "input": {
+        "https": true,
+        "headers": [
+          [
+            "x-content-type-options",
+            "nosniff"
+          ],
+          [
+            "x-frame-options",
+            "deny"
+          ],
+          [
+            "referrer-policy",
+            "same-origin"
+          ],
+          [
+            "strict-transport-security",
+            "max-age=100"
+          ]
+        ]
+      },
+      "expected": {
+        "issues": [
+          "hsts"
+        ]
+      }
+    },
+    {
+      "name": "unsafe_values",
+      "input": {
+        "https": false,
+        "headers": [
+          [
+            "x-content-type-options",
+            "none"
+          ],
+          [
+            "x-frame-options",
+            "ALLOW-FROM example.invalid"
+          ],
+          [
+            "referrer-policy",
+            "unsafe-url"
+          ]
+        ]
+      },
+      "expected": {
+        "issues": [
+          "content_type",
+          "framing",
+          "referrer"
+        ]
+      }
+    },
+    {
+      "name": "duplicate_header",
+      "input": {
+        "https": false,
+        "headers": [
+          [
+            "x-content-type-options",
+            "nosniff"
+          ],
+          [
+            "x-frame-options",
+            "deny"
+          ],
+          [
+            "X-Frame-Options",
+            "sameorigin"
+          ],
+          [
+            "referrer-policy",
+            "no-referrer"
+          ]
+        ]
+      },
+      "expected": {
+        "issues": [
+          "duplicate:x-frame-options"
+        ]
+      }
+    },
+    {
+      "name": "duplicate_max_age",
+      "input": {
+        "https": true,
+        "headers": [
+          [
+            "x-content-type-options",
+            "nosniff"
+          ],
+          [
+            "x-frame-options",
+            "deny"
+          ],
+          [
+            "referrer-policy",
+            "same-origin"
+          ],
+          [
+            "strict-transport-security",
+            "max-age=31536000; max-age=31536000; includeSubDomains"
+          ]
+        ]
+      },
+      "expected": {
+        "issues": [
+          "hsts"
+        ]
+      }
+    },
+    {
+      "name": "quoted_max_age",
+      "input": {
+        "https": true,
+        "headers": [
+          [
+            "x-content-type-options",
+            "nosniff"
+          ],
+          [
+            "x-frame-options",
+            "deny"
+          ],
+          [
+            "referrer-policy",
+            "same-origin"
+          ],
+          [
+            "strict-transport-security",
+            "max-age=\"31536000\"; includeSubDomains"
+          ]
+        ]
+      },
+      "expected": {
+        "issues": [
+          "hsts"
+        ]
+      }
+    },
+    {
+      "name": "unknown_directive_ignored",
+      "input": {
+        "https": true,
+        "headers": [
+          [
+            "x-content-type-options",
+            "nosniff"
+          ],
+          [
+            "x-frame-options",
+            "deny"
+          ],
+          [
+            "referrer-policy",
+            "no-referrer"
+          ],
+          [
+            "strict-transport-security",
+            "max-age=31536000; includeSubDomains; max-age-report=example"
+          ]
+        ]
+      },
+      "expected": {
+        "issues": []
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

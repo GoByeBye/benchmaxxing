@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "id": "python.lru-cache",
+  "version": "1.0.0",
+  "title": "Least recently used cache replay",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "state-machines",
+    "caching",
+    "ordered-data"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload). Input has capacity (nonnegative integer) and operations. Each operation is\n{\"op\":\"put\",\"key\":string,\"value\":JSON_value} or {\"op\":\"get\",\"key\":string}. A successful get and\nevery put make that key most recently used; a miss leaves order unchanged. Updating an existing key\nreplaces its value. After a put, evict least recently used keys until capacity is respected. Capacity\nzero stores nothing. Return {\"gets\": results_of_gets_in_order, \"items\": [[key,value],...]} with final\nitems ordered least to most recently used. A missing get returns null; stored null is still a hit\nand updates recency. All JSON values, including false, empty lists and objects, are valid values.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"capacity\": 1, \"operations\": [{\"op\": \"put\", \"key\": \"a\", \"value\": 1}, {\"op\": \"put\", \"key\": \"b\", \"value\": 2}, {\"op\": \"get\", \"key\": \"a\"}, {\"op\": \"get\", \"key\": \"b\"}]}`; output: `{\"gets\": [null, 2], \"items\": [[\"b\", 2]]}`.\n- Input: `{\"capacity\": 2, \"operations\": []}`; output: `{\"gets\": [], \"items\": []}`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\nfrom collections import OrderedDict\n\ndef solve(payload):\n    cache = OrderedDict()\n    answers = []\n    for operation in payload['operations']:\n        key = operation['key']\n        if operation['op'] == 'get':\n            if key in cache:\n                answers.append(cache[key])\n            else:\n                answers.append(None)\n        elif payload['capacity'] > 0:\n            cache[key] = operation['value']\n            cache.move_to_end(key)\n            while len(cache) > payload['capacity']:\n                cache.popitem(last=False)\n    return {'gets': answers, 'items': [[key, value] for key, value in cache.items()]}\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"eviction\", \"input\": {\"capacity\": 1, \"operations\": [{\"op\": \"put\", \"key\": \"a\", \"value\": 1}, {\"op\": \"put\", \"key\": \"b\", \"value\": 2}, {\"op\": \"get\", \"key\": \"a\"}, {\"op\": \"get\", \"key\": \"b\"}]}, \"expected\": {\"gets\": [null, 2], \"items\": [[\"b\", 2]]}}, {\"name\": \"empty\", \"input\": {\"capacity\": 2, \"operations\": []}, \"expected\": {\"gets\": [], \"items\": []}}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nfrom collections import OrderedDict\n\ndef solve(payload):\n    cache = OrderedDict()\n    answers = []\n    for operation in payload['operations']:\n        key = operation['key']\n        if operation['op'] == 'get':\n            if key in cache:\n                answers.append(cache[key])\n                cache.move_to_end(key)\n            else:\n                answers.append(None)\n        elif payload['capacity'] > 0:\n            cache[key] = operation['value']\n            cache.move_to_end(key)\n            while len(cache) > payload['capacity']:\n                cache.popitem(last=False)\n    return {'gets': answers, 'items': [[key, value] for key, value in cache.items()]}\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\nfrom collections import OrderedDict\n\ndef solve(payload):\n    cache = OrderedDict()\n    answers = []\n    for operation in payload['operations']:\n        key = operation['key']\n        if operation['op'] == 'get':\n            if key in cache:\n                answers.append(cache[key])\n            else:\n                answers.append(None)\n        elif payload['capacity'] > 0:\n            cache[key] = operation['value']\n            cache.move_to_end(key)\n            while len(cache) > payload['capacity']:\n                cache.popitem(last=False)\n    return {'gets': answers, 'items': [[key, value] for key, value in cache.items()]}\n",
+  "cases": [
+    {
+      "name": "zero_capacity",
+      "input": {
+        "capacity": 0,
+        "operations": [
+          {
+            "op": "put",
+            "key": "a",
+            "value": 1
+          },
+          {
+            "op": "get",
+            "key": "a"
+          }
+        ]
+      },
+      "expected": {
+        "gets": [
+          null
+        ],
+        "items": []
+      }
+    },
+    {
+      "name": "read_promotes",
+      "input": {
+        "capacity": 2,
+        "operations": [
+          {
+            "op": "put",
+            "key": "a",
+            "value": 1
+          },
+          {
+            "op": "put",
+            "key": "b",
+            "value": 2
+          },
+          {
+            "op": "get",
+            "key": "a"
+          },
+          {
+            "op": "put",
+            "key": "c",
+            "value": 3
+          },
+          {
+            "op": "get",
+            "key": "b"
+          }
+        ]
+      },
+      "expected": {
+        "gets": [
+          1,
+          null
+        ],
+        "items": [
+          [
+            "a",
+            1
+          ],
+          [
+            "c",
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "name": "update_promotes",
+      "input": {
+        "capacity": 2,
+        "operations": [
+          {
+            "op": "put",
+            "key": "a",
+            "value": 1
+          },
+          {
+            "op": "put",
+            "key": "b",
+            "value": 2
+          },
+          {
+            "op": "put",
+            "key": "a",
+            "value": 7
+          }
+        ]
+      },
+      "expected": {
+        "gets": [],
+        "items": [
+          [
+            "b",
+            2
+          ],
+          [
+            "a",
+            7
+          ]
+        ]
+      }
+    },
+    {
+      "name": "miss_does_not_promote",
+      "input": {
+        "capacity": 2,
+        "operations": [
+          {
+            "op": "put",
+            "key": "a",
+            "value": 1
+          },
+          {
+            "op": "put",
+            "key": "b",
+            "value": 2
+          },
+          {
+            "op": "get",
+            "key": "x"
+          },
+          {
+            "op": "put",
+            "key": "c",
+            "value": 3
+          }
+        ]
+      },
+      "expected": {
+        "gets": [
+          null
+        ],
+        "items": [
+          [
+            "b",
+            2
+          ],
+          [
+            "c",
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "name": "null_is_hit",
+      "input": {
+        "capacity": 2,
+        "operations": [
+          {
+            "op": "put",
+            "key": "a",
+            "value": null
+          },
+          {
+            "op": "put",
+            "key": "b",
+            "value": false
+          },
+          {
+            "op": "get",
+            "key": "a"
+          },
+          {
+            "op": "put",
+            "key": "c",
+            "value": []
+          }
+        ]
+      },
+      "expected": {
+        "gets": [
+          null
+        ],
+        "items": [
+          [
+            "a",
+            null
+          ],
+          [
+            "c",
+            []
+          ]
+        ]
+      }
+    },
+    {
+      "name": "repeated_hits",
+      "input": {
+        "capacity": 3,
+        "operations": [
+          {
+            "op": "put",
+            "key": "a",
+            "value": 1
+          },
+          {
+            "op": "put",
+            "key": "b",
+            "value": 2
+          },
+          {
+            "op": "put",
+            "key": "c",
+            "value": 3
+          },
+          {
+            "op": "get",
+            "key": "a"
+          },
+          {
+            "op": "get",
+            "key": "b"
+          },
+          {
+            "op": "get",
+            "key": "a"
+          }
+        ]
+      },
+      "expected": {
+        "gets": [
+          1,
+          2,
+          1
+        ],
+        "items": [
+          [
+            "c",
+            3
+          ],
+          [
+            "b",
+            2
+          ],
+          [
+            "a",
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "name": "structured_value",
+      "input": {
+        "capacity": 1,
+        "operations": [
+          {
+            "op": "put",
+            "key": "k",
+            "value": {
+              "a": [
+                1,
+                null
+              ]
+            }
+          },
+          {
+            "op": "get",
+            "key": "k"
+          },
+          {
+            "op": "put",
+            "key": "k",
+            "value": []
+          }
+        ]
+      },
+      "expected": {
+        "gets": [
+          {
+            "a": [
+              1,
+              null
+            ]
+          }
+        ],
+        "items": [
+          [
+            "k",
+            []
+          ]
+        ]
+      }
+    },
+    {
+      "name": "empty_key",
+      "input": {
+        "capacity": 2,
+        "operations": [
+          {
+            "op": "put",
+            "key": "",
+            "value": 0
+          },
+          {
+            "op": "put",
+            "key": "x",
+            "value": ""
+          },
+          {
+            "op": "get",
+            "key": ""
+          }
+        ]
+      },
+      "expected": {
+        "gets": [
+          0
+        ],
+        "items": [
+          [
+            "x",
+            ""
+          ],
+          [
+            "",
+            0
+          ]
+        ]
+      }
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}

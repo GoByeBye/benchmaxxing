@@ -337,9 +337,8 @@ export interface components {
             /**
              * Task Id
              * @default python.interval-merge
-             * @constant
              */
-            task_id?: "python.interval-merge";
+            task_id?: string;
             /**
              * Participant
              * @default scripted
@@ -417,6 +416,35 @@ export interface components {
             task_hash: string;
             /** Image */
             image: string;
+            /**
+             * Kind
+             * @default python
+             * @enum {string}
+             */
+            kind?: "python" | "json";
+            /**
+             * Submission File
+             * @default solution.py
+             */
+            submission_file?: string;
+            /**
+             * Difficulty
+             * @default easy
+             * @enum {string}
+             */
+            difficulty?: "easy" | "medium" | "hard";
+            /** Tags */
+            tags?: string[];
+            /**
+             * Check Count
+             * @default 8
+             */
+            check_count?: number;
+            /**
+             * Rubric
+             * @default
+             */
+            rubric?: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -539,7 +567,9 @@ export interface operations {
     };
     list_runs_api_v1_runs_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -553,6 +583,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunRecord"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

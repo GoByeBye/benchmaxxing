@@ -1,7 +1,9 @@
 # Project roadmap
 
-The first implementation is milestone 1. Later milestones are agreed direction,
-not claims of features already available.
+Milestone 1 is implemented. Milestone 2 now includes 41 original tasks, schema
+validation, serial repeated attempts, catalog search/filtering and category coverage.
+Bounded parallel workers and richer category comparisons remain open. Later
+milestones are agreed direction, not claims of features already available.
 
 | Milestone | Deliverable and exit condition |
 | --- | --- |

@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "id": "python.prefix-suggestions",
+  "version": "1.0.0",
+  "title": "Unicode-aware weighted prefix suggestions",
+  "category": "programming",
+  "difficulty": "medium",
+  "tags": [
+    "unicode",
+    "sorting",
+    "aggregation"
+  ],
+  "kind": "python",
+  "entrypoint": "solve",
+  "prompt": "Repair solve(payload). Input has entries ([{\"text\":string,\"count\":positive_integer}]), prefix (string),\nand k (nonnegative integer). Aggregate counts only for exactly identical original text. Keep entries\nwhose text.casefold() starts with prefix.casefold(). Rank by aggregate count descending, then folded\ntext ascending, then original text ascending using Python string ordering. Return at most k records\n{\"text\": original_text, \"count\": aggregate}. Different original spellings remain distinct even when\ntheir folded forms match. Use Unicode casefold, not lower, and perform no Unicode normalization.\nEmpty text/prefix are valid; empty prefix matches all entries. Return [] when k is zero or no match.\n\nDo not mutate the input. Use only Python's standard library.\n\nPublic examples:\n- Input: `{\"entries\": [{\"text\": \"apple\", \"count\": 2}, {\"text\": \"apricot\", \"count\": 4}, {\"text\": \"banana\", \"count\": 8}], \"prefix\": \"ap\", \"k\": 2}`; output: `[{\"text\": \"apricot\", \"count\": 4}, {\"text\": \"apple\", \"count\": 2}]`.\n- Input: `{\"entries\": [{\"text\": \"Alpha\", \"count\": 1}], \"prefix\": \"AL\", \"k\": 3}`; output: `[{\"text\": \"Alpha\", \"count\": 1}]`.",
+  "files": {
+    "solution.py": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    counts = {}\n    for item in payload['entries']:\n        counts[item['text']] = counts.get(item['text'], 0) + item['count']\n    prefix = payload['prefix'].lower()\n    matches = [text for text in counts if text.lower().startswith(prefix)]\n    matches.sort(key=lambda text: (-counts[text], text.lower(), text))\n    return [{'text': text, 'count': counts[text]} for text in matches[:payload['k']]]\n",
+    "public_tests.py": "# SPDX-License-Identifier: AGPL-3.0-only\nimport copy\nimport json\nimport unittest\nfrom solution import solve\n\nCASES = json.loads('[{\"name\": \"rank\", \"input\": {\"entries\": [{\"text\": \"apple\", \"count\": 2}, {\"text\": \"apricot\", \"count\": 4}, {\"text\": \"banana\", \"count\": 8}], \"prefix\": \"ap\", \"k\": 2}, \"expected\": [{\"text\": \"apricot\", \"count\": 4}, {\"text\": \"apple\", \"count\": 2}]}, {\"name\": \"case\", \"input\": {\"entries\": [{\"text\": \"Alpha\", \"count\": 1}], \"prefix\": \"AL\", \"k\": 3}, \"expected\": [{\"text\": \"Alpha\", \"count\": 1}]}]')\n\nclass PublicExamples(unittest.TestCase):\n    def test_examples(self):\n        for item in CASES:\n            with self.subTest(name=item[\"name\"]):\n                value = copy.deepcopy(item[\"input\"])\n                self.assertEqual(solve(value), item[\"expected\"])\n                self.assertEqual(value, item[\"input\"], \"solve must not mutate its input\")\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "good_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    counts = {}\n    for item in payload['entries']:\n        counts[item['text']] = counts.get(item['text'], 0) + item['count']\n    prefix = payload['prefix'].casefold()\n    matches = [text for text in counts if text.casefold().startswith(prefix)]\n    matches.sort(key=lambda text: (-counts[text], text.casefold(), text))\n    return [{'text': text, 'count': counts[text]} for text in matches[:payload['k']]]\n",
+  "bad_solution": "# SPDX-License-Identifier: AGPL-3.0-only\ndef solve(payload):\n    counts = {}\n    for item in payload['entries']:\n        counts[item['text']] = counts.get(item['text'], 0) + item['count']\n    prefix = payload['prefix'].lower()\n    matches = [text for text in counts if text.lower().startswith(prefix)]\n    matches.sort(key=lambda text: (-counts[text], text.lower(), text))\n    return [{'text': text, 'count': counts[text]} for text in matches[:payload['k']]]\n",
+  "cases": [
+    {
+      "name": "empty_entries",
+      "input": {
+        "entries": [],
+        "prefix": "",
+        "k": 5
+      },
+      "expected": []
+    },
+    {
+      "name": "zero_limit",
+      "input": {
+        "entries": [
+          {
+            "text": "a",
+            "count": 1
+          }
+        ],
+        "prefix": "a",
+        "k": 0
+      },
+      "expected": []
+    },
+    {
+      "name": "aggregate_before_rank",
+      "input": {
+        "entries": [
+          {
+            "text": "ant",
+            "count": 2
+          },
+          {
+            "text": "ape",
+            "count": 3
+          },
+          {
+            "text": "ant",
+            "count": 2
+          }
+        ],
+        "prefix": "a",
+        "k": 1
+      },
+      "expected": [
+        {
+          "text": "ant",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "name": "sharp_s_expansion",
+      "input": {
+        "entries": [
+          {
+            "text": "Straße",
+            "count": 3
+          },
+          {
+            "text": "STRASSE",
+            "count": 2
+          },
+          {
+            "text": "Straw",
+            "count": 8
+          }
+        ],
+        "prefix": "STRASS",
+        "k": 5
+      },
+      "expected": [
+        {
+          "text": "Straße",
+          "count": 3
+        },
+        {
+          "text": "STRASSE",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "name": "folded_tie_original_tie",
+      "input": {
+        "entries": [
+          {
+            "text": "alpha",
+            "count": 2
+          },
+          {
+            "text": "Alpha",
+            "count": 2
+          },
+          {
+            "text": "ALPHA",
+            "count": 2
+          }
+        ],
+        "prefix": "a",
+        "k": 3
+      },
+      "expected": [
+        {
+          "text": "ALPHA",
+          "count": 2
+        },
+        {
+          "text": "Alpha",
+          "count": 2
+        },
+        {
+          "text": "alpha",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "name": "empty_prefix_and_text",
+      "input": {
+        "entries": [
+          {
+            "text": "z",
+            "count": 2
+          },
+          {
+            "text": "",
+            "count": 2
+          },
+          {
+            "text": "a",
+            "count": 2
+          }
+        ],
+        "prefix": "",
+        "k": 5
+      },
+      "expected": [
+        {
+          "text": "",
+          "count": 2
+        },
+        {
+          "text": "a",
+          "count": 2
+        },
+        {
+          "text": "z",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "name": "prefix_also_folds",
+      "input": {
+        "entries": [
+          {
+            "text": "ssail",
+            "count": 1
+          },
+          {
+            "text": "ßeta",
+            "count": 2
+          },
+          {
+            "text": "soup",
+            "count": 3
+          }
+        ],
+        "prefix": "ß",
+        "k": 2
+      },
+      "expected": [
+        {
+          "text": "ßeta",
+          "count": 2
+        },
+        {
+          "text": "ssail",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "no_unicode_normalization",
+      "input": {
+        "entries": [
+          {
+            "text": "éclair",
+            "count": 2
+          },
+          {
+            "text": "éclair",
+            "count": 4
+          }
+        ],
+        "prefix": "é",
+        "k": 5
+      },
+      "expected": [
+        {
+          "text": "éclair",
+          "count": 2
+        }
+      ]
+    }
+  ],
+  "atol": 0,
+  "rtol": 0,
+  "preserve_input": true
+}
