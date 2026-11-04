@@ -62,19 +62,25 @@ def _bounded_process(
     timeout: float,
     output_limit: int = 1048576,
     input_bytes: bytes | None = None,
+    input_path: Path | None = None,
     cancel_event: threading.Event | None = None,
     on_output: Callable[[str, str], None] | None = None,
+    binary_stdout: bool = False,
 ) -> dict[str, Any]:
     """Drain both pipes concurrently without ever retaining unbounded output."""
     if cancel_event is not None and cancel_event.is_set():
         raise ExecutionCancelled("Run cancelled")
     if timeout <= 0:
         raise ExecutionTimeout("Run time budget exhausted")
+    if input_bytes is not None and input_path is not None:
+        raise ValueError("Choose a byte input or file input, not both")
     started = time.monotonic()
     try:
         process = subprocess.Popen(
             args,
-            stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL,
+            stdin=subprocess.PIPE
+            if input_bytes is not None or input_path is not None
+            else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
@@ -113,20 +119,32 @@ def _bounded_process(
                     accepted = block[:remaining]
                     streams[name].extend(accepted)
                     total += len(accepted)
-                    if on_output is not None and accepted:
+                    if (
+                        on_output is not None
+                        and accepted
+                        and not (binary_stdout and name == "stdout")
+                    ):
                         pending.append((name, accepted))
                     if len(block) > remaining:
                         exceeded.set()
         finally:
             pipe.close()
 
+    input_errors: list[str] = []
+
     def writer() -> None:
         assert process.stdin is not None
         try:
-            process.stdin.write(input_bytes or b"")
+            if input_path is not None:
+                with input_path.open("rb") as source:
+                    shutil.copyfileobj(source, process.stdin, 1024 * 1024)
+            else:
+                process.stdin.write(input_bytes or b"")
             process.stdin.flush()
-        except (BrokenPipeError, OSError, ValueError):
+        except BrokenPipeError:
             pass
+        except (OSError, ValueError) as exc:
+            input_errors.append(f"Could not transfer process input: {type(exc).__name__}")
         finally:
             try:
                 process.stdin.close()
@@ -137,10 +155,10 @@ def _bounded_process(
         threading.Thread(target=reader, args=(name, pipe), daemon=True)
         for name, pipe in (("stdout", process.stdout), ("stderr", process.stderr))
     ]
+    if input_bytes is not None or input_path is not None:
+        threads.append(threading.Thread(target=writer, daemon=True))
     for thread in threads:
         thread.start()
-    if input_bytes is not None:
-        threading.Thread(target=writer, daemon=True).start()
     failure: EnvironmentError | None = None
     try:
         while process.poll() is None:
@@ -166,12 +184,19 @@ def _bounded_process(
         raise failure
     if exceeded.is_set():
         raise OutputLimitExceeded(f"Output exceeded {output_limit} bytes")
-    return {
+    if input_errors:
+        raise EnvironmentError(input_errors[0])
+    result = {
         "exit_code": process.returncode,
-        "stdout": bytes(streams["stdout"]).decode("utf-8", errors="replace"),
+        "stdout": ""
+        if binary_stdout
+        else bytes(streams["stdout"]).decode("utf-8", errors="replace"),
         "stderr": bytes(streams["stderr"]).decode("utf-8", errors="replace"),
         "duration_seconds": time.monotonic() - started,
     }
+    if binary_stdout:
+        result["stdout_base64"] = base64.b64encode(streams["stdout"]).decode("ascii")
+    return result
 
 
 def _docker(args: list[str], *, timeout: float = 30, **kwargs: Any) -> dict[str, Any]:
@@ -307,6 +332,15 @@ def cleanup_workspace(data_dir: Path, run_id: str | None = None) -> list[str]:
                 _docker(["rm", "-f", container_id]), "Could not remove owned container"
             )
             removed.append(container_id)
+    networks = _require_success(
+        _docker(["network", "ls", "-q", *filters]), "Could not list owned task networks"
+    )
+    for network_id in networks.splitlines():
+        if re.fullmatch(r"[0-9a-f]{12,64}", network_id):
+            _require_success(
+                _docker(["network", "rm", network_id]), "Could not remove owned task network"
+            )
+            removed.append(network_id)
     return removed
 
 

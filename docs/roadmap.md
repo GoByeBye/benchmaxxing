@@ -1,53 +1,64 @@
 # Project roadmap
 
-Milestone 1 is implemented. Milestone 2 now includes 81 original tasks with 666
-grading checks: 27 programming, 20 numerical engineering, 14 defensive security,
-12 terminal and 8 synthetic policy/refusal tasks. It includes schema validation,
-serial repeated attempts, catalog search/filtering, category coverage and live
-activity monitoring with resumable traces and pinned run inspection.
-Bounded parallel workers and richer category comparisons remain open. Later
-milestones are agreed direction, not claims of features already available.
+Current scope prioritizes software engineering, defensive cybersecurity, frontend
+UI design, offline world-knowledge retention, and needle-in-haystack retrieval.
+Isolated application security labs remain a future priority after their runtime
+and isolation review. Numerical engineering remains in scope, including
+electrical, thermal, mechanical and numerical reasoning. Historical data from
+removed providers remains available by exact run and artifact ID.
 
-Recent packs add matching and exact allocation, 3D quaternion/mesh/inertia math,
-electrical and thermal models, dependency and network policy audits, SQLite reports,
-checksum analysis and explicit consent/scope decisions. The mathematical 3D tasks
-do not fulfill the Blender scene/render and CAD artifact milestone. The live monitor
-reports observed phases and grading checks; time and turn budgets do not imply a
-completion percentage. See [task packs](task-packs.md) for scope and monitoring
-details, and [validation](validation.md) for recorded test results.
+The installed original core catalog contains 125 tasks and 946 grading checks:
+27 programming, 20 numerical engineering, 14 defensive security, 12 terminal and
+8 synthetic policy/refusal tasks (81 tasks and 666 checks), plus eight closed-book
+knowledge tasks with 64 checks and 36 context-retrieval tasks with 216 checks.
+Six original frontend-design briefs are a separate provider suite; they enter the
+local task catalog after an explicit bundled-source fetch and become runnable after
+Chromium preparation.
+Catalog search, serial repeated attempts,
+coverage, live activity and resumable inspection are implemented. Provider
+integrations have separate published, imported and prepared counts; a catalog
+entry or source download does not establish a working native runtime. See
+[provider preparation](providers.md), [provider validation](provider-validation.md)
+and [validation](validation.md) for evidence and limitations.
 
-| Milestone | Deliverable and exit condition |
+| Priority | Current state and next exit condition |
 | --- | --- |
-| 1 — Foundation | One prepared, offline code-repair workflow through model/scripted participant, Docker, independent grading, SQLite, CLI, UI and exports. Good/bad fixtures and failure/recovery paths pass on Windows and Linux. |
-| 2 — Benchmark engine | Versioned original programming, terminal, numerical engineering and refusal packs; pack validation; repeated trials; bounded parallel execution; category comparisons with coverage counts. Every grader has good/bad fixtures. |
-| 3 — Agents and imports | Containerized external-agent adapter protocol and working reference integration; controller-brokered inference; first optional SWE-bench Lite import retaining upstream task/harness identity. |
-| 4 — Interactive environments | Bundled local browser apps and state-based grading, separately identified DOM/visual interaction profiles, defensive code/security work and deliberately vulnerable application-level offensive labs. |
-| 5 — 3D and CAD | Blender scene/render tasks, CadQuery mechanical models, numerical/unit/geometry checks, original project files and portable previews, separate subjective review. |
-| 6 — Mature local platform | Task-authoring tools, human review, optional model judges, comparison dashboards, versioned regrading, transferable result/pack bundles, and verified macOS support. |
+| Software engineering | The 27 programming and 12 terminal tasks have isolated execution and independent fixtures. Expand original repository and repair workflows while preserving upstream identities for imported suites. |
+| Cybersecurity | Fourteen defensive analysis tasks remain active. The unfinished original application labs are archived and cannot be prepared or run; complete isolation, reset and independent grading review before any release. |
+| Frontend UI design | Six original briefs have offline Chromium functional checks, desktop/mobile screenshots and a separate unscored visual review rubric. Expand task diversity and add a distinct human review workflow before reporting visual quality scores. |
+| World-knowledge retention | Eight original closed-book tasks contain 64 exact-answer checks with dated source references. Broaden topic and language coverage through newly versioned, reviewed questions. |
+| Needle-in-haystack retrieval | Thirty-six deterministic profiles contain 216 checks across 32/128/512 KiB contexts and five profile families. Add separately graded evidence-location targets and token-aware coverage without relabeling bytes as tokens. |
+| Numerical engineering | Retain existing math tasks and expand unit-aware physical/numerical models with explicit tolerances, conservation checks and good/bad fixtures. |
+| Platform maturity | Add bounded parallel workers, external-agent adapters, comparison dashboards, versioned regrading and transferable pack/result bundles as working integrations. Preserve Windows/Linux support; macOS remains unverified future work. |
+
+The knowledge and retrieval packs use the shared CLI/HTTP run core and require
+explicit local preparation. The frontend briefs require an additional prepared
+browser image; source presence alone does not make those tasks runnable. Their
+validation evidence is recorded in [knowledge and retrieval](knowledge-retrieval.md)
+and [frontend benchmarks](frontend-benchmarks.md).
 
 ## Evaluation rules
 
 - Compare matching task, harness, tool, budget and network conditions. External
-  agents are separate measured systems, not anonymous substitutions for a model.
-- Preserve task/environment hashes, sampling settings, versions, traces and
-  available runtime/hardware provenance. Seeds are recorded, not promises of
-  identical output across providers or hardware.
-- Report category outcomes, attempts, unsupported tasks, infrastructure errors,
-  time and token usage separately. Repeated trials should expose uncertainty.
-- Refusal/compliance and correctness are separate dimensions with explicit task
-  rubrics. Human and model judgment have their own provenance and scores.
-- Keep submissions so later graders produce new assessments without overwriting
-  prior results or rerunning inference unnecessarily.
-- Imports retain upstream licenses and scoring identities. Any offline adaptation
-  that changes conditions gets a distinct variant identity and comparability note.
+  agents are separately identified systems.
+- Preserve hashes, versions, generation settings, traces and available runtime
+  provenance. Report unsupported tasks and infrastructure errors separately.
+- Separate task correctness, refusal/compliance, functional UI behavior, visual
+  quality and subjective review. Keep repeated attempts and uncertainty visible.
+- Preserve submissions for new versioned assessments; never overwrite old grades.
+- Retain upstream licensing and label adaptations that change scoring conditions.
+- Preparation may download approved dependencies. Measured execution and grading
+  require no external network; inference retains its explicit local/API boundary.
 
-## Continuing boundaries
+## Operator deferrals
 
-Windows and Linux first; macOS later. One local operator. Existing inference
-servers, with optional API access. Preparation may use registries; measured task
-execution has no external network. The code license is AGPL-3.0-only, while
-third-party content retains its own licensing.
+`DATA_DIR/imports/operator-deferrals.json` is an optional workspace-local marker
+with `schema_version: 1` and a `deferred_suites` object mapping suite IDs to reasons.
+Preparation rereads it at runtime entry. A deferral fails the preparation job
+with an explicit operator reason. Already compiled code in an existing service
+cannot acquire new checkpoints until it loads the new module; verify a legacy
+job's terminal state before claiming that preparation has stopped.
 
 Shared hosting, distributed farms, managed model runtimes and operating-system/VM
-tasks remain separate future projects. Large benchmark coverage is built through
-working packs rather than placeholder registries.
+tasks remain separate future projects. The code remains AGPL-3.0-only; third-party
+content retains its own licensing.

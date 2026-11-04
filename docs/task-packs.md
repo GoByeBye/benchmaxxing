@@ -116,10 +116,8 @@ tasks do not claim to measure nuanced natural-language refusal quality.
 Security tasks cover defensive parsing, normalization, policy and state analysis.
 Engineering tasks assess specified simplified formulas and numerical behavior,
 including quaternion transforms, indexed mesh geometry and point-mass inertia.
-These are JSON function tasks, not Blender/CAD artifact workflows or certifications
-for real-world engineering design. Interactive browser
-apps, offensive labs, Blender and CAD are separate future packs with their own
-environments and graders.
+These are JSON function tasks rather than certifications for real-world engineering
+design. Interactive browser apps and offensive labs have separate environments and graders.
 
 ## Required validation
 

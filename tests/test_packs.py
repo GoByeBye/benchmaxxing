@@ -12,7 +12,7 @@ from benchmaxxing.task import TaskDefinition, definitions, get_task, list_tasks,
 
 
 def test_public_catalog_excludes_private_grading_material():
-    tasks = list_tasks()
+    tasks = [task for task in list_tasks() if task.kind != "answer"]
     assert len({task.id for task in tasks}) == len(tasks)
     assert Counter(task.category for task in tasks) == {
         "programming": 27,
@@ -92,7 +92,7 @@ def test_artifact_grade_reports_invalid_and_missing_fields(tmp_path):
 
 def test_cli_catalog_and_invalid_selection_do_not_need_docker(tmp_path):
     runner = CliRunner()
-    result = runner.invoke(app, ["tasks", "--category", "terminal"])
+    result = runner.invoke(app, ["tasks", "--category", "terminal", "--data-dir", str(tmp_path)])
     assert result.exit_code == 0
     assert len(json.loads(result.output)) == 12
     result = runner.invoke(app, ["validate-packs"])

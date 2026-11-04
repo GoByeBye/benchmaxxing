@@ -67,6 +67,148 @@
       "get": {
         "summary": "Tasks",
         "operationId": "tasks_api_v1_tasks_get",
+        "parameters": [
+          {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Archived"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskSpec"
+                  },
+                  "title": "Response Tasks Api V1 Tasks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers": {
+      "get": {
+        "summary": "Providers",
+        "operationId": "providers_api_v1_providers_get",
+        "parameters": [
+          {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Archived"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SuiteStatus"
+                  },
+                  "title": "Response Providers Api V1 Providers Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/settings": {
+      "get": {
+        "summary": "Provider Settings",
+        "operationId": "provider_settings_api_v1_providers_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSettings"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Set Provider Settings",
+        "operationId": "set_provider_settings_api_v1_providers_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/jobs": {
+      "get": {
+        "summary": "Provider Jobs",
+        "operationId": "provider_jobs_api_v1_providers_jobs_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -74,10 +216,239 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/TaskSpec"
+                    "$ref": "#/components/schemas/PreparationJob"
                   },
                   "type": "array",
-                  "title": "Response Tasks Api V1 Tasks Get"
+                  "title": "Response Provider Jobs Api V1 Providers Jobs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/jobs/{job_id}": {
+      "get": {
+        "summary": "Provider Job",
+        "operationId": "provider_job_api_v1_providers_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparationJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/import": {
+      "post": {
+        "summary": "Import Provider",
+        "operationId": "import_provider_api_v1_providers_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparationJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/prepare": {
+      "post": {
+        "summary": "Prepare Provider",
+        "operationId": "prepare_provider_api_v1_providers_prepare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreparationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparationJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/fetch": {
+      "post": {
+        "summary": "Fetch Provider",
+        "operationId": "fetch_provider_api_v1_providers_fetch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FetchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparationJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/swe-plan": {
+      "post": {
+        "summary": "Plan Swe Provider",
+        "operationId": "plan_swe_provider_api_v1_providers_swe_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SWEPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparationJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/swe-prepare": {
+      "post": {
+        "summary": "Prepare Swe Provider",
+        "operationId": "prepare_swe_provider_api_v1_providers_swe_prepare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SWEPreparationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparationJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -515,7 +886,7 @@
           },
           "artifact_bytes": {
             "type": "integer",
-            "maximum": 16777216.0,
+            "maximum": 134217728.0,
             "minimum": 1024.0,
             "title": "Artifact Bytes",
             "default": 1048576
@@ -590,6 +961,20 @@
         ],
         "title": "DoctorReport"
       },
+      "FetchRequest": {
+        "properties": {
+          "suite_id": {
+            "type": "string",
+            "title": "Suite Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suite_id"
+        ],
+        "title": "FetchRequest"
+      },
       "Generation": {
         "properties": {
           "temperature": {
@@ -635,6 +1020,78 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "ImportRequest": {
+        "properties": {
+          "suite_id": {
+            "type": "string",
+            "title": "Suite Id"
+          },
+          "source_path": {
+            "type": "string",
+            "title": "Source Path"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suite_id",
+          "source_path",
+          "revision"
+        ],
+        "title": "ImportRequest"
+      },
+      "ImportSettings": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "storage_limit_bytes": {
+            "type": "integer",
+            "maximum": 250000000000.0,
+            "minimum": 1000000000.0,
+            "title": "Storage Limit Bytes",
+            "default": 250000000000
+          },
+          "reserve_free_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Reserve Free Bytes",
+            "default": 10000000000
+          },
+          "cache_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Dir"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ImportSettings"
+      },
       "InferenceProfile": {
         "properties": {
           "mode": {
@@ -674,6 +1131,110 @@
           "model"
         ],
         "title": "InferenceProfile"
+      },
+      "PreparationJob": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "suite_id": {
+            "type": "string",
+            "title": "Suite Id"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "import",
+              "prepare",
+              "fetch"
+            ],
+            "title": "Operation"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "interrupted"
+            ],
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "suite_id",
+          "operation",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PreparationJob"
+      },
+      "PreparationRequest": {
+        "properties": {
+          "suite_id": {
+            "type": "string",
+            "title": "Suite Id"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "pull": {
+            "type": "boolean",
+            "title": "Pull",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suite_id"
+        ],
+        "title": "PreparationRequest"
       },
       "RunActivity": {
         "properties": {
@@ -871,7 +1432,8 @@
               "unsupported",
               "cancelled",
               "budget_exhausted",
-              "interrupted"
+              "interrupted",
+              "completed"
             ],
             "title": "Status"
           },
@@ -990,6 +1552,46 @@
         "type": "object",
         "title": "RunSpec"
       },
+      "SWEPlanRequest": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "task_id"
+        ],
+        "title": "SWEPlanRequest"
+      },
+      "SWEPreparationRequest": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "title": "Task Id"
+          },
+          "reservation_bytes": {
+            "type": "integer",
+            "maximum": 250000000000.0,
+            "minimum": 1000000000.0,
+            "title": "Reservation Bytes"
+          },
+          "pull": {
+            "type": "boolean",
+            "title": "Pull",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "task_id",
+          "reservation_bytes"
+        ],
+        "title": "SWEPreparationRequest"
+      },
       "ScoreCard": {
         "properties": {
           "schema_version": {
@@ -1004,7 +1606,14 @@
             "default": "interval-blackbox/1"
           },
           "passed": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Passed"
           },
           "score": {
@@ -1047,6 +1656,157 @@
           "version"
         ],
         "title": "SessionInfo"
+      },
+      "SuiteDescriptor": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "upstream_url": {
+            "type": "string",
+            "title": "Upstream Url"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "published_size": {
+            "type": "string",
+            "title": "Published Size"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "license": {
+            "type": "string",
+            "title": "License"
+          },
+          "offline": {
+            "type": "string",
+            "enum": [
+              "supported-path",
+              "adaptation",
+              "conditional",
+              "unavailable"
+            ],
+            "title": "Offline"
+          },
+          "requirements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Requirements"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "source_format": {
+            "type": "string",
+            "title": "Source Format",
+            "default": "directory"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "default": true
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "upstream",
+              "original"
+            ],
+            "title": "Origin",
+            "default": "upstream"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "category",
+          "upstream_url",
+          "version",
+          "published_size",
+          "description",
+          "license",
+          "offline"
+        ],
+        "title": "SuiteDescriptor"
+      },
+      "SuiteStatus": {
+        "properties": {
+          "suite": {
+            "$ref": "#/components/schemas/SuiteDescriptor"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_installed",
+              "imported",
+              "prepared",
+              "partial",
+              "blocked"
+            ],
+            "title": "State"
+          },
+          "imported_tasks": {
+            "type": "integer",
+            "title": "Imported Tasks",
+            "default": 0
+          },
+          "prepared_tasks": {
+            "type": "integer",
+            "title": "Prepared Tasks",
+            "default": 0
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blockers"
+          },
+          "revisions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Revisions"
+          },
+          "source_bytes": {
+            "type": "integer",
+            "title": "Source Bytes",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suite",
+          "state"
+        ],
+        "title": "SuiteStatus"
       },
       "TaskSpec": {
         "properties": {
@@ -1092,10 +1852,22 @@
             "type": "string",
             "enum": [
               "python",
-              "json"
+              "json",
+              "native",
+              "answer"
             ],
             "title": "Kind",
             "default": "python"
+          },
+          "execution_profile": {
+            "type": "string",
+            "enum": [
+              "workspace",
+              "closed-book",
+              "context-retrieval"
+            ],
+            "title": "Execution Profile",
+            "default": "workspace"
           },
           "submission_file": {
             "type": "string",
@@ -1120,8 +1892,15 @@
             "title": "Tags"
           },
           "check_count": {
-            "type": "integer",
-            "minimum": 1.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Check Count",
             "default": 8
           },
@@ -1129,6 +1908,61 @@
             "type": "string",
             "title": "Rubric",
             "default": ""
+          },
+          "suite_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suite Id"
+          },
+          "upstream_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upstream Id"
+          },
+          "upstream_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upstream Revision"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant"
+          },
+          "prepared": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prepared"
           }
         },
         "additionalProperties": false,

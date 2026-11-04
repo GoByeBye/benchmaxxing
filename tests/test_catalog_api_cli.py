@@ -49,7 +49,16 @@ def test_api_and_cli_catalog_agree_without_private_material(catalog_client: Test
     private = get_definition("python.topological-order")
     assert private.good_solution not in response.text
     assert "SYNTHETIC-NOT-A-REAL-KEY" not in response.text
-    listed = runner.invoke(cli.app, ["tasks", "--category", "terminal"])
+    listed = runner.invoke(
+        cli.app,
+        [
+            "tasks",
+            "--category",
+            "terminal",
+            "--data-dir",
+            str(catalog_client.app.state.controller.store.data_dir),
+        ],
+    )
     assert listed.exit_code == 0, listed.output
     assert json.loads(listed.stdout) == [
         item for item in catalog.values() if item["category"] == "terminal"
@@ -291,7 +300,7 @@ def test_suite_headless_selection_and_variant_override(
     assert len({item["id"] for item in summary["results"]}) == 4
 
 
-def test_suite_submission_failure_cancels_queued_attempts(
+def test_suite_submission_failure_preserves_accepted_attempts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     remote = FakeRemoteController(tmp_path / "data", fail_submission=3)
@@ -309,10 +318,10 @@ def test_suite_submission_failure_cancels_queued_attempts(
         ],
     )
     assert result.exit_code == 2, result.output
-    assert "partial run evidence remains" in result.output
+    assert "accepted controller runs remain queued/running" in result.output
     records = remote.store.list_runs()
-    assert len(records) == 2 and all(record.status == "cancelled" for record in records)
-    assert set(remote.cancelled) == {record.id for record in records}
+    assert len(records) == 2 and all(record.status == "queued" for record in records)
+    assert not remote.cancelled
     assert not remote.polled
     assert remote.client.is_closed
 

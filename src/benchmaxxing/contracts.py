@@ -14,7 +14,7 @@ class Budgets(Contract):
     wall_seconds: float = Field(default=1800, ge=1, le=86400)
     command_seconds: float = Field(default=10, ge=0.1, le=300)
     output_bytes: int = Field(default=65536, ge=1024, le=1048576)
-    artifact_bytes: int = Field(default=1048576, ge=1024, le=16777216)
+    artifact_bytes: int = Field(default=1048576, ge=1024, le=134217728)
     memory_mb: int = Field(default=256, ge=64, le=32768)
     cpus: float = Field(default=1, ge=0.1, le=32)
     pids: int = Field(default=64, ge=16, le=512)
@@ -72,6 +72,7 @@ RunStatus = Literal[
     "cancelled",
     "budget_exhausted",
     "interrupted",
+    "completed",
 ]
 TERMINAL_STATUSES: set[str] = {
     "passed",
@@ -81,6 +82,7 @@ TERMINAL_STATUSES: set[str] = {
     "cancelled",
     "budget_exhausted",
     "interrupted",
+    "completed",
 }
 
 
@@ -93,7 +95,7 @@ class CheckResult(Contract):
 class ScoreCard(Contract):
     schema_version: Literal[1] = 1
     grader_version: str = "interval-blackbox/1"
-    passed: bool
+    passed: bool | None
     score: float = Field(ge=0, le=1)
     checks: list[CheckResult] = Field(default_factory=list)
 
@@ -136,12 +138,18 @@ class TaskSpec(Contract):
     description: str
     task_hash: str
     image: str
-    kind: Literal["python", "json"] = "python"
+    kind: Literal["python", "json", "native", "answer"] = "python"
+    execution_profile: Literal["workspace", "closed-book", "context-retrieval"] = "workspace"
     submission_file: str = "solution.py"
     difficulty: Literal["easy", "medium", "hard"] = "easy"
     tags: list[str] = Field(default_factory=list)
-    check_count: int = Field(default=8, ge=1)
+    check_count: int | None = Field(default=8, ge=1)
     rubric: str = ""
+    suite_id: str | None = None
+    upstream_id: str | None = None
+    upstream_revision: str | None = None
+    variant: str | None = None
+    prepared: bool | None = None
 
 
 class RunDetail(Contract):

@@ -1,5 +1,8 @@
 # Foundation validation
 
+For the subsequent upstream-provider release, see [Provider validation](provider-validation.md).
+The observations below remain the historical foundation and original-catalog record.
+
 Validated on 4 November 2026 (Europe/Oslo).
 
 | Check | Observed result |

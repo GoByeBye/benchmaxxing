@@ -72,6 +72,160 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Providers */
+        get: operations["providers_api_v1_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Provider Settings */
+        get: operations["provider_settings_api_v1_providers_settings_get"];
+        /** Set Provider Settings */
+        put: operations["set_provider_settings_api_v1_providers_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Provider Jobs */
+        get: operations["provider_jobs_api_v1_providers_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Provider Job */
+        get: operations["provider_job_api_v1_providers_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Provider */
+        post: operations["import_provider_api_v1_providers_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare Provider */
+        post: operations["prepare_provider_api_v1_providers_prepare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/fetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetch Provider */
+        post: operations["fetch_provider_api_v1_providers_fetch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/swe-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Plan Swe Provider */
+        post: operations["plan_swe_provider_api_v1_providers_swe_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/swe-prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare Swe Provider */
+        post: operations["prepare_swe_provider_api_v1_providers_swe_prepare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/activity": {
         parameters: {
             query?: never;
@@ -308,6 +462,11 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** FetchRequest */
+        FetchRequest: {
+            /** Suite Id */
+            suite_id: string;
+        };
         /** Generation */
         Generation: {
             /**
@@ -328,6 +487,38 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** ImportRequest */
+        ImportRequest: {
+            /** Suite Id */
+            suite_id: string;
+            /** Source Path */
+            source_path: string;
+            /** Revision */
+            revision: string;
+            /** Variant */
+            variant?: string | null;
+        };
+        /** ImportSettings */
+        ImportSettings: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version?: 1;
+            /**
+             * Storage Limit Bytes
+             * @default 250000000000
+             */
+            storage_limit_bytes?: number;
+            /**
+             * Reserve Free Bytes
+             * @default 10000000000
+             */
+            reserve_free_bytes?: number;
+            /** Cache Dir */
+            cache_dir?: string | null;
+        };
         /** InferenceProfile */
         InferenceProfile: {
             /**
@@ -345,6 +536,45 @@ export interface components {
             model: string;
             /** Api Key Env */
             api_key_env?: string | null;
+        };
+        /** PreparationJob */
+        PreparationJob: {
+            /** Id */
+            id: string;
+            /** Suite Id */
+            suite_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "import" | "prepare" | "fetch";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed" | "interrupted";
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Error */
+            error?: string | null;
+            /** Result */
+            result?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** PreparationRequest */
+        PreparationRequest: {
+            /** Suite Id */
+            suite_id: string;
+            /** Image */
+            image?: string | null;
+            /**
+             * Pull
+             * @default false
+             */
+            pull?: boolean;
         };
         /** RunActivity */
         RunActivity: {
@@ -431,7 +661,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "queued" | "running" | "passed" | "failed" | "infrastructure_error" | "unsupported" | "cancelled" | "budget_exhausted" | "interrupted";
+            status: "queued" | "running" | "passed" | "failed" | "infrastructure_error" | "unsupported" | "cancelled" | "budget_exhausted" | "interrupted" | "completed";
             spec: components["schemas"]["RunSpec"];
             /** Created At */
             created_at: string;
@@ -476,6 +706,23 @@ export interface components {
             generation?: components["schemas"]["Generation"];
             budgets?: components["schemas"]["Budgets"];
         };
+        /** SWEPlanRequest */
+        SWEPlanRequest: {
+            /** Task Id */
+            task_id: string;
+        };
+        /** SWEPreparationRequest */
+        SWEPreparationRequest: {
+            /** Task Id */
+            task_id: string;
+            /** Reservation Bytes */
+            reservation_bytes: number;
+            /**
+             * Pull
+             * @default false
+             */
+            pull?: boolean;
+        };
         /** ScoreCard */
         ScoreCard: {
             /**
@@ -490,7 +737,7 @@ export interface components {
              */
             grader_version?: string;
             /** Passed */
-            passed: boolean;
+            passed: boolean | null;
             /** Score */
             score: number;
             /** Checks */
@@ -502,6 +749,78 @@ export interface components {
             token: string;
             /** Version */
             version: string;
+        };
+        /** SuiteDescriptor */
+        SuiteDescriptor: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Category */
+            category: string;
+            /** Upstream Url */
+            upstream_url: string;
+            /** Version */
+            version: string;
+            /** Published Size */
+            published_size: string;
+            /** Description */
+            description: string;
+            /** License */
+            license: string;
+            /**
+             * Offline
+             * @enum {string}
+             */
+            offline: "supported-path" | "adaptation" | "conditional" | "unavailable";
+            /** Requirements */
+            requirements?: string[];
+            /** Source Url */
+            source_url?: string | null;
+            /**
+             * Source Format
+             * @default directory
+             */
+            source_format?: string;
+            /**
+             * Active
+             * @default true
+             */
+            active?: boolean;
+            /**
+             * Origin
+             * @default upstream
+             * @enum {string}
+             */
+            origin?: "upstream" | "original";
+        };
+        /** SuiteStatus */
+        SuiteStatus: {
+            suite: components["schemas"]["SuiteDescriptor"];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "not_installed" | "imported" | "prepared" | "partial" | "blocked";
+            /**
+             * Imported Tasks
+             * @default 0
+             */
+            imported_tasks?: number;
+            /**
+             * Prepared Tasks
+             * @default 0
+             */
+            prepared_tasks?: number;
+            /** Blockers */
+            blockers?: string[];
+            /** Revisions */
+            revisions?: string[];
+            /**
+             * Source Bytes
+             * @default 0
+             */
+            source_bytes?: number;
         };
         /** TaskSpec */
         TaskSpec: {
@@ -542,7 +861,13 @@ export interface components {
              * @default python
              * @enum {string}
              */
-            kind?: "python" | "json";
+            kind?: "python" | "json" | "native" | "answer";
+            /**
+             * Execution Profile
+             * @default workspace
+             * @enum {string}
+             */
+            execution_profile?: "workspace" | "closed-book" | "context-retrieval";
             /**
              * Submission File
              * @default solution.py
@@ -560,12 +885,22 @@ export interface components {
              * Check Count
              * @default 8
              */
-            check_count?: number;
+            check_count?: number | null;
             /**
              * Rubric
              * @default
              */
             rubric?: string;
+            /** Suite Id */
+            suite_id?: string | null;
+            /** Upstream Id */
+            upstream_id?: string | null;
+            /** Upstream Revision */
+            upstream_revision?: string | null;
+            /** Variant */
+            variant?: string | null;
+            /** Prepared */
+            prepared?: boolean | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -668,7 +1003,9 @@ export interface operations {
     };
     tasks_api_v1_tasks_get: {
         parameters: {
-            query?: never;
+            query?: {
+                include_archived?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -682,6 +1019,315 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskSpec"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    providers_api_v1_providers_get: {
+        parameters: {
+            query?: {
+                include_archived?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuiteStatus"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_settings_api_v1_providers_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSettings"];
+                };
+            };
+        };
+    };
+    set_provider_settings_api_v1_providers_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_jobs_api_v1_providers_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreparationJob"][];
+                };
+            };
+        };
+    };
+    provider_job_api_v1_providers_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreparationJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_provider_api_v1_providers_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreparationJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prepare_provider_api_v1_providers_prepare_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreparationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreparationJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fetch_provider_api_v1_providers_fetch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FetchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreparationJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_swe_provider_api_v1_providers_swe_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SWEPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreparationJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prepare_swe_provider_api_v1_providers_swe_prepare_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SWEPreparationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreparationJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

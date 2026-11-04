@@ -185,6 +185,14 @@ def execute_run(
 ) -> RunRecord:
     """Execute one queued run. The caller owns the workspace/controller lock."""
     run = store.get_run(run_id)
+    if run.spec.task_id.startswith(("knowledge.", "retrieval.")):
+        from benchmaxxing.answer_runner import execute_answer
+
+        return execute_answer(store, run_id, cancel_event)
+    if run.spec.task_id.startswith("imported."):
+        from benchmaxxing.providers.runner import execute_imported
+
+        return execute_imported(store, run_id, cancel_event)
     if run.status != "queued":
         return run
     cancellation = cancel_event or threading.Event()

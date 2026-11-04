@@ -5,7 +5,7 @@ import json
 import math
 from functools import lru_cache
 from importlib.resources import files
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 from pydantic import Field, model_validator
@@ -183,15 +183,57 @@ def get_definition(task_id: str) -> TaskDefinition:
         raise ValueError(f"Unknown installed task: {task_id}") from None
 
 
-def get_task(task_id: str = REFERENCE_ID) -> TaskSpec:
+def get_task(task_id: str = REFERENCE_ID, *, data_dir: Path | None = None) -> TaskSpec:
+    if task_id.startswith(("knowledge.", "retrieval.")):
+        from benchmaxxing.answers import definitions as answer_definitions
+
+        try:
+            return answer_definitions()[task_id].public_spec()
+        except KeyError:
+            raise ValueError(f"Unknown installed answer task: {task_id}") from None
+    if task_id.startswith("imported."):
+        from benchmaxxing.providers.registry import get_imported, public_task
+
+        if data_dir is None:
+            raise ValueError("Imported tasks require the selected data directory")
+        return public_task(data_dir, get_imported(data_dir, task_id))
     return _reference_task() if task_id == REFERENCE_ID else get_definition(task_id).public_spec()
 
 
-def list_tasks() -> list[TaskSpec]:
-    return [get_task(), *[value.public_spec() for value in definitions().values()]]
+def list_tasks(*, data_dir: Path | None = None, include_archived: bool = False) -> list[TaskSpec]:
+    from benchmaxxing.answers import definitions as answer_definitions
+
+    result = [get_task(), *[value.public_spec() for value in definitions().values()]]
+    result.extend(value.public_spec() for value in answer_definitions().values())
+    if data_dir is not None:
+        from benchmaxxing.providers.catalog import get_suite
+        from benchmaxxing.providers.registry import list_public_tasks
+
+        for task in list_public_tasks(data_dir):
+            if task.suite_id is None:
+                result.append(task)
+                continue
+            try:
+                suite = get_suite(task.suite_id)
+            except ValueError:
+                # Legacy imports retain their on-disk evidence, but removed
+                # providers must never reappear in the active task catalog.
+                continue
+            if include_archived or suite.active:
+                result.append(task)
+    return result
 
 
 def task_files(task_id: str = REFERENCE_ID) -> dict[str, bytes]:
+    if task_id.startswith(("knowledge.", "retrieval.")):
+        from benchmaxxing.answers import definitions as answer_definitions
+        from benchmaxxing.answers import render_prompt
+
+        answer = answer_definitions()[task_id]
+        return {
+            "TASK.md": render_prompt(answer).encode(),
+            "public_tests.py": b"# Answer-only JSON structure is validated by the controller.\n",
+        }
     if task_id == REFERENCE_ID:
         return reference_files()
     definition = get_definition(task_id)
@@ -202,6 +244,11 @@ def task_files(task_id: str = REFERENCE_ID) -> dict[str, bytes]:
 
 
 def fixture_solution(task_id: str, variant: str) -> str:
+    if task_id.startswith(("knowledge.", "retrieval.")):
+        from benchmaxxing.answers import definitions as answer_definitions
+        from benchmaxxing.answers import fixture
+
+        return fixture(answer_definitions()[task_id], variant)
     if task_id == REFERENCE_ID:
         return GOOD_SOLUTION if variant == "good" else BAD_SOLUTION
     definition = get_definition(task_id)

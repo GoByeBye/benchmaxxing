@@ -54,6 +54,12 @@ jobs:
         env:
           BENCHMAXXING_DOCKER_TESTS: '1'
           BENCHMAXXING_TEST_DATA_DIR: ${{ github.workspace }}/.benchmaxxing
+      - name: Prepare small native provider test runtime
+        run: docker build -t benchmaxxing/evalplus-frozen:1 -f examples/providers/evalplus-frozen.Dockerfile .
+      - name: Native imported-task isolation and cancellation
+        run: uv run --locked pytest tests/test_provider_native.py -q
+        env:
+          BENCHMAXXING_NATIVE_DOCKER_TESTS: '1'
       - name: Start local service
         run: |
           uv run --locked benchmaxxing serve > server.log 2>&1 &

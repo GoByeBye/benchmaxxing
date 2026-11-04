@@ -22,7 +22,13 @@ dev = ["pytest>=8.3,<10", "ruff>=0.11,<1", "mypy>=1.15,<2"]
 
 [tool.hatch.build]
 ignore-vcs = true
-exclude = ["**/__pycache__/**", "**/*.pyc", "**/*.pyo", "**/.env", "**/.env.*"]
+exclude = [
+  "**/__pycache__/**", "**/*.pyc", "**/*.pyo", "**/.env", "**/.env.*",
+  "src/benchmaxxing/providers/cyberlabs.py",
+  "src/benchmaxxing/providers/cyberlab_environment.py",
+  "src/benchmaxxing/runtimes/cyberlab_server.py",
+  "tests/test_cyberlabs.py",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/benchmaxxing"]
@@ -34,7 +40,7 @@ only-include = [
   "web/src", "web/tests", "web/public", "web/index.html", "web/.gitignore",
   "web/package.json", "web/package-lock.json", "web/openapi.json", "web/tsconfig.json",
   "web/vite.config.ts", "web/playwright.config.ts", "web/playwright.integration.config.ts",
-  "web/playwright.firefox.config.ts",
+  "web/playwright.firefox.config.ts", "web/playwright.edge.config.ts",
   "README.md", "CONTRIBUTING.md", "LICENSE", "AGENTS.md", "pyproject.toml", "uv.lock",
   ".gitignore", ".gitattributes", ".dockerignore", ".python-version",
 ]

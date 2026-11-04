@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "generate:api": "openapi-typescript openapi.json -o src/api-types.ts --default-non-nullable false",
     "test": "playwright test",
+    "test:edge": "playwright test --config playwright.edge.config.ts",
     "test:firefox": "playwright test --config playwright.firefox.config.ts",
     "test:integration": "playwright test --config playwright.integration.config.ts"
   },

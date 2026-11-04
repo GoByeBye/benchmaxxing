@@ -15,6 +15,15 @@ the versioned built-in harness. `benchmaxxing-tools/2` added task-aware instruct
 and designated Python/JSON submissions. `/3` requests streamed inference and uses
 unbuffered Python command output for the live session. Older results retain their
 original identities; new defaults do not rewrite existing attempts.
+Imported suites use the separate `benchmaxxing-imports/1` track and immutable
+provider records. [Provider preparation and native grading](providers.md) describe
+their source, runtime and grader boundaries, including continuous and ungraded
+outcomes. Import/prepare jobs are independent of the measured execution queue.
+Source-tree hashes use one Windows-style path-component order on all hosts, so
+new imports identify the same bytes consistently across Windows and Linux. Existing
+import records are not rewritten. A source previously imported on Linux with the
+older host-dependent order may receive a distinct source hash and task identity
+when reimported; its old variant and run evidence remain intact.
 External-agent contracts will be introduced
 with an executable integration in milestone 3, rather than shipped as unused stubs.
 
@@ -113,6 +122,13 @@ API documentation is generated into web/openapi.json; frontend types are generat
 from it. Node is needed to develop/build the UI, not to run a built wheel.
 
 ## Decisions and limits
+
+Current development scope prioritizes software, isolated cybersecurity labs,
+frontend design, offline world-knowledge retention and long-context retrieval,
+while retaining numerical engineering. Removed provider imports may remain in old
+data directories as historical evidence; they are excluded from catalogs and new
+execution. The workspace operator-deferral marker gates preparation only; it does
+not interrupt measured execution. See the [roadmap](roadmap.md#operator-deferrals).
 
 - Python integrates task tooling and scientific/domain libraries; TypeScript keeps
   the browser interface typed. One process and SQLite suit the current operator model.

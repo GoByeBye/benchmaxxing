@@ -15,6 +15,12 @@ FORBIDDEN = {
     "__pycache__",
     ".git",
 }
+UNSHIPPED_LABS = {
+    "providers/cyberlabs.py",
+    "providers/cyberlab_environment.py",
+    "runtimes/cyberlab_server.py",
+    "tests/test_cyberlabs.py",
+}
 
 
 def check_names(names: set[str]) -> None:
@@ -26,6 +32,8 @@ def check_names(names: set[str]) -> None:
             raise ValueError(f"Private/runtime artifact in archive: {name}")
         if path.name == "controller.json":
             raise ValueError("Controller descriptor must never be distributed")
+        if any(name.endswith("/" + partial) for partial in UNSHIPPED_LABS):
+            raise ValueError(f"Unfinished lab implementation in archive: {name}")
 
 
 def main() -> None:
@@ -36,6 +44,27 @@ def main() -> None:
     expected_packs = {
         "benchmaxxing/" + p.relative_to(package).as_posix()
         for p in (package / "packs").rglob("*.json")
+    }
+    expected_answers = {
+        "benchmaxxing/" + p.relative_to(package).as_posix()
+        for p in (package / "answer_packs").rglob("*.json")
+    } | {"benchmaxxing/answers.py", "benchmaxxing/answer_runner.py"}
+    expected_providers = {"benchmaxxing/provider_cli.py"}
+    for directory in (package / "providers", package / "runtimes"):
+        expected_providers.update(
+            "benchmaxxing/" + path.relative_to(package).as_posix()
+            for path in directory.rglob("*")
+            if path.is_file()
+            and "__pycache__" not in path.parts
+            and path.suffix not in {".pyc", ".pyo"}
+            and not any(
+                path.relative_to(package).as_posix().endswith(partial) for partial in UNSHIPPED_LABS
+            )
+        )
+    expected_static = {
+        "benchmaxxing/" + path.relative_to(package).as_posix()
+        for path in (package / "static").rglob("*")
+        if path.is_file()
     }
     wheels = list(args.directory.glob("*.whl"))
     sources = list(args.directory.glob("*.tar.gz"))
@@ -58,6 +87,10 @@ def main() -> None:
                     f"Wheel pack mismatch: missing={expected_packs - packs}, "
                     f"unexpected={packs - expected_packs}"
                 )
+            for expected in (expected_providers, expected_static, expected_answers):
+                missing = expected - names
+                if missing:
+                    raise ValueError(f"Wheel missing provider/runtime/UI resources: {missing}")
             print(f"{wheel.name}: {len(names)} verified members")
     for source in sources:
         with tarfile.open(source, "r:gz") as archive:
@@ -76,11 +109,21 @@ def main() -> None:
                 "LICENSE",
                 "src/benchmaxxing/static/index.html",
                 "src/benchmaxxing/reference/TASK.md",
+                "docs/providers.md",
+                "docs/provider-validation.md",
+                "docs/knowledge-retrieval.md",
+                "docs/frontend-benchmarks.md",
             ):
                 if required not in relative:
                     raise ValueError(f"Source distribution missing {required}")
             if not {"src/" + name for name in expected_packs}.issubset(relative):
                 raise ValueError("Source distribution missing installed pack definitions")
+            for expected in (expected_providers, expected_static, expected_answers):
+                missing = {"src/" + name for name in expected} - relative
+                if missing:
+                    raise ValueError(
+                        f"Source distribution missing provider/runtime/UI resources: {missing}"
+                    )
             print(f"{source.name}: {len(names)} verified members")
 
 

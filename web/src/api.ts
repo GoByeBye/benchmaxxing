@@ -8,6 +8,9 @@ export type Artifact = components['schemas']['ArtifactRecord'];
 export type Doctor = components['schemas']['DoctorReport'];
 export type Task = components['schemas']['TaskSpec'];
 export type Session = components['schemas']['SessionInfo'];
+export type SuiteStatus = components['schemas']['SuiteStatus'];
+export type ImportSettings = components['schemas']['ImportSettings'];
+export type PreparationJob = components['schemas']['PreparationJob'];
 
 export class ApiError extends Error {
   constructor(message: string, public status: number) { super(message); }
@@ -36,6 +39,7 @@ export function mutate<T>(path: string, token: string, body?: unknown): Promise<
 }
 
 export const isActive = (status: string) => status === 'queued' || status === 'running';
+export const needsReview = (run: Run) => ['needs_review', 'ungraded'].includes(String(run.metadata?.assessment_status ?? ''));
 export const statusLabel = (status: string) => status.replaceAll('_', ' ');
 export const participantLabel = (run: Run) => run.spec.participant === 'openai' ? run.spec.inference?.model ?? 'Model endpoint' : `Scripted · ${run.spec.scripted_variant ?? 'good'}`;
 export const formatTime = (value: string) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });

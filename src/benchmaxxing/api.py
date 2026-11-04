@@ -27,6 +27,16 @@ from benchmaxxing.contracts import (
     TaskSpec,
 )
 from benchmaxxing.controller import Controller, RecoveryPending
+from benchmaxxing.providers.contracts import (
+    FetchRequest,
+    ImportRequest,
+    ImportSettings,
+    PreparationJob,
+    PreparationRequest,
+    SuiteStatus,
+    SWEPlanRequest,
+    SWEPreparationRequest,
+)
 
 
 def create_app(
@@ -115,10 +125,145 @@ def create_app(
         return DoctorReport(ready=bool(result.get("ready", False)), checks=result)
 
     @application.get("/api/v1/tasks", response_model=list[TaskSpec])
-    def tasks() -> list[TaskSpec]:
+    def tasks(include_archived: bool = False) -> list[TaskSpec]:
         from benchmaxxing.task import list_tasks
 
-        return list_tasks()
+        return list_tasks(data_dir=owner.store.data_dir, include_archived=include_archived)
+
+    @application.get("/api/v1/providers", response_model=list[SuiteStatus])
+    def providers(include_archived: bool = False) -> list[SuiteStatus]:
+        from benchmaxxing.providers.registry import suite_statuses
+
+        return suite_statuses(owner.store.data_dir, include_archived=include_archived)
+
+    @application.get("/api/v1/providers/settings", response_model=ImportSettings)
+    def provider_settings() -> ImportSettings:
+        from benchmaxxing.providers.registry import settings
+
+        return settings(owner.store.data_dir)
+
+    @application.put("/api/v1/providers/settings", response_model=ImportSettings)
+    def set_provider_settings(value: ImportSettings) -> ImportSettings:
+        from benchmaxxing.providers.registry import save_settings
+
+        try:
+            save_settings(owner.store.data_dir, value)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return value
+
+    @application.get("/api/v1/providers/jobs", response_model=list[PreparationJob])
+    def provider_jobs() -> list[PreparationJob]:
+        from benchmaxxing.providers.jobs import list_jobs
+
+        return list_jobs(owner.store.data_dir)
+
+    @application.get("/api/v1/providers/jobs/{job_id}", response_model=PreparationJob)
+    def provider_job(job_id: str) -> PreparationJob:
+        from benchmaxxing.providers.jobs import get_job
+
+        try:
+            return get_job(owner.store.data_dir, job_id)
+        except (ValueError, OSError) as exc:
+            raise HTTPException(404, "Preparation job not found") from exc
+
+    @application.post("/api/v1/providers/import", status_code=202, response_model=PreparationJob)
+    def import_provider(value: ImportRequest) -> PreparationJob:
+        from benchmaxxing.providers.catalog import require_active_suite
+        from benchmaxxing.providers.jobs import submit_job
+        from benchmaxxing.providers.registry import convert, install
+
+        try:
+            require_active_suite(value.suite_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+        def import_source() -> dict[str, object]:
+            source = Path(value.source_path).resolve()
+            tasks = convert(value.suite_id, source, revision=value.revision, variant=value.variant)
+            return install(owner.store.data_dir, source, tasks)
+
+        return submit_job(owner.store.data_dir, value.suite_id, "import", import_source)
+
+    @application.post("/api/v1/providers/prepare", status_code=202, response_model=PreparationJob)
+    def prepare_provider(value: PreparationRequest) -> PreparationJob:
+        from benchmaxxing.providers.catalog import require_active_suite
+        from benchmaxxing.providers.jobs import submit_job
+        from benchmaxxing.providers.registry import root
+
+        try:
+            require_active_suite(value.suite_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        records = (root(owner.store.data_dir) / "tasks").glob(f"imported.{value.suite_id}-*.json")
+        if next(records, None) is None:
+            raise HTTPException(422, "Import the suite's source before preparing its runtime")
+
+        def prepare_source() -> dict[str, object]:
+            from benchmaxxing.providers.runtime import prepare_runtime
+
+            return prepare_runtime(
+                owner.store.data_dir, value.suite_id, image=value.image, pull=value.pull
+            )
+
+        return submit_job(owner.store.data_dir, value.suite_id, "prepare", prepare_source)
+
+    @application.post("/api/v1/providers/fetch", status_code=202, response_model=PreparationJob)
+    def fetch_provider(value: FetchRequest) -> PreparationJob:
+        from benchmaxxing.providers.catalog import require_active_suite
+        from benchmaxxing.providers.jobs import submit_job
+        from benchmaxxing.providers.sources import fetch_suite
+
+        try:
+            require_active_suite(value.suite_id)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return submit_job(
+            owner.store.data_dir,
+            value.suite_id,
+            "fetch",
+            lambda: fetch_suite(owner.store.data_dir, value.suite_id),
+        )
+
+    def swe_job(value: SWEPlanRequest, *, prepare: bool) -> PreparationJob:
+        from benchmaxxing.providers.coding_sources import (
+            prepare_swebench_instance,
+            swebench_preparation_plan,
+        )
+        from benchmaxxing.providers.jobs import submit_job
+        from benchmaxxing.providers.locking import preparation_scope
+        from benchmaxxing.providers.registry import get_imported
+
+        try:
+            task = get_imported(owner.store.data_dir, value.task_id)
+            if task.suite_id not in {"swebench-lite", "swebench-verified"}:
+                raise ValueError("Choose an imported SWE-bench instance")
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+        def action() -> dict[str, object]:
+            with preparation_scope(owner.store.data_dir):
+                if prepare:
+                    assert isinstance(value, SWEPreparationRequest)
+                    return prepare_swebench_instance(
+                        owner.store.data_dir,
+                        value.task_id,
+                        reservation_bytes=value.reservation_bytes,
+                        pull=value.pull,
+                    )
+                return swebench_preparation_plan(owner.store.data_dir, value.task_id)
+
+        return submit_job(owner.store.data_dir, task.suite_id, "prepare", action)
+
+    @application.post("/api/v1/providers/swe-plan", status_code=202, response_model=PreparationJob)
+    def plan_swe_provider(value: SWEPlanRequest) -> PreparationJob:
+        return swe_job(value, prepare=False)
+
+    @application.post(
+        "/api/v1/providers/swe-prepare", status_code=202, response_model=PreparationJob
+    )
+    def prepare_swe_provider(value: SWEPreparationRequest) -> PreparationJob:
+        return swe_job(value, prepare=True)
 
     @application.get("/api/v1/run-progress", response_model=ActivitySnapshot)
     @application.get("/api/v1/activity", response_model=ActivitySnapshot, deprecated=True)
@@ -131,13 +276,10 @@ def create_app(
 
     @application.post("/api/v1/runs", response_model=RunRecord, status_code=201)
     def start_run(spec: RunSpec) -> RunRecord:
-        from benchmaxxing.task import get_task
-
         try:
-            get_task(spec.task_id)
+            return owner.submit(spec)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        return owner.submit(spec)
 
     @application.get("/api/v1/runs/{run_id}", response_model=RunDetail)
     def run_detail(run_id: str) -> RunDetail:

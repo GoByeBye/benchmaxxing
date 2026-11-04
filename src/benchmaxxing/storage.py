@@ -191,7 +191,7 @@ class Store:
             saved_task = run.metadata.get("task")
             if not isinstance(saved_task, dict):
                 try:
-                    saved_task = get_task(run.spec.task_id).model_dump()
+                    saved_task = get_task(run.spec.task_id, data_dir=self.data_dir).model_dump()
                 except ValueError:
                     saved_task = {}
             queued = run.status == "queued"

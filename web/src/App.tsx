@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { formatDate, isActive, mutate, participantLabel, request, statusLabel } from './api';
+import { formatDate, isActive, mutate, needsReview, participantLabel, request, statusLabel } from './api';
 import type { Artifact, Doctor, Run, RunDetail, RunEvent, RunSpec, Session, Task } from './api';
 import TaskCatalog, { Coverage } from './TaskCatalog';
-import { categoryLabel, filterTasks, taskIdentity } from './catalog';
+import { categoryLabel, filterTasks, isArchivedTask, removedCategories, taskIdentity } from './catalog';
 import LiveActivity from './LiveActivity';
 import { useActivity } from './useActivity';
 import RunTrace from './RunTrace';
 import { useRunEvidence } from './useRunEvidence';
 import { mergeRunHistory } from './runHistory';
 import SessionFeed from './SessionFeed';
+import ProviderCatalog from './ProviderCatalog';
 
 type IconName = 'grid' | 'play' | 'arrow' | 'clock' | 'check' | 'terminal' | 'download' | 'refresh' | 'stop' | 'file' | 'shield' | 'close';
 
@@ -75,7 +76,10 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
           ? endpointProblem(endpoint.trim(), mode) || (!model.trim() ? 'Enter the model identifier served by your endpoint.' : null)
             || (keyEnv.trim() && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(keyEnv.trim()) ? 'Enter an environment variable name for the API key.' : null)
           : null;
-  const canSubmit = Boolean(session && doctor?.ready && targets.length && !validation && !submitting);
+  const hasNative = targets.some(item => item.kind === 'native');
+  const unprepared = targets.filter(item => isArchivedTask(item) || (item.kind === 'native' ? item.prepared !== true : !doctor?.ready)).length;
+  useEffect(() => { if (hasNative) setParticipant('openai'); }, [hasNative]);
+  const canSubmit = Boolean(session && !unprepared && targets.length && !validation && !submitting && (!hasNative || participant === 'openai'));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -88,7 +92,7 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
       schema_version: 1,
       participant,
       scripted_variant: variant,
-      budgets: { max_turns: Number(turns), wall_seconds: Number(seconds) },
+      budgets: { max_turns: Number(turns), wall_seconds: Number(seconds), ...(hasNative ? { memory_mb: 2048, pids: 256, command_seconds: 120, artifact_bytes: 67108864 } : {}) },
       ...(participant === 'openai' ? {
         inference: { mode, base_url: endpoint.trim(), model: model.trim(), api_key_env: keyEnv.trim() || null },
       } : {}),
@@ -122,7 +126,7 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
       <select id="run-scope" value={scope} onChange={event => setScope(event.target.value as typeof scope)}><option value="selected">Selected task</option><option value="filtered">Filtered tasks ({filteredTasks.length})</option></select>
       <label htmlFor="participant">Participant</label>
       <select id="participant" value={participant} onChange={event => setParticipant(event.target.value as 'scripted' | 'openai')}>
-        <option value="scripted">Scripted reference</option><option value="openai">Model endpoint</option>
+        <option value="scripted" disabled={hasNative}>Scripted reference</option><option value="openai">Model endpoint</option>
       </select>
       {participant === 'scripted' ? <>
         <label htmlFor="variant">Reference behavior</label>
@@ -156,7 +160,8 @@ function RunComposer({ session, doctor, task, filteredTasks, onCreated, onError 
         <Icon name="play" size={16} />{submitting ? `Queueing ${progress.queued} / ${progress.total}…` : queueCount > 1 ? `Queue ${queueCount} runs` : 'Start benchmark'}<span className="button-tail"><Icon name="arrow" size={17} /></span>
       </button>
       {queueNotice && <p className="queue-notice" role="status">{queueNotice}</p>}
-      {!doctor?.ready && <p className="field-hint readiness-hint">Prepare the environment before starting a run.</p>}
+      {hasNative && <p className="field-hint">Native runtime budget: 2 GiB memory · 256 processes · 120 sec per command · 64 MiB artifacts. Uses this suite’s tools and grader.</p>}
+      {!!unprepared && <p className="field-hint readiness-hint">{unprepared} selected {unprepared === 1 ? 'task needs' : 'tasks need'} preparation. {hasNative ? 'Prepare the imported suite in Benchmark suites.' : 'Prepare the environment before starting a run.'}</p>}
       {!targets.length && <p className="field-hint readiness-hint">Select a task or adjust the catalog filters.</p>}
     </form>
     <div className="composer-footer"><Icon name="shield" size={15} /><span>Fresh container · task internet disabled</span></div>
@@ -183,6 +188,8 @@ function RunInspector({ detail, events, eventCount, selected, session, tasks, st
   async function inspectArtifact(item: Artifact) {
     setArtifact(item); setArtifactText(null); setLoadingArtifact(true);
     const current = ++artifactRequest.current;
+    if (item.media_type === 'image/png') { setLoadingArtifact(false); return; }
+    if (item.media_type && !/^(text\/|application\/(json|xml|javascript))/.test(item.media_type)) { setArtifactText('Binary artifact. Use the download control to inspect it with its native application.'); setLoadingArtifact(false); return; }
     try {
       const response = await fetch(`/api/v1/runs/${encodeURIComponent(item.run_id)}/artifacts/${encodeURIComponent(item.id)}`);
       if (!response.ok) throw new Error('Unable to load this artifact.');
@@ -214,7 +221,7 @@ function RunInspector({ detail, events, eventCount, selected, session, tasks, st
       <div className="lifecycle"><span>Execute</span><Icon name="arrow" size={14} /><span>Grade</span><Icon name="arrow" size={14} /><span>Inspect</span></div>
     </div> : !run ? <div className="empty-inspector" aria-live="polite"><span className="loading-line" /><p>Loading run evidence…</p></div> : <>
       <div className="run-summary">
-        <div><div className="run-summary-title"><Badge status={run.status} /><span className="mono muted">{run.id.slice(0, 12)}</span></div><h3>{participantLabel(run)}</h3><div className="run-task-name">{taskIdentity(run, tasks).title}<span> / {categoryLabel(taskIdentity(run, tasks).category)}</span></div><p>{formatDate(run.created_at)} <span className="separator">/</span> {run.spec.inference?.mode === 'api' ? 'API inference' : 'Offline profile'}</p></div>
+        <div><div className="run-summary-title"><Badge status={needsReview(run) ? 'needs_review' : run.status} /><span className="mono muted">{run.id.slice(0, 12)}</span></div><h3>{participantLabel(run)}</h3><div className="run-task-name">{taskIdentity(run, tasks).title}<span> / {categoryLabel(taskIdentity(run, tasks).category)}</span></div><p>{formatDate(run.created_at)} <span className="separator">/</span> {run.spec.inference?.mode === 'api' ? 'API inference' : 'Offline profile'}</p></div>
         <div className="run-actions">
           {isActive(run.status) && <button className="button button-quiet" onClick={onCancel} disabled={!session}><Icon name="stop" size={14} />Cancel</button>}
           {isActive(run.status) ? <button className="button button-quiet" disabled title="Export is available when the run finishes"><Icon name="download" size={15} /><span>Export</span></button> : <a className="button button-quiet" href={`/api/v1/runs/${encodeURIComponent(run.id)}/export`} onClick={event => { event.preventDefault(); void downloadExport(); }} aria-disabled={exporting} title="Download this run's evidence bundle"><Icon name="download" size={15} /><span>{exporting ? 'Exporting…' : 'Export'}</span></a>}
@@ -231,13 +238,13 @@ function RunInspector({ detail, events, eventCount, selected, session, tasks, st
       <div className="tab-content" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === 'trace' && <RunTrace key={run.id} events={events} count={eventCount} streamState={streamState} active={isActive(run.status)} />}
         {tab === 'checks' && (run.score ? <>
-          <div className="score-summary"><div><span className="eyebrow">OBJECTIVE CHECKS</span><div className="score-number">{Math.round(run.score.score * 100)}<span>%</span></div></div><div><Badge status={run.score.passed ? 'passed' : 'failed'} /><p className="mono muted">{run.score.grader_version}</p></div></div>
+          <div className="score-summary"><div><span className="eyebrow">{run.score.passed === null ? 'RECORDED SCORE' : 'OBJECTIVE CHECKS'}</span><div className="score-number">{Math.round(run.score.score * 100)}<span>%</span></div></div><div><Badge status={run.score.passed === null ? 'scored' : run.score.passed ? 'passed' : 'failed'} /><p className="mono muted">{run.score.grader_version}</p></div></div>
           <div className="checks-list">{run.score.checks?.map((check, index) => <div className="check-row" key={`${check.name}-${index}`}><span className={`check-icon ${check.passed ? 'pass' : 'fail'}`}><Icon name={check.passed ? 'check' : 'close'} size={16} /></span><div><strong>{check.name}</strong>{check.detail && <p>{check.detail}</p>}</div><span className="mono">{check.passed ? 'PASS' : 'FAIL'}</span></div>)}</div>
           <p className="panel-footnote">Results belong to this task and rubric. Compare runs with matching task and harness versions.</p>
-        </> : <div className="tab-empty"><Icon name="shield" size={26} /><h3>No grading result yet</h3><p>{isActive(run.status) ? 'The independent grader runs after submission.' : 'This run ended without a scorecard. Inspect the trace for details.'}</p></div>)}
+        </> : <div className="tab-empty"><Icon name="shield" size={26} /><h3>{needsReview(run) ? 'Assessment needs review' : 'No grading result yet'}</h3><p>{needsReview(run) ? 'The response is preserved. A configured local judge or manual assessment is required; no pass/fail result has been assigned.' : isActive(run.status) ? 'The independent grader runs after submission.' : 'This run ended without a scorecard. Inspect the trace for details.'}</p></div>)}
         {tab === 'artifacts' && (detail.artifacts.length ? <>
           <div className="artifact-list">{detail.artifacts.map(item => <button className={`artifact-row ${artifact?.id === item.id ? 'selected' : ''}`} key={item.id} onClick={() => void inspectArtifact(item)}><Icon name="file" /><span><strong>{item.name}</strong><small className="mono">{item.size.toLocaleString()} bytes · {item.sha256.slice(0, 12)}</small></span><Icon name="arrow" size={16} /></button>)}</div>
-          {artifact && <div className="artifact-preview"><div><span className="mono">{artifact.name}</span><a href={`/api/v1/runs/${encodeURIComponent(artifact.run_id)}/artifacts/${encodeURIComponent(artifact.id)}`} download={artifact.name}><Icon name="download" size={16} /><span className="sr-only">Download {artifact.name}</span></a></div><pre>{loadingArtifact ? 'Loading artifact…' : artifactText ?? 'Artifact could not be displayed.'}</pre></div>}
+          {artifact && <div className="artifact-preview"><div><span className="mono">{artifact.name}</span><a href={`/api/v1/runs/${encodeURIComponent(artifact.run_id)}/artifacts/${encodeURIComponent(artifact.id)}`} download={artifact.name}><Icon name="download" size={16} /><span className="sr-only">Download {artifact.name}</span></a></div>{artifact.media_type === 'image/png' ? <figure className="recorded-image"><img src={`/api/v1/runs/${encodeURIComponent(artifact.run_id)}/artifacts/${encodeURIComponent(artifact.id)}`} alt={`Recorded benchmark screenshot: ${artifact.name}`} /><figcaption>Recorded browser evidence. Visual design quality requires a separate review.</figcaption></figure> : <pre>{loadingArtifact ? 'Loading artifact…' : artifactText ?? 'Artifact could not be displayed.'}</pre>}</div>}
         </> : <div className="tab-empty"><Icon name="file" size={26} /><h3>No artifacts collected</h3><p>Collected submissions will appear here with their content hashes.</p></div>)}
         {tab === 'configuration' && <><span className="eyebrow">RESOLVED RUN SPECIFICATION</span><pre className="configuration-code">{JSON.stringify(run.spec, null, 2)}</pre><span className="eyebrow">PROVENANCE</span><pre className="configuration-code">{JSON.stringify(run.metadata, null, 2)}</pre></>}
       </div>
@@ -251,6 +258,8 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskCategory, setTaskCategory] = useState('all');
   const [taskSearch, setTaskSearch] = useState('');
+  const [taskSuite, setTaskSuite] = useState('all');
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>('python.interval-merge');
   const [runs, setRuns] = useState<Run[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -261,10 +270,12 @@ export default function App() {
   const updateRun = useCallback((run: Run) => setRuns(current => mergeRunHistory([run], current)), []);
   const { detail, events, eventCount, streamState, session: sessionFeed, reload } = useRunEvidence(selected, updateRun, setError);
   const historyController = useRef<AbortController | null>(null);
+  const workspaceRequest = useRef(0);
   const activitySignature = activity.report?.runs.map(run => `${run.id}:${run.status}`).join('|');
   const previousActivity = useRef<string | undefined>(undefined);
   const activeId = activity.report?.runs.find(run => run.status === 'running')?.id ?? activity.report?.runs[0]?.id;
-  const filteredTasks = useMemo(() => filterTasks(tasks, taskCategory, taskSearch), [tasks, taskCategory, taskSearch]);
+  const catalogTasks = useMemo(() => tasks.filter(task => !removedCategories.has(task.category ?? '') && (includeArchived || !isArchivedTask(task))), [tasks, includeArchived]);
+  const filteredTasks = useMemo(() => filterTasks(catalogTasks.filter(task => taskSuite === 'all' || (taskSuite === 'original' ? !task.suite_id || task.tags?.includes('original') : task.suite_id === taskSuite)), taskCategory, taskSearch), [catalogTasks, taskCategory, taskSearch, taskSuite]);
   const selectedTask = filteredTasks.find(task => task.id === selectedTaskId);
 
   useEffect(() => {
@@ -286,10 +297,12 @@ export default function App() {
   }, []);
 
   const refresh = useCallback(async () => {
+    const current = ++workspaceRequest.current;
     setRefreshing(true);
     const results = await Promise.allSettled([
-      request<Session>('/session'), request<Doctor>('/doctor'), request<Task[]>('/tasks'), request<Run[]>('/runs?limit=1000'),
+      request<Session>('/session'), request<Doctor>('/doctor'), request<Task[]>(includeArchived ? '/tasks?include_archived=true' : '/tasks'), request<Run[]>('/runs?limit=1000'),
     ]);
+    if (current !== workspaceRequest.current) return;
     if (results[0].status === 'fulfilled') setSession(results[0].value);
     if (results[1].status === 'fulfilled') setDoctor(results[1].value);
     if (results[2].status === 'fulfilled') setTasks(results[2].value);
@@ -298,7 +311,7 @@ export default function App() {
     if (failure?.status === 'rejected') setError(errorMessage(failure.reason));
     else setError(null);
     setRefreshing(false);
-  }, []);
+  }, [includeArchived]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -321,7 +334,7 @@ export default function App() {
     catch (problem) { setError(errorMessage(problem)); }
   }
 
-  const finished = runs.filter(run => !isActive(run.status));
+  const finished = runs.filter(run => run.score?.passed === true || run.score?.passed === false);
   const passed = runs.filter(run => run.status === 'passed').length;
   const currentRuns = activity.report?.runs ?? runs;
   const active = currentRuns.filter(run => isActive(run.status)).length;
@@ -334,7 +347,7 @@ export default function App() {
       <a className="wordmark" href="#workspace" aria-label="Benchmaxxing workspace"><span className="brand-mark" aria-hidden="true"><i /><i /><i /></span><span>benchmaxxing<span className="brand-period">.</span></span></a>
       <div className="workspace-switch"><span className="workspace-avatar">B</span><div><strong>Local workspace</strong><small>Foundation · v{session?.version ?? '0.1'}</small></div><span className="local-dot" /></div>
       <span className="sidebar-label">WORKSPACE</span>
-      <nav aria-label="Main navigation"><a className="nav-item active" href="#workspace" aria-label="Overview"><Icon name="grid" /><span>Overview</span><span className="nav-arrow">↗</span></a><a className="nav-item" href="#history" aria-label="Run history"><Icon name="clock" /><span>Run history</span><span className="nav-count">{runs.length}</span></a><a className="nav-item" href="#new-run" aria-label="New run"><Icon name="play" /><span>New run</span></a></nav>
+      <nav aria-label="Main navigation"><a className="nav-item active" href="#workspace" aria-label="Overview"><Icon name="grid" /><span>Overview</span><span className="nav-arrow">↗</span></a><a className="nav-item" href="#history" aria-label="Run history"><Icon name="clock" /><span>Run history</span><span className="nav-count">{runs.length}</span></a><a className="nav-item" href="#providers" aria-label="Benchmark suites"><Icon name="grid" /><span>Benchmark suites</span></a><a className="nav-item" href="#new-run" aria-label="New run"><Icon name="play" /><span>New run</span></a></nav>
       <div className="sidebar-bottom"><div className="local-card"><Icon name="shield" size={20} /><strong>Your machine.<br />Your evidence.</strong><p>Runs and artifacts stay in your local workspace.</p><span><span className="status-dot" />LOCAL STORAGE</span></div><div className="sidebar-footer"><span>AGPL-3.0</span><span>01 / FOUNDATION</span></div></div>
     </aside>
     <main id="workspace">
@@ -345,15 +358,16 @@ export default function App() {
         {doctor && !doctor.ready && <div className="alert alert-prepare" role="status"><span className="alert-icon"><Icon name="terminal" size={22} /></span><div><strong>Prepare your task environment</strong><p>Run <code>benchmaxxing prepare</code> in your terminal, then refresh this workspace.</p><details className="diagnostics"><summary>View environment checks</summary><pre>{JSON.stringify(doctor.checks, null, 2)}</pre></details></div><button className="button button-quiet" onClick={() => void refresh()} disabled={refreshing}><Icon name="refresh" size={16} />Recheck</button></div>}
         <LiveActivity {...activity} following={followActive} selected={selected} onFollow={setFollowActive} onInspect={inspectRun} />
         <SessionFeed key={selected} run={detail?.run ?? null} tasks={tasks} session={sessionFeed} streamState={streamState} />
-        <section className="metrics" aria-label="Workspace statistics"><div className="metric"><span>Loaded attempts</span><strong>{runs.length.toString().padStart(2, '0')}</strong><small>{runs.length >= 1000 ? 'Latest 1,000 runs' : 'Across loaded run history'}</small><Icon name="terminal" /></div><div className="metric"><span>Passed attempts</span><strong>{passed.toString().padStart(2, '0')}<em className="metric-divider">/</em><em>{finished.length.toString().padStart(2, '0')}</em></strong><small>Of loaded finished attempts</small><Icon name="check" /></div><div className="metric"><span>Grading checks</span><strong>{recordedChecks.toString().padStart(2, '0')}</strong><small>Recorded with evidence</small><Icon name="shield" /></div><div className="metric"><span>Run queue</span><strong>{queued.toString().padStart(2, '0')}<span className={`activity-dot ${active ? 'is-active' : ''}`} /></strong><small>{queued} queued · {running} running</small><Icon name="clock" /></div></section>
-        <Coverage tasks={tasks} runs={runs} category={taskCategory} onCategory={setTaskCategory} />
-        <TaskCatalog tasks={tasks} filtered={filteredTasks} selected={selectedTask} category={taskCategory} search={taskSearch} onCategory={setTaskCategory} onSearch={setTaskSearch} onSelect={setSelectedTaskId} />
+        <section className="metrics" aria-label="Workspace statistics"><div className="metric"><span>Loaded attempts</span><strong>{runs.length.toString().padStart(2, '0')}</strong><small>{runs.length >= 1000 ? 'Latest 1,000 runs' : 'Across loaded run history'}</small><Icon name="terminal" /></div><div className="metric"><span>Passed attempts</span><strong>{passed.toString().padStart(2, '0')}<em className="metric-divider">/</em><em>{finished.length.toString().padStart(2, '0')}</em></strong><small>Of attempts with a pass/fail grade</small><Icon name="check" /></div><div className="metric"><span>Grading checks</span><strong>{recordedChecks.toString().padStart(2, '0')}</strong><small>Recorded with evidence</small><Icon name="shield" /></div><div className="metric"><span>Run queue</span><strong>{queued.toString().padStart(2, '0')}<span className={`activity-dot ${active ? 'is-active' : ''}`} /></strong><small>{queued} queued · {running} running</small><Icon name="clock" /></div></section>
+        <ProviderCatalog includeArchived={includeArchived} onArchived={setIncludeArchived} session={session} onChanged={() => void refresh()} onBrowse={suiteId => { setTaskSuite(suiteId); setTaskCategory('all'); setTaskSearch(''); }} />
+        <Coverage tasks={catalogTasks} runs={runs} category={taskCategory} onCategory={setTaskCategory} />
+        <TaskCatalog tasks={catalogTasks} filtered={filteredTasks} selected={selectedTask} category={taskCategory} search={taskSearch} suite={taskSuite} onSuite={setTaskSuite} onCategory={setTaskCategory} onSearch={setTaskSearch} onSelect={setSelectedTaskId} />
         <div className="workbench-grid">
           <RunComposer session={session} doctor={doctor} task={selectedTask} filteredTasks={filteredTasks} onError={setError} onCreated={(run, inspect) => { setError(null); updateRun(run); if (inspect) { setFollowActive(true); setSelected(run.id); } }} />
           <RunInspector detail={detail} events={events} eventCount={eventCount} selected={selected} session={session} tasks={tasks} streamState={streamState} onCancel={() => void cancelRun()} onError={setError} />
         </div>
         <section className="panel history" id="history" aria-labelledby="history-heading"><div className="panel-heading"><div><span className="eyebrow">EXPERIMENT LOG</span><h2 id="history-heading">Run history</h2></div><span className="history-count mono">{runs.length} {runs.length === 1 ? 'run' : 'runs'}</span></div>
-          {runs.length === 0 ? <div className="empty-history"><span className="empty-history-dash">—</span><p>No runs yet. Your experiments will be recorded here.</p></div> : <div className="table-scroll"><table><thead><tr><th>Run / participant</th><th>Task</th><th>Status</th><th>Score</th><th>Started</th><th><span className="sr-only">Inspect</span></th></tr></thead><tbody>{runs.map(run => <tr key={run.id} className={run.id === selected ? 'selected' : ''}><td><button className="run-link" onClick={() => inspectRun(run.id)}><strong>{participantLabel(run)}</strong><span className="mono">{run.id.slice(0, 12)}</span></button></td><td><span className="task-cell">{taskIdentity(run, tasks).title}</span><span className="table-subtext">{categoryLabel(taskIdentity(run, tasks).category)}</span></td><td><Badge status={run.status} /></td><td><span className={`table-score ${run.score?.passed ? 'score-passed' : ''}`}>{run.score ? `${Math.round(run.score.score * 100)}%` : '—'}</span></td><td className="table-date">{formatDate(run.created_at)}</td><td><button className="icon-button" aria-label={`Inspect run ${run.id}`} onClick={() => inspectRun(run.id)}><Icon name="arrow" size={16} /></button></td></tr>)}</tbody></table></div>}
+          {runs.length === 0 ? <div className="empty-history"><span className="empty-history-dash">—</span><p>No runs yet. Your experiments will be recorded here.</p></div> : <div className="table-scroll"><table><thead><tr><th>Run / participant</th><th>Task</th><th>Status</th><th>Score</th><th>Started</th><th><span className="sr-only">Inspect</span></th></tr></thead><tbody>{runs.map(run => <tr key={run.id} className={run.id === selected ? 'selected' : ''}><td><button className="run-link" onClick={() => inspectRun(run.id)}><strong>{participantLabel(run)}</strong><span className="mono">{run.id.slice(0, 12)}</span></button></td><td><span className="task-cell">{taskIdentity(run, tasks).title}</span><span className="table-subtext">{categoryLabel(taskIdentity(run, tasks).category)}</span></td><td><Badge status={needsReview(run) ? 'needs_review' : run.status} /></td><td><span className={`table-score ${run.score?.passed ? 'score-passed' : ''}`}>{run.score ? `${Math.round(run.score.score * 100)}%` : needsReview(run) ? 'Needs review' : '—'}</span></td><td className="table-date">{formatDate(run.created_at)}</td><td><button className="icon-button" aria-label={`Inspect run ${run.id}`} onClick={() => inspectRun(run.id)}><Icon name="arrow" size={16} /></button></td></tr>)}</tbody></table></div>}
         </section>
         <footer className="page-footer"><span><span className="footer-dot" />Local execution. Versioned evidence.</span><span>BENCHMAXXING <span className="muted">/</span> FOUNDATION</span></footer>
       </div>

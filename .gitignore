@@ -23,3 +23,7 @@ src/benchmaxxing/static/
 *.sqlite3*
 *.zip
 work/
+/src/benchmaxxing/providers/cyberlabs.py
+/src/benchmaxxing/providers/cyberlab_environment.py
+/src/benchmaxxing/runtimes/cyberlab_server.py
+/tests/test_cyberlabs.py

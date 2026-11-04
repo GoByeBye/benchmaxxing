@@ -452,12 +452,12 @@ class OpenAIAdapter:
         payload: dict[str, Any] = {
             "model": self.profile.model,
             "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto",
             "stream": on_delta is not None,
             "temperature": self.generation.temperature,
             "max_tokens": self.generation.max_tokens,
         }
+        if tools:
+            payload.update(tools=tools, tool_choice="auto")
         if self.generation.seed is not None:
             payload["seed"] = self.generation.seed
         if on_delta is not None:

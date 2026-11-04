@@ -17,11 +17,13 @@ from pydantic import ValidationError
 
 from benchmaxxing.contracts import TERMINAL_STATUSES, InferenceProfile, RunRecord, RunSpec
 from benchmaxxing.controller import Controller, ControllerBusy, RecoveryPending, read_descriptor
+from benchmaxxing.provider_cli import app as providers_app
 from benchmaxxing.storage import Store, workspace_id
 
 app = typer.Typer(
     no_args_is_help=True, help="Local, reproducible benchmarks for models and agents."
 )
+app.add_typer(providers_app, name="providers")
 DataOption = Annotated[
     Path | None, typer.Option("--data-dir", help="Shared run and asset directory")
 ]
@@ -39,6 +41,7 @@ def _remote(data_dir: Path) -> tuple[httpx.Client, dict[str, str]] | None:
     descriptor = read_descriptor(data_dir)
     if not descriptor or not descriptor.get("base_url"):
         return None
+
     url = descriptor["base_url"]
     parsed = urlsplit(url)
     if (
@@ -61,6 +64,25 @@ def _remote(data_dir: Path) -> tuple[httpx.Client, dict[str, str]] | None:
     except (httpx.HTTPError, ValueError, KeyError):
         client.close()
         return None
+
+
+def _wait_remote_run(client: httpx.Client, record: RunRecord) -> RunRecord:
+    """Retry read-only status requests; transport loss is never a cancellation."""
+    failures = 0
+    while record.status not in TERMINAL_STATUSES:
+        time.sleep(min(0.25 * 2 ** min(failures, 5), 5))
+        try:
+            response = client.get(f"/api/v1/runs/{record.id}")
+            response.raise_for_status()
+            record = RunRecord.model_validate(response.json()["run"])
+            failures = 0
+        except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code < 500:
+                raise
+            failures += 1
+            if failures >= 12:
+                raise
+    return record
 
 
 @app.command()
@@ -160,7 +182,7 @@ def run(
             spec = RunSpec.model_validate({**spec.model_dump(), "task_id": task})
         from benchmaxxing.task import get_task
 
-        get_task(spec.task_id)
+        get_task(spec.task_id, data_dir=resolve_data_dir(data_dir))
     except (ValueError, ValidationError, OSError):
         typer.echo(
             "Invalid run configuration. Check fields, profile, and endpoint settings.", err=True
@@ -180,11 +202,7 @@ def run(
                 raise typer.Exit(2)
             record = RunRecord.model_validate(response.json())
             try:
-                while record.status not in TERMINAL_STATUSES:
-                    time.sleep(0.15)
-                    detail = client.get(f"/api/v1/runs/{record.id}")
-                    detail.raise_for_status()
-                    record = RunRecord.model_validate(detail.json()["run"])
+                record = _wait_remote_run(client, record)
             except KeyboardInterrupt:
                 client.post(f"/api/v1/runs/{record.id}/cancel", headers=headers)
                 typer.echo(f"Cancellation requested for {record.id}", err=True)
@@ -217,17 +235,27 @@ def run(
         finally:
             owner.stop()
     _print(record.model_dump(mode="json"))
-    raise typer.Exit(0 if record.status == "passed" else 1 if record.status == "failed" else 2)
+    raise typer.Exit(
+        0 if record.status in {"passed", "completed"} else 1 if record.status == "failed" else 2
+    )
 
 
 @app.command("tasks")
 def tasks_command(
     category: Annotated[str | None, typer.Option(help="Filter by task category")] = None,
+    data_dir: DataOption = None,
+    include_archived: Annotated[bool, typer.Option(help="Include archived imported tasks")] = False,
 ) -> None:
     """List installed task identities, rubrics and check counts without Docker."""
     from benchmaxxing.task import list_tasks
 
-    tasks = [task for task in list_tasks() if category is None or task.category == category]
+    tasks = [
+        task
+        for task in list_tasks(
+            data_dir=resolve_data_dir(data_dir), include_archived=include_archived
+        )
+        if category is None or task.category == category
+    ]
     if not tasks:
         typer.echo("No tasks match that category.", err=True)
         raise typer.Exit(2)
@@ -237,9 +265,11 @@ def tasks_command(
 @app.command("validate-packs")
 def validate_packs() -> None:
     """Validate installed pack contracts/assets; never execute candidate code on host."""
+    from benchmaxxing.answers import definitions as answer_definitions
     from benchmaxxing.task import definitions, list_tasks
 
     definitions.cache_clear()
+    answer_definitions.cache_clear()
     try:
         tasks = list_tasks()
     except ValueError as exc:
@@ -249,7 +279,7 @@ def validate_packs() -> None:
         {
             "valid": True,
             "tasks": len(tasks),
-            "checks": sum(t.check_count for t in tasks),
+            "checks": sum(t.check_count or 0 for t in tasks),
             "categories": sorted({t.category for t in tasks}),
         }
     )
@@ -277,11 +307,13 @@ def suite(
 
     try:
         base = _load_spec(config, None, variant, None, None, False, None)
-        catalog = list_tasks()
+        catalog = list_tasks(data_dir=resolve_data_dir(data_dir))
         selected = [
             t
             for t in catalog
-            if (category is None or t.category == category) and (not task or t.id in task)
+            if (category is None or t.category == category)
+            and (not task or t.id in task)
+            and (task or t.prepared is not False)
         ]
         if not selected or (task and set(task) - {t.id for t in selected}):
             raise ValueError("Unknown task or empty category selection")
@@ -309,11 +341,7 @@ def suite(
                 response.raise_for_status()
                 records.append(RunRecord.model_validate(response.json()))
             for index, record in enumerate(records):
-                while record.status not in TERMINAL_STATUSES:
-                    time.sleep(0.2)
-                    response = client.get(f"/api/v1/runs/{record.id}")
-                    response.raise_for_status()
-                    record = RunRecord.model_validate(response.json()["run"])
+                record = _wait_remote_run(client, record)
                 records[index] = record
                 typer.echo(f"{record.spec.task_id}: {record.status} ({record.id})", err=True)
         else:
@@ -327,13 +355,19 @@ def suite(
                 records[index] = record
                 typer.echo(f"{record.spec.task_id}: {record.status} ({record.id})", err=True)
     except (KeyboardInterrupt, httpx.HTTPError, ControllerBusy, RecoveryPending) as exc:
-        if remote is not None:
+        if remote is not None and isinstance(exc, KeyboardInterrupt):
             for record in records:
                 try:
                     remote[0].post(f"/api/v1/runs/{record.id}/cancel", headers=remote[1])
                 except httpx.HTTPError:
                     pass
-        typer.echo("Suite stopped; partial run evidence remains in history.", err=True)
+        typer.echo(
+            "Suite cancelled; partial evidence remains in history."
+            if isinstance(exc, KeyboardInterrupt)
+            else "Suite monitoring stopped; accepted controller runs remain queued/running. "
+            "Inspect history to follow their progress.",
+            err=True,
+        )
         raise typer.Exit(130 if isinstance(exc, KeyboardInterrupt) else 2) from None
     finally:
         if remote is not None:
@@ -357,9 +391,11 @@ def suite(
             ],
         }
     )
-    if all(r.status == "passed" for r in records):
+    if all(r.status in {"passed", "completed"} for r in records):
         raise typer.Exit(0)
-    raise typer.Exit(2 if any(r.status not in {"passed", "failed"} for r in records) else 1)
+    raise typer.Exit(
+        2 if any(r.status not in {"passed", "failed", "completed"} for r in records) else 1
+    )
 
 
 @app.command()

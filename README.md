@@ -4,12 +4,24 @@ A local benchmark workbench for models and agents. Prepare dependencies explicit
 then run tasks in disposable environments with no external network. Inspect every
 tool interaction, submission and grading result through a localhost UI or CLI.
 
-**81 original tasks:** programming, numerical engineering, defensive security,
-terminal workflows and synthetic policy/refusal decisions. Use a deterministic
-reference participant or an OpenAI-compatible model with isolated Docker execution,
-independent grading, durable run history, cancellation and checksummed exports.
-The catalog has 666 grading checks. These small, published tasks are not a broad
-model ranking and do not measure resistance to benchmark memorization.
+**125 installed original tasks:** 81 workspace tasks in programming, numerical
+engineering, defensive security, terminal workflows and synthetic policy decisions,
+plus 44 offline knowledge and long-context retrieval profiles. Together they have
+946 grading checks (666 workspace checks and 280 answer checks). Use a deterministic
+reference participant or an OpenAI-compatible model with independent grading,
+durable run history, cancellation and checksummed exports. Workspace candidate code
+runs in isolated Docker containers; answer profiles supply no code tools or candidate
+container. These small, published tasks are not a broad model ranking and do not
+measure resistance to benchmark memorization.
+
+The **provider library** adds explicit source imports and isolated native execution
+for upstream coding, terminal, browser, security and refusal suites. It also
+contains six original frontend-design briefs, installed only after their bundled
+source is explicitly fetched and prepared for a local Chromium runtime.
+The unfinished application security labs are archived and unavailable for
+new preparation or runs. Published, imported and prepared counts are separate. Start with
+`benchmaxxing providers list`; see [provider preparation](docs/providers.md) for
+the 250 GB cache cap, full-source downloads, runtimes and offline constraints.
 
 | Category | Tasks | Examples |
 | --- | ---: | --- |
@@ -18,6 +30,8 @@ model ranking and do not measure resistance to benchmark memorization.
 | Defensive security | 14 | DNS/CIDR policies, dependency audits, audit ledgers, permissions, URL origins, credential expiry |
 | Terminal | 12 | SQLite reports, checksum audits, deployment diffs, CI summaries, config parsing, log triage |
 | Refusal/policy decisions | 8 | Synthetic secret protection, permitted requests, log/document injection, export consent, lab scope |
+| Offline knowledge | 8 | Original factual questions in science, history and geography; 64 checks |
+| Context retrieval | 36 | Seeded 32/128/512 KiB contexts, absent needles and distractors; 216 checks |
 
 Browse and search the catalog in the UI, choose a task or filtered batch, and
 repeat each task up to five times. Runs execute sequentially through one controller.
@@ -94,7 +108,8 @@ or starts a headless controller. Only one controller owns a directory at a time.
 
 ## Use a model
 
-Configure an existing server that supports chat completions with tool calls.
+Configure an existing server that supports chat completions. Workspace tasks also
+require tool calls; answer profiles request a single JSON response without tools.
 Benchmaxxing does not install models, runtimes or GPU drivers. Edit the explicit
 model ID in `examples/local-model.toml` and run:
 
@@ -153,9 +168,10 @@ SHA-256 manifest. The SQLite database remains the authority for live state and
 events. Model/tool text can contain sensitive task data; exports are local files
 and are not automatically published.
 
-New pack runs also snapshot the original public task assets before execution, so
-terminal input files remain available after an installed pack changes. Private
-grading cases and reference solutions never enter the candidate workspace.
+Workspace pack runs also snapshot the original public task assets before execution,
+so terminal input files remain available after an installed pack changes. Answer
+profiles preserve the exact prompt and supplied context as checksummed artifacts.
+Private grading cases and reference solutions never enter the candidate workspace.
 
 ## Checks and packaging
 
@@ -188,16 +204,18 @@ this release is not a universal air-gapped installer or a model-weight bundle.
 ## Project direction
 
 The [architecture](docs/architecture.md) documents run ownership, contracts,
-isolation and recovery. The [roadmap](docs/roadmap.md) covers original/imported
-benchmarks, external agents, browser and security labs, Blender, CAD, numerical
-engineering, refusal analysis, reviews and comparisons.
+isolation and recovery. The [roadmap](docs/roadmap.md) prioritizes software,
+isolated cybersecurity labs, frontend UI design, offline world-knowledge retention
+and needle-in-haystack retrieval, while retaining numerical engineering.
 
-The original pack catalog, serial repeated trials, live activity monitoring and
-category coverage are implemented. The 3D math tasks use JSON inputs and outputs;
-Blender scene creation and CAD workflows remain separate milestones. External
-agents, imports, live browser/security labs, Blender/CAD,
-parallel workers and richer comparisons remain future milestones. There is no shared
-hosting, distributed worker farm, managed inference runtime or universal leaderboard.
+The 125-task original core catalog, six original frontend briefs, serial repeated
+trials, live activity monitoring and category coverage are implemented. Knowledge
+and retrieval profiles have deterministic exact-answer grading; frontend briefs
+have functional browser checks and separate unscored visual review artifacts.
+The numerical geometry tasks use JSON inputs and outputs. Application security labs remain archived pending a complete
+isolation and runtime review. External agents, broader task packs, parallel workers
+and richer comparisons remain future milestones. There is no shared hosting,
+distributed worker farm, managed inference runtime or universal leaderboard.
 
 Project code is **AGPL-3.0-only**. See [LICENSE](LICENSE). Imported tasks, datasets
 and tools retain their own licenses.

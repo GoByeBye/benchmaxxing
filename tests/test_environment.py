@@ -195,3 +195,31 @@ def test_artifact_input_limit(tmp_path):
     task = DockerEnvironment(Path(tmp_path), "run", Budgets(artifact_bytes=1024))
     with pytest.raises(OutputLimitExceeded):
         task.write_file("solution.py", "a" * 1025)
+
+
+def test_recovery_removes_only_workspace_and_run_labeled_networks(tmp_path, monkeypatch):
+    calls = []
+
+    def docker(args, **kwargs):
+        calls.append(args)
+        output = "0123456789ab\n" if args[:3] == ["network", "ls", "-q"] else ""
+        return {"exit_code": 0, "stdout": output, "stderr": ""}
+
+    monkeypatch.setattr(environment, "_docker", docker)
+    assert environment.cleanup_workspace(tmp_path, "owned-run") == ["0123456789ab"]
+    listing = calls[1]
+    assert f"label={environment.MANAGED_LABEL}=1" in listing
+    assert f"label={environment.WORKSPACE_LABEL}={environment.workspace_id(tmp_path)}" in listing
+    assert f"label={environment.RUN_LABEL}=owned-run" in listing
+    assert calls[2] == ["network", "rm", "0123456789ab"]
+
+
+def test_file_input_transfer_reports_missing_source(tmp_path):
+    import sys
+
+    with pytest.raises(environment.EnvironmentError, match="transfer process input"):
+        environment._bounded_process(
+            [sys.executable, "-c", "import sys; sys.stdin.buffer.read()"],
+            timeout=5,
+            input_path=tmp_path / "missing-input.bin",
+        )

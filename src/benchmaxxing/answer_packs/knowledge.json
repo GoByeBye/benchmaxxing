@@ -1,0 +1,896 @@
+{
+  "schema_version": 1,
+  "license": "AGPL-3.0-only",
+  "curation_date": "2026-11-04",
+  "sources": [
+    {
+      "id": "nasa-planets",
+      "title": "NASA: Planet sizes and locations",
+      "url": "https://science.nasa.gov/solar-system/planet-sizes-and-locations-in-our-solar-system/"
+    },
+    {
+      "id": "nist-si",
+      "title": "NIST: Definitions of SI base units",
+      "url": "https://www.nist.gov/si-redefinition/definitions-si-base-units"
+    },
+    {
+      "id": "iupac",
+      "title": "IUPAC: Periodic table of elements",
+      "url": "https://iupac.org/what-we-do/periodic-table-of-elements/"
+    },
+    {
+      "id": "noaa-basins",
+      "title": "NOAA: Ocean basin sizes",
+      "url": "https://oceanservice.noaa.gov/facts/biggestocean.html"
+    },
+    {
+      "id": "noaa-depth",
+      "title": "NOAA: Ocean depth",
+      "url": "https://oceanservice.noaa.gov/facts/oceandepth.html"
+    },
+    {
+      "id": "noaa-cycle",
+      "title": "NOAA: Water cycle",
+      "url": "https://www.noaa.gov/education/resource-collections/freshwater/water-cycle"
+    },
+    {
+      "id": "nhgri-dna",
+      "title": "NHGRI: DNA fact sheet",
+      "url": "https://www.genome.gov/about-genomics/fact-sheets/Deoxyribonucleic-Acid-Fact-Sheet"
+    },
+    {
+      "id": "loc-print",
+      "title": "Library of Congress: Gutenberg Bible",
+      "url": "https://loc.gov/exhibits/bibles/the-gutenberg-bible.html"
+    },
+    {
+      "id": "archives-constitution",
+      "title": "National Archives: Constitution structure",
+      "url": "https://www.archives.gov/founding-docs/constitution/what-does-it-say"
+    },
+    {
+      "id": "archives-dates",
+      "title": "National Archives: Founding documents",
+      "url": "https://www.archives.gov/founding-docs/join-the-signers"
+    },
+    {
+      "id": "archives-rights",
+      "title": "National Archives: Bill of Rights",
+      "url": "https://www.archives.gov/founding-docs/bill-of-rights-transcript"
+    },
+    {
+      "id": "un-history",
+      "title": "UN: Preparatory years",
+      "url": "https://www.un.org/en/about-us/history-of-the-un/preparatory-years"
+    },
+    {
+      "id": "un-languages",
+      "title": "UN: Multilingualism",
+      "url": "https://www.un.org/sg/en/multilingualism/index.shtml"
+    },
+    {
+      "id": "un-work",
+      "title": "UN: Our work",
+      "url": "https://www.un.org/our-work"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "knowledge.solar-system",
+      "version": "1.0.0",
+      "title": "Solar system facts",
+      "category": "knowledge",
+      "difficulty": "easy",
+      "description": "Closed-book factual recall: solar system facts. Eight original short-answer questions; source references and accepted answers stay outside the model prompt. Return null when unknown.",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Which planet has the largest equatorial diameter in our solar system?",
+          "accepted": [
+            "Jupiter"
+          ],
+          "source_ids": [
+            "nasa-planets"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q2",
+          "question": "Which planet has the second-largest equatorial diameter?",
+          "accepted": [
+            "Saturn"
+          ],
+          "source_ids": [
+            "nasa-planets"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q3",
+          "question": "Which of the eight planets has the smallest equatorial diameter?",
+          "accepted": [
+            "Mercury"
+          ],
+          "source_ids": [
+            "nasa-planets"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q4",
+          "question": "Which planet is third from the Sun?",
+          "accepted": [
+            "Earth"
+          ],
+          "source_ids": [
+            "nasa-planets"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q5",
+          "question": "Which planet is fourth from the Sun?",
+          "accepted": [
+            "Mars"
+          ],
+          "source_ids": [
+            "nasa-planets"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q6",
+          "question": "Which of the eight planets orbits farthest from the Sun?",
+          "accepted": [
+            "Neptune"
+          ],
+          "source_ids": [
+            "nasa-planets"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q7",
+          "question": "Which planet is seventh from the Sun?",
+          "accepted": [
+            "Uranus"
+          ],
+          "source_ids": [
+            "nasa-planets"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q8",
+          "question": "Which planet is second from the Sun?",
+          "accepted": [
+            "Venus"
+          ],
+          "source_ids": [
+            "nasa-planets"
+          ],
+          "normalization": "text"
+        }
+      ]
+    },
+    {
+      "id": "knowledge.si-units",
+      "version": "1.0.0",
+      "title": "Physical measurement units",
+      "category": "knowledge",
+      "difficulty": "easy",
+      "description": "Closed-book factual recall: physical measurement units. Eight original short-answer questions; source references and accepted answers stay outside the model prompt. Return null when unknown.",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Name the SI base unit of time.",
+          "accepted": [
+            "second",
+            "s"
+          ],
+          "source_ids": [
+            "nist-si"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q2",
+          "question": "Name the SI base unit of length.",
+          "accepted": [
+            "meter",
+            "metre",
+            "m"
+          ],
+          "source_ids": [
+            "nist-si"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q3",
+          "question": "Name the SI base unit of mass.",
+          "accepted": [
+            "kilogram",
+            "kg"
+          ],
+          "source_ids": [
+            "nist-si"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q4",
+          "question": "Name the SI base unit of electric current.",
+          "accepted": [
+            "ampere",
+            "A"
+          ],
+          "source_ids": [
+            "nist-si"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q5",
+          "question": "Name the SI base unit of thermodynamic temperature.",
+          "accepted": [
+            "kelvin",
+            "K"
+          ],
+          "source_ids": [
+            "nist-si"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q6",
+          "question": "Name the SI base unit of amount of substance.",
+          "accepted": [
+            "mole",
+            "mol"
+          ],
+          "source_ids": [
+            "nist-si"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q7",
+          "question": "Name the SI base unit of luminous intensity.",
+          "accepted": [
+            "candela",
+            "cd"
+          ],
+          "source_ids": [
+            "nist-si"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q8",
+          "question": "Give the exact integer speed of light in vacuum in metres per second.",
+          "accepted": [
+            "299792458",
+            "299,792,458"
+          ],
+          "source_ids": [
+            "nist-si"
+          ],
+          "normalization": "text"
+        }
+      ]
+    },
+    {
+      "id": "knowledge.chemical-symbols",
+      "version": "1.0.0",
+      "title": "Chemical element symbols",
+      "category": "knowledge",
+      "difficulty": "easy",
+      "description": "Closed-book factual recall: chemical element symbols. Eight original short-answer questions; source references and accepted answers stay outside the model prompt. Return null when unknown.",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Give the case-sensitive chemical symbol for hydrogen.",
+          "accepted": [
+            "H"
+          ],
+          "source_ids": [
+            "iupac"
+          ],
+          "normalization": "literal"
+        },
+        {
+          "id": "q2",
+          "question": "Give the case-sensitive chemical symbol for helium.",
+          "accepted": [
+            "He"
+          ],
+          "source_ids": [
+            "iupac"
+          ],
+          "normalization": "literal"
+        },
+        {
+          "id": "q3",
+          "question": "Give the case-sensitive chemical symbol for carbon.",
+          "accepted": [
+            "C"
+          ],
+          "source_ids": [
+            "iupac"
+          ],
+          "normalization": "literal"
+        },
+        {
+          "id": "q4",
+          "question": "Give the case-sensitive chemical symbol for nitrogen.",
+          "accepted": [
+            "N"
+          ],
+          "source_ids": [
+            "iupac"
+          ],
+          "normalization": "literal"
+        },
+        {
+          "id": "q5",
+          "question": "Give the case-sensitive chemical symbol for oxygen.",
+          "accepted": [
+            "O"
+          ],
+          "source_ids": [
+            "iupac"
+          ],
+          "normalization": "literal"
+        },
+        {
+          "id": "q6",
+          "question": "Give the case-sensitive chemical symbol for sodium.",
+          "accepted": [
+            "Na"
+          ],
+          "source_ids": [
+            "iupac"
+          ],
+          "normalization": "literal"
+        },
+        {
+          "id": "q7",
+          "question": "Give the case-sensitive chemical symbol for iron.",
+          "accepted": [
+            "Fe"
+          ],
+          "source_ids": [
+            "iupac"
+          ],
+          "normalization": "literal"
+        },
+        {
+          "id": "q8",
+          "question": "Give the case-sensitive chemical symbol for gold.",
+          "accepted": [
+            "Au"
+          ],
+          "source_ids": [
+            "iupac"
+          ],
+          "normalization": "literal"
+        }
+      ]
+    },
+    {
+      "id": "knowledge.earth-water",
+      "version": "1.0.0",
+      "title": "Oceans and water processes",
+      "category": "knowledge",
+      "difficulty": "easy",
+      "description": "Closed-book factual recall: oceans and water processes. Eight original short-answer questions; source references and accepted answers stay outside the model prompt. Return null when unknown.",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Name the largest ocean basin.",
+          "accepted": [
+            "Pacific",
+            "Pacific Ocean"
+          ],
+          "source_ids": [
+            "noaa-basins"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q2",
+          "question": "Name the smallest ocean basin.",
+          "accepted": [
+            "Arctic",
+            "Arctic Ocean"
+          ],
+          "source_ids": [
+            "noaa-basins"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q3",
+          "question": "Name the second-largest ocean basin.",
+          "accepted": [
+            "Atlantic",
+            "Atlantic Ocean"
+          ],
+          "source_ids": [
+            "noaa-basins"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q4",
+          "question": "Name the deepest identified part of the ocean.",
+          "accepted": [
+            "Challenger Deep",
+            "the Challenger Deep"
+          ],
+          "source_ids": [
+            "noaa-depth"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q5",
+          "question": "Which trench contains Challenger Deep?",
+          "accepted": [
+            "Mariana Trench",
+            "the Mariana Trench"
+          ],
+          "source_ids": [
+            "noaa-depth"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q6",
+          "question": "What process changes liquid water into water vapor?",
+          "accepted": [
+            "evaporation"
+          ],
+          "source_ids": [
+            "noaa-cycle"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q7",
+          "question": "What process changes water vapor into liquid water?",
+          "accepted": [
+            "condensation"
+          ],
+          "source_ids": [
+            "noaa-cycle"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q8",
+          "question": "What process changes ice directly into water vapor without melting?",
+          "accepted": [
+            "sublimation"
+          ],
+          "source_ids": [
+            "noaa-cycle"
+          ],
+          "normalization": "text"
+        }
+      ]
+    },
+    {
+      "id": "knowledge.genetics",
+      "version": "1.0.0",
+      "title": "Molecular genetics facts",
+      "category": "knowledge",
+      "difficulty": "easy",
+      "description": "Closed-book factual recall: molecular genetics facts. Eight original short-answer questions; source references and accepted answers stay outside the model prompt. Return null when unknown.",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "What does the abbreviation DNA stand for?",
+          "accepted": [
+            "deoxyribonucleic acid"
+          ],
+          "source_ids": [
+            "nhgri-dna"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q2",
+          "question": "What are the chemical building blocks of DNA called?",
+          "accepted": [
+            "nucleotides",
+            "nucleotide"
+          ],
+          "source_ids": [
+            "nhgri-dna"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q3",
+          "question": "Name the DNA base represented by A.",
+          "accepted": [
+            "adenine"
+          ],
+          "source_ids": [
+            "nhgri-dna"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q4",
+          "question": "Name the DNA base represented by T.",
+          "accepted": [
+            "thymine"
+          ],
+          "source_ids": [
+            "nhgri-dna"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q5",
+          "question": "Name the DNA base represented by G.",
+          "accepted": [
+            "guanine"
+          ],
+          "source_ids": [
+            "nhgri-dna"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q6",
+          "question": "Name the DNA base represented by C.",
+          "accepted": [
+            "cytosine"
+          ],
+          "source_ids": [
+            "nhgri-dna"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q7",
+          "question": "How many chromosome pairs are in a typical human nucleated somatic cell?",
+          "accepted": [
+            "23",
+            "twenty-three"
+          ],
+          "source_ids": [
+            "nhgri-dna"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q8",
+          "question": "Which organelles, outside the nucleus, contain a small amount of DNA in human cells?",
+          "accepted": [
+            "mitochondria",
+            "mitochondrion"
+          ],
+          "source_ids": [
+            "nhgri-dna"
+          ],
+          "normalization": "text"
+        }
+      ]
+    },
+    {
+      "id": "knowledge.print-history",
+      "version": "1.0.0",
+      "title": "History of early European printing",
+      "category": "knowledge",
+      "difficulty": "medium",
+      "description": "Closed-book factual recall: history of early european printing. Eight original short-answer questions; source references and accepted answers stay outside the model prompt. Return null when unknown.",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "Name the printer who produced the 42-line Bible in Mainz in the 1450s.",
+          "accepted": [
+            "Johann Gutenberg",
+            "Johannes Gutenberg",
+            "Gutenberg"
+          ],
+          "source_ids": [
+            "loc-print"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q2",
+          "question": "In which city was the Gutenberg Bible printed?",
+          "accepted": [
+            "Mainz"
+          ],
+          "source_ids": [
+            "loc-print"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q3",
+          "question": "In which present-day country is Mainz located?",
+          "accepted": [
+            "Germany"
+          ],
+          "source_ids": [
+            "loc-print"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q4",
+          "question": "In what language is the Gutenberg Bible written?",
+          "accepted": [
+            "Latin"
+          ],
+          "source_ids": [
+            "loc-print"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q5",
+          "question": "Name the Latin translation used for the Gutenberg Bible.",
+          "accepted": [
+            "Vulgate",
+            "the Vulgate"
+          ],
+          "source_ids": [
+            "loc-print"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q6",
+          "question": "How many lines appear on most pages of the Gutenberg Bible?",
+          "accepted": [
+            "42",
+            "forty-two"
+          ],
+          "source_ids": [
+            "loc-print"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q7",
+          "question": "In which century was the Gutenberg Bible printed?",
+          "accepted": [
+            "15th",
+            "fifteenth",
+            "15th century",
+            "fifteenth century"
+          ],
+          "source_ids": [
+            "loc-print"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q8",
+          "question": "What fine parchment material was used for the Library of Congress copy?",
+          "accepted": [
+            "vellum"
+          ],
+          "source_ids": [
+            "loc-print"
+          ],
+          "normalization": "text"
+        }
+      ]
+    },
+    {
+      "id": "knowledge.constitutional-history",
+      "version": "1.0.0",
+      "title": "Historical constitutional structure",
+      "category": "knowledge",
+      "difficulty": "medium",
+      "description": "Closed-book factual recall: historical constitutional structure. Eight original short-answer questions; source references and accepted answers stay outside the model prompt. Return null when unknown.",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "In what year was the United States Declaration of Independence adopted?",
+          "accepted": [
+            "1776"
+          ],
+          "source_ids": [
+            "archives-dates"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q2",
+          "question": "In what year was the United States Constitution signed?",
+          "accepted": [
+            "1787"
+          ],
+          "source_ids": [
+            "archives-dates"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q3",
+          "question": "How many articles were in the original United States Constitution?",
+          "accepted": [
+            "7",
+            "seven"
+          ],
+          "source_ids": [
+            "archives-constitution"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q4",
+          "question": "Which branch of government is established by Article I?",
+          "accepted": [
+            "legislative",
+            "legislative branch"
+          ],
+          "source_ids": [
+            "archives-constitution"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q5",
+          "question": "Which branch of government is established by Article II?",
+          "accepted": [
+            "executive",
+            "executive branch"
+          ],
+          "source_ids": [
+            "archives-constitution"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q6",
+          "question": "Which branch of government is established by Article III?",
+          "accepted": [
+            "judicial",
+            "judicial branch"
+          ],
+          "source_ids": [
+            "archives-constitution"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q7",
+          "question": "How many amendments form the United States Bill of Rights?",
+          "accepted": [
+            "10",
+            "ten"
+          ],
+          "source_ids": [
+            "archives-rights"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q8",
+          "question": "In what year was the United States Bill of Rights ratified?",
+          "accepted": [
+            "1791"
+          ],
+          "source_ids": [
+            "archives-rights"
+          ],
+          "normalization": "text"
+        }
+      ]
+    },
+    {
+      "id": "knowledge.international-institutions",
+      "version": "1.0.0",
+      "title": "United Nations history and languages",
+      "category": "knowledge",
+      "difficulty": "medium",
+      "description": "Closed-book factual recall: united nations history and languages. Eight original short-answer questions; source references and accepted answers stay outside the model prompt. Return null when unknown.",
+      "questions": [
+        {
+          "id": "q1",
+          "question": "In what year did the United Nations officially come into existence?",
+          "accepted": [
+            "1945"
+          ],
+          "source_ids": [
+            "un-history"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q2",
+          "question": "How many original Member States did the United Nations have?",
+          "accepted": [
+            "51",
+            "fifty-one"
+          ],
+          "source_ids": [
+            "un-history"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q3",
+          "question": "Which city hosted the 1945 conference that drafted the UN Charter?",
+          "accepted": [
+            "San Francisco"
+          ],
+          "source_ids": [
+            "un-history"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q4",
+          "question": "How many official languages does the United Nations have?",
+          "accepted": [
+            "6",
+            "six"
+          ],
+          "source_ids": [
+            "un-languages"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q5",
+          "question": "Alongside English, which other language is a working language of the UN Secretariat?",
+          "accepted": [
+            "French"
+          ],
+          "source_ids": [
+            "un-languages"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q6",
+          "question": "Name the UN official language whose English name starts with A.",
+          "accepted": [
+            "Arabic"
+          ],
+          "source_ids": [
+            "un-languages"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q7",
+          "question": "Name the two working languages of the United Nations Secretariat.",
+          "accepted": [
+            "English and French",
+            "French and English"
+          ],
+          "source_ids": [
+            "un-languages"
+          ],
+          "normalization": "text"
+        },
+        {
+          "id": "q8",
+          "question": "In which city is the principal United Nations headquarters?",
+          "accepted": [
+            "New York",
+            "New York City"
+          ],
+          "source_ids": [
+            "un-work"
+          ],
+          "normalization": "text"
+        }
+      ]
+    }
+  ]
+}

@@ -49,6 +49,11 @@ def grade_submission(
     """Run the submitted source in a new container, compare observations on host."""
     if len(source) > budgets.artifact_bytes:
         raise OutputLimitExceeded("Submission exceeds artifact byte limit")
+    if task_id.startswith(("knowledge.", "retrieval.")):
+        from benchmaxxing.answers import definitions as answer_definitions
+        from benchmaxxing.answers import grade
+
+        return grade(answer_definitions()[task_id], source)[0]
     if task_id != REFERENCE_ID:
         return _grade_pack(
             source,

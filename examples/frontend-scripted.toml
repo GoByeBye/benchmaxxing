@@ -1,0 +1,10 @@
+participant = "scripted"
+scripted_variant = "good"
+
+[budgets]
+max_turns = 24
+wall_seconds = 1800
+command_seconds = 30
+memory_mb = 2048
+pids = 256
+artifact_bytes = 8388608
