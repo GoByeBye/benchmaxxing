@@ -280,9 +280,7 @@ def list_public_tasks(data_dir: Path) -> list[TaskSpec]:
     for entry in catalog_entries(data_dir):
         task = TaskSpec.model_validate(entry["task"])
         if task.suite_id and task.upstream_id:
-            task.difficulty = display_difficulty(
-                task.suite_id, task.upstream_id, task.difficulty
-            )
+            task.difficulty = display_difficulty(task.suite_id, task.upstream_id, task.difficulty)
         record = prepared.get(task.id, {})
         task.prepared = record.get("task_hash") == task.task_hash
         if task.prepared:
