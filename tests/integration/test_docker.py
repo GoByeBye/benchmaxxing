@@ -14,7 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from benchmaxxing.contracts import Budgets
+from benchmaxxing.contracts import TERMINAL_STATUSES, Budgets, ExecutionSettings, RunSpec
+from benchmaxxing.controller import Controller
 from benchmaxxing.environment import (
     DockerEnvironment,
     ExecutionCancelled,
@@ -55,6 +56,39 @@ def test_good_submission_passes_and_bad_submission_fails(prepared_dir):
     assert not bad.passed and bad.score < 1
     assert all(check.passed for check in good.checks)
     assert cleanup_workspace(prepared_dir) == []
+
+
+def test_parallel_runs_preserve_independent_grades_and_cleanup(prepared_dir):
+    owner = Controller(prepared_dir)
+    owner.start()
+    try:
+        owner.configure(ExecutionSettings(max_parallel_runs=2))
+        runs = [
+            owner.submit(RunSpec(scripted_variant=variant, budgets=Budgets(wall_seconds=120)))
+            for variant in ("good", "bad")
+        ]
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            records = [owner.store.get_run(run.id) for run in runs]
+            if all(record.status in TERMINAL_STATUSES for record in records):
+                break
+            time.sleep(0.05)
+        assert [record.status for record in records] == ["passed", "failed"]
+        events = [owner.store.events(run.id) for run in runs]
+        starts = [
+            next(event.timestamp for event in trace if event.kind == "run.started")
+            for trace in events
+        ]
+        finishes = [
+            next(event.timestamp for event in trace if event.kind == "run.finished")
+            for trace in events
+        ]
+        assert max(starts) < min(finishes)
+        assert all(record.metadata["execution"]["max_parallel_runs"] == 2 for record in records)
+        assert all(owner.store.artifacts(run.id) for run in runs)
+        assert cleanup_workspace(prepared_dir) == []
+    finally:
+        owner.stop()
 
 
 def test_workspace_tools_and_isolation(prepared_dir):

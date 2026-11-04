@@ -25,6 +25,7 @@ class EndpointInput(Contract):
     api_key_env: str | None = Field(default=None, max_length=200)
     api_style: Literal["chat_completions", "responses"] = "chat_completions"
     responses_reasoning: bool = False
+    vllm_priority: int | None = Field(default=None, strict=True, ge=-2147483648, le=2147483647)
     model_ids: list[str] = Field(default_factory=list, max_length=1000)
 
     @model_validator(mode="after")
@@ -35,6 +36,7 @@ class EndpointInput(Contract):
             api_key_env=self.api_key_env,
             api_style=self.api_style,
             responses_reasoning=self.responses_reasoning,
+            vllm_priority=self.vllm_priority,
             model="discovery",
         )
         self.base_url = profile.base_url

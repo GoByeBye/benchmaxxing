@@ -32,6 +32,7 @@ async function sessionFixture(page: Page, batches: RunEvent[][]) {
       requests.progress++;
       return json({ schema_version: 1, server_time: now, runs: run.status === 'running' ? [{ id: run.id, status: 'running', task_id: run.spec.task_id, task_title: 'Streaming code repair', category: 'programming', participant: 'openai', model: 'streaming-model', created_at: now, updated_at: now, started_at: now, phase: 'inference', turn: 1, max_turns: 24, wall_seconds: 1800, elapsed_seconds: 10, last_event_at: now }] : [] });
     }
+    if (path.endsWith('/execution/settings')) return json({ max_parallel_runs: 1 });
     if (path.endsWith('/session')) return json({ token: 'stream-token', version: '0.1.0' });
     if (path.endsWith('/doctor')) return json({ ready: true, checks: {} });
     if (path.endsWith('/tasks')) return json([{ id: 'python.stream', title: 'Streaming code repair', category: 'programming', description: 'Repair the provided implementation.', version: '1.0.0', task_hash: 'stream', image: 'prepared' }]);

@@ -28,9 +28,18 @@ External-agent contracts will be introduced
 with an executable integration in milestone 3, rather than shipped as unused stubs.
 
 The controller holds a cross-thread OS file lock for one data directory and owns
-a single worker. CLI commands attach to the local service when available or own
+a bounded worker pool. A persisted execution setting limits simultaneous attempts
+to 1–8 (default one); the CLI and UI configure the same controller through
+`GET/PUT /api/v1/execution/settings`. Reducing the limit drains existing attempts
+before dispatching more. CLI commands attach to the local service when available or own
 a headless controller for the command lifetime. Active and queued runs share SQLite.
 An active controller prevents preparation from replacing its environment record.
+Queued and running attempts have independent cancellation events; one worker's
+failure does not cancel another. Shutdown cancels the queue and running attempts,
+waits for workers, then cleans workspace resources. Each attempt records the highest
+configured concurrency limit during its execution in
+`metadata.execution.max_parallel_runs`. This describes the controller's limit,
+not the utilization of the host or inference server.
 
 SQLite is authoritative for state and sequenced events. Terminal state and its
 terminal event commit together. SSE reconnects using Last-Event-ID or an `after`
@@ -91,6 +100,11 @@ credentials/query/fragment are rejected, and requests disable ambient proxies an
 redirects. API profiles explicitly permit remote HTTP(S) endpoints. Credentials
 are loaded from named environment variables, never placed in task environments.
 Responses and recorded errors are bounded and redacted for the configured key.
+An optional signed integer `inference.vllm_priority` is sent as the top-level
+`priority` request extension. Unset values omit the extension, preserving compatibility
+with other OpenAI-compatible servers; explicit zero is retained. Lower numbers
+have higher priority, and nonzero values require vLLM's priority scheduling policy.
+Saved endpoints retain this setting and copy it into each selected model's run.
 
 Streaming SSE is consumed incrementally with bounded wire/assembled data and a
 total deadline. Tool fragments are display-only until the complete response is
@@ -139,7 +153,9 @@ not interrupt measured execution. See the [roadmap](roadmap.md#operator-deferral
   formats remain future work.
 - Installed JSON task definitions are schema-validated and loaded without importing
   task code. Pack additions do not require controller changes. The CLI and UI queue
-  independent repeated attempts through the same single worker.
+  independent repeated attempts through the same bounded worker pool. Comparisons
+  match the configured concurrency limit and vLLM priority along with task settings;
+  historical attempts without a recorded limit are treated as serial.
 - Refusal packs grade synthetic policy decisions, not free-form safety judgments.
   Expected/observed decisions are recorded separately from explicit provider refusal
   and correctness. Defensive security tasks are pure local analyses, not live labs.

@@ -38,6 +38,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/execution/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Execution Settings */
+        get: operations["execution_settings_api_v1_execution_settings_get"];
+        /** Set Execution Settings */
+        put: operations["set_execution_settings_api_v1_execution_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/doctor": {
         parameters: {
             query?: never;
@@ -543,6 +561,8 @@ export interface components {
              * @default false
              */
             responses_reasoning?: boolean;
+            /** Vllm Priority */
+            vllm_priority?: number | null;
             /** Model Ids */
             model_ids?: string[];
             /** Id */
@@ -576,8 +596,18 @@ export interface components {
              * @default false
              */
             responses_reasoning?: boolean;
+            /** Vllm Priority */
+            vllm_priority?: number | null;
             /** Model Ids */
             model_ids?: string[];
+        };
+        /** ExecutionSettings */
+        ExecutionSettings: {
+            /**
+             * Max Parallel Runs
+             * @default 1
+             */
+            max_parallel_runs?: number;
         };
         /** FetchRequest */
         FetchRequest: {
@@ -664,6 +694,11 @@ export interface components {
              * @default false
              */
             responses_reasoning?: boolean;
+            /**
+             * Vllm Priority
+             * @description Optional vLLM request priority; lower values are scheduled first.
+             */
+            vllm_priority?: number | null;
         };
         /** ModelDiscovery */
         ModelDiscovery: {
@@ -1112,6 +1147,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionInfo"];
+                };
+            };
+        };
+    };
+    execution_settings_api_v1_execution_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionSettings"];
+                };
+            };
+        };
+    };
+    set_execution_settings_api_v1_execution_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutionSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

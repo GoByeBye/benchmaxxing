@@ -18,6 +18,7 @@ export function comparisonIdentity(run: Run) {
   const metadata = run.metadata ?? {};
   const task = record(metadata.task);
   const environment = record(metadata.environment);
+  const execution = record(metadata.execution);
   const harness = string(metadata.harness_version);
   // These versioned harnesses enforce task internet isolation in their implementation.
   // Unknown harnesses must supply explicit network evidence rather than inheriting it.
@@ -31,7 +32,8 @@ export function comparisonIdentity(run: Run) {
     task: [task.id, task.version, task.task_hash, category], harness,
     framework: metadata.framework_version ?? null, image: environment.image_id ?? task.image ?? null,
     budgets: run.spec.budgets, generation: run.spec.generation, network,
-    inference: [run.spec.inference?.mode ?? 'offline', run.spec.inference?.api_style ?? 'chat_completions', run.spec.inference?.responses_reasoning ?? false],
+    inference: [run.spec.inference?.mode ?? 'offline', run.spec.inference?.api_style ?? 'chat_completions', run.spec.inference?.responses_reasoning ?? false, run.spec.inference?.vllm_priority ?? null],
+    maxParallelRuns: execution.max_parallel_runs ?? 1,
     grader: run.score?.grader_version,
     execution: metadata.execution_profile ?? task.execution_profile ?? null,
   }) };

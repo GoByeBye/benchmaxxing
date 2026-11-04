@@ -486,6 +486,10 @@ class OpenAIAdapter:
             # Responses has no seed parameter; do not send Chat-only settings.
             if on_delta is not None:
                 on_delta({"type": "mode", "mode": "json"})
+        if self.profile.vllm_priority is not None:
+            # vLLM exposes this extension on Chat Completions and Responses. Keep
+            # it absent by default for other OpenAI-compatible providers.
+            payload["priority"] = self.profile.vllm_priority
         # Do not allow a compressed response to expand before our byte limit.
         headers = {
             "Accept": "text/event-stream, application/json"

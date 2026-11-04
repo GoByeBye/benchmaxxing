@@ -26,6 +26,10 @@ class Generation(Contract):
     seed: int | None = None
 
 
+class ExecutionSettings(Contract):
+    max_parallel_runs: int = Field(default=1, strict=True, ge=1, le=8)
+
+
 class InferenceProfile(Contract):
     mode: Literal["offline", "api"] = "offline"
     base_url: str = "http://127.0.0.1:8080/v1"
@@ -33,6 +37,13 @@ class InferenceProfile(Contract):
     api_key_env: str | None = None
     api_style: Literal["chat_completions", "responses"] = "chat_completions"
     responses_reasoning: bool = False
+    vllm_priority: int | None = Field(
+        default=None,
+        strict=True,
+        ge=-2147483648,
+        le=2147483647,
+        description="Optional vLLM request priority; lower values are scheduled first.",
+    )
 
     @model_validator(mode="after")
     def validate_endpoint(self) -> "InferenceProfile":

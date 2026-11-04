@@ -15,7 +15,13 @@ import typer
 import uvicorn
 from pydantic import ValidationError
 
-from benchmaxxing.contracts import TERMINAL_STATUSES, InferenceProfile, RunRecord, RunSpec
+from benchmaxxing.contracts import (
+    TERMINAL_STATUSES,
+    ExecutionSettings,
+    InferenceProfile,
+    RunRecord,
+    RunSpec,
+)
 from benchmaxxing.controller import Controller, ControllerBusy, RecoveryPending, read_descriptor
 from benchmaxxing.provider_cli import app as providers_app
 from benchmaxxing.storage import Store, workspace_id
@@ -135,6 +141,7 @@ def _load_spec(
     model: str | None,
     api: bool,
     key_env: str | None,
+    vllm_priority: int | None = None,
 ) -> RunSpec:
     values: dict[str, Any] = {}
     if config is not None:
@@ -156,7 +163,14 @@ def _load_spec(
         ).model_dump()
     elif api or key_env:
         raise ValueError("--api and --key-env require --endpoint and --model")
-    return RunSpec.model_validate(values)
+    spec = RunSpec.model_validate(values)
+    if vllm_priority is not None:
+        if spec.participant != "openai" or spec.inference is None:
+            raise ValueError("--vllm-priority requires a model inference profile")
+        spec.inference = InferenceProfile.model_validate(
+            {**spec.inference.model_dump(), "vllm_priority": vllm_priority}
+        )
+    return spec
 
 
 @app.command()
@@ -174,10 +188,20 @@ def run(
     task: Annotated[
         str | None, typer.Option("--task", help="Installed task ID (see tasks)")
     ] = None,
+    vllm_priority: Annotated[
+        int | None,
+        typer.Option(
+            min=-2147483648,
+            max=2147483647,
+            help="vLLM request priority; lower values have higher priority",
+        ),
+    ] = None,
 ) -> None:
     """Run a task; attach to the local service or use a headless controller."""
     try:
-        spec = _load_spec(config, participant, variant, endpoint, model, api, key_env)
+        spec = _load_spec(
+            config, participant, variant, endpoint, model, api, key_env, vllm_priority
+        )
         if task is not None:
             spec = RunSpec.model_validate({**spec.model_dump(), "task_id": task})
         from benchmaxxing.task import get_task
@@ -289,7 +313,8 @@ def validate_packs() -> None:
 def suite(
     data_dir: DataOption = None,
     config: Annotated[
-        Path | None, typer.Option(help="Shared participant and budget configuration")
+        list[Path] | None,
+        typer.Option(help="Participant/budget configuration; repeat to test multiple models"),
     ] = None,
     category: Annotated[
         str | None, typer.Option(help="Run a category; omit to run all installed tasks")
@@ -301,12 +326,17 @@ def suite(
     variant: Annotated[
         str | None, typer.Option(help="Scripted fixture: good, bad, or refuse")
     ] = None,
+    parallel: Annotated[
+        int | None,
+        typer.Option(min=1, max=8, help="Save the controller-wide concurrent run limit"),
+    ] = None,
 ) -> None:
-    """Queue a serial suite through the shared controller; every trial has its own run ID."""
+    """Queue task × configuration × repeat attempts through the shared controller."""
     from benchmaxxing.task import list_tasks
 
     try:
-        base = _load_spec(config, None, variant, None, None, False, None)
+        configs: list[Path | None] = list(config) if config else [None]
+        bases = [_load_spec(path, None, variant, None, None, False, None) for path in configs]
         catalog = list_tasks(data_dir=resolve_data_dir(data_dir))
         selected = [
             t
@@ -321,6 +351,7 @@ def suite(
             RunSpec.model_validate({**base.model_dump(), "task_id": t.id})
             for _ in range(repeat)
             for t in selected
+            for base in bases
         ]
     except (ValueError, OSError):
         typer.echo(
@@ -334,6 +365,13 @@ def suite(
     try:
         if remote is not None:
             client, headers = remote
+            if parallel is not None:
+                response = client.put(
+                    "/api/v1/execution/settings",
+                    json=ExecutionSettings(max_parallel_runs=parallel).model_dump(mode="json"),
+                    headers=headers,
+                )
+                response.raise_for_status()
             for spec in specs:
                 response = client.post(
                     "/api/v1/runs", json=spec.model_dump(mode="json"), headers=headers
@@ -347,14 +385,24 @@ def suite(
         else:
             owner = Controller(directory)
             owner.start()
-            records = [owner.submit(spec) for spec in specs]
+            if parallel is not None:
+                owner.configure(ExecutionSettings(max_parallel_runs=parallel))
+            for spec in specs:
+                records.append(owner.submit(spec))
             for index, record in enumerate(records):
                 while record.status not in TERMINAL_STATUSES:
                     time.sleep(0.2)
                     record = owner.store.get_run(record.id)
                 records[index] = record
                 typer.echo(f"{record.spec.task_id}: {record.status} ({record.id})", err=True)
-    except (KeyboardInterrupt, httpx.HTTPError, ControllerBusy, RecoveryPending) as exc:
+    except (
+        KeyboardInterrupt,
+        httpx.HTTPError,
+        ControllerBusy,
+        RecoveryPending,
+        OSError,
+        ValueError,
+    ) as exc:
         if remote is not None and isinstance(exc, KeyboardInterrupt):
             for record in records:
                 try:
@@ -378,11 +426,14 @@ def suite(
         {
             "attempts": len(records),
             "task_count": len(selected),
+            "profile_count": len(bases),
             "repeat": repeat,
             "results": [
                 {
                     "id": r.id,
                     "task_id": r.spec.task_id,
+                    "model": r.spec.inference.model if r.spec.inference else None,
+                    "base_url": r.spec.inference.base_url if r.spec.inference else None,
                     "status": r.status,
                     "score": r.score.score if r.score else None,
                     "refusal": r.refusal,

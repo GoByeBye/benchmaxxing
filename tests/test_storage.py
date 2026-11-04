@@ -132,3 +132,25 @@ def test_terminal_state_and_event_are_committed_together(tmp_path: Path) -> None
     reopened = Store(tmp_path)
     assert reopened.get_run(run.id).status == "passed"
     assert reopened.events(run.id)[-1].kind == "run.finished"
+
+
+def test_worker_metadata_snapshot_cannot_lower_recorded_parallel_limit(tmp_path: Path) -> None:
+    store = Store(tmp_path)
+    run = store.create_run(RunSpec(), metadata={"execution": {"max_parallel_runs": 1}})
+    worker_snapshot = run.metadata
+    store.update_run(run.id, execution_limit=2)
+    finished = store.update_run(
+        run.id,
+        status="passed",
+        metadata={**worker_snapshot, "elapsed_seconds": 1.5},
+        event_kind="run.finished",
+        event_data={"status": "passed"},
+    )
+    assert finished.metadata["execution"] == {"max_parallel_runs": 2}
+    assert finished.metadata["elapsed_seconds"] == 1.5
+    store.update_run(run.id, execution_limit=8)
+    assert store.get_run(run.id).metadata["execution"] == {"max_parallel_runs": 2}
+    with zipfile.ZipFile(io.BytesIO(store.export_run(run.id))) as archive:
+        assert json.loads(archive.read("run.json"))["metadata"]["execution"] == {
+            "max_parallel_runs": 2
+        }
