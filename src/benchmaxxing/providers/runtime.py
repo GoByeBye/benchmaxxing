@@ -30,6 +30,10 @@ def prepare_runtime(
         from benchmaxxing.providers.frontend import prepare_frontend_extension_runtime
 
         return prepare_frontend_extension_runtime(data_dir)
+    if suite_id == "cybench":
+        from benchmaxxing.providers.cybench_static import prepare_static_runtime
+
+        return prepare_static_runtime(data_dir, tasks, image=image, pull=pull)
     if image:
         return prepare_suite(data_dir, tasks, image=image, pull=pull)
     pins = [registry.prepared_record(data_dir, task) for task in tasks]

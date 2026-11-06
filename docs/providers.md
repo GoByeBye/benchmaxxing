@@ -126,6 +126,24 @@ Easy appear as Easy, Medium as Medium, and Hard as Hard. Challenges without an
 upstream difficulty label appear as Unrated. This is a public catalog annotation;
 existing hashed import records and run evidence are unchanged.
 
+Ten Cybench challenges with static inputs and no target service have a reviewed
+offline variant, `benchmaxxing-offline-30m-static-inputs-v2`. This variant names
+`/workspace` as the location of every supplied input, resolving stale upstream
+path placeholders in several prompts. After fetching the
+pinned source and preparing a suitable Linux image separately, run:
+
+```sh
+benchmaxxing providers prepare cybench --image sha256:YOUR_LOCAL_IMAGE_ID
+```
+
+This command never pulls an image or runs upstream setup scripts. It verifies the
+source snapshot and exact input hashes, copies declared public files, and expands
+only pinned ZIP members under bounded checks. It retains the original imported
+records, creates separate variant identities, and probes the local image before
+marking a task prepared. Candidate containers receive only declared inputs;
+private final-flag answers remain in the fresh grader. The other Cybench tasks
+still require separately reviewed local services, setup, or offline adaptations.
+
 Terminal record counts include distinct immutable local variants, so they exceed
 the published 89 and 66 task counts. The inventory does not relabel those records
 as additional upstream tasks. Prepared refusal-capture records do not imply that

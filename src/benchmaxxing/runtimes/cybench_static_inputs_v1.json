@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "source_revision": "ca483c6443f17a20ba7d6bac3d274859a1721e51",
+  "source_sha256": "0444c3755e32e90ea5fb2d8ad327c4ba77d0e565c2b17fc5047880c25ba5d520",
+  "base_variant": "benchmaxxing-offline-30m-available-cohort-v1",
+  "variant": "benchmaxxing-offline-30m-static-inputs-v2",
+  "tasks": [
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/crypto/[Very Easy] Dynastic",
+      "init_script_sha256": "3e1ab6228d99246d4884e87022e4c1d1a73a4ba12e80c4eec9edc9525d441bd6",
+      "inputs": [
+        {"kind": "copy", "source": "challenge/output.txt", "target": "output.txt", "size": 216, "sha256": "a4351fb5b418b2a124cbd918d128a75a22df76bcfd94301d636ee171b820c949"},
+        {"kind": "copy", "source": "challenge/source.py", "target": "source.py", "size": 631, "sha256": "ee7fa51940779fe6de00f72d6e2cf98cae08871ad3edf7e29c8fb4d2d969436d"}
+      ]
+    },
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/crypto/[Very Easy] Primary Knowledge",
+      "init_script_sha256": "361868b93134a25c87f5a73bd54a2de93980c097b3631c994bc9c1cce3383383",
+      "inputs": [
+        {"kind": "copy", "source": "challenge/output.txt", "target": "output.txt", "size": 637, "sha256": "78dbbfff1b7d1ee4e5938733416121a8121be46048a40df2cd05ec92c22ffb2c"},
+        {"kind": "copy", "source": "challenge/source.py", "target": "source.py", "size": 309, "sha256": "4061980e8e15348d71202bb1a2724f4addcc45ced007b95909320f7d6f8459b6"}
+      ]
+    },
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/crypto/[Medium] Partial Tenacity",
+      "init_script_sha256": "d419a2b95fce53f2920fe382da4e52315c431aa42df55e7de6af651b89aad87f",
+      "inputs": [
+        {"kind": "copy", "source": "challenge/output.txt", "target": "output.txt", "size": 740, "sha256": "43b5dad448f4a962fac2b456b5345b1620728a00e0f2d2ed97a94412f1f7c4ab"},
+        {"kind": "copy", "source": "challenge/source.py", "target": "source.py", "size": 626, "sha256": "4b5d6e9435c6990c37e8832dedf48515d3cfa5a68c75d51f4490dd3e77233778"}
+      ]
+    },
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/crypto/[Hard] Permuted",
+      "init_script_sha256": "f9f01f1f7671ba6865fc9a6148913effeb6894f8a61f870b39d60fd59e51954f",
+      "inputs": [
+        {"kind": "copy", "source": "challenge/output.txt", "target": "output.txt", "size": 1016834, "sha256": "81cbbe9f97534045e3d6b540b44716c0205a0cb74ee1e291a31b4480aa068183"},
+        {"kind": "copy", "source": "challenge/source.py", "target": "source.py", "size": 1590, "sha256": "f3f521dfb7d81d92ab28f6c53c277f9ccf20a163c8a2ec1c15df1189bd7a00c8"}
+      ]
+    },
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/reversing/[Hard] FlecksOfGold",
+      "init_script_sha256": "3e2bad0c2f0ed14de5814b146de9e827cce74f1f5d404350973f5560f452dd31",
+      "inputs": [
+        {"kind": "copy", "source": "release/rev_flecksofgold/flecks", "target": "flecks", "size": 1089896, "sha256": "6927e5721f9405b5903b7e679ea313b423335240818cf2eb381d2e265d12864a", "executable": true}
+      ]
+    },
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/forensics/[Very Easy] Urgent",
+      "init_script_sha256": "fb3698878df1ab7b1d726d6f11d02e939cdd27684f0d37d50426344d923abb89",
+      "inputs": [
+        {"kind": "copy", "source": "release/forensics_urgent.zip", "target": "forensics_urgent.zip", "size": 3374, "sha256": "3dfd2a404d1d1bd0ec5c93973e273cf583abf3d254449dd8b1c2eb36214be18f"}
+      ]
+    },
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/reversing/[Easy] Crushing",
+      "init_script_sha256": "2003e887f129e14c822d3e316e0b4c2fe2900cfbb3f8507c587fd7ef59004dc1",
+      "inputs": [
+        {"kind": "zip_member", "source": "release/rev_crushing.zip", "member": "rev_crushing/crush", "target": "crush", "size": 16872, "sha256": "73d37d3041adeb169ce420f1424d3d0063c185ea8e8cbcea669381be790d4a8a", "archive_sha256": "a2b08ce42bf457e0de4115be5bd76388bbaf8224d1dd0957bb6f733132fe5fb1", "executable": true},
+        {"kind": "zip_member", "source": "release/rev_crushing.zip", "member": "rev_crushing/message.txt.cz", "target": "message.txt.cz", "size": 8784, "sha256": "5831d91ab8dfb29712c787b686386aadc0062cef75014bf3d5e0fd76815e76ce", "archive_sha256": "a2b08ce42bf457e0de4115be5bd76388bbaf8224d1dd0957bb6f733132fe5fb1"}
+      ]
+    },
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/reversing/[Very Easy] PackedAway",
+      "init_script_sha256": "7935adf3ebdd687dd000d9fcc177777067cbfb2b080f93cfd0636abe2f058c83",
+      "inputs": [
+        {"kind": "zip_member", "source": "release/rev_packedaway.zip", "member": "rev_packedaway/packed", "target": "packed", "size": 8848, "sha256": "f246f7f5a246db91904a714b1d144f59685c3b27f538d0e6ac78a4c1022aef46", "archive_sha256": "090e1633afda48d2084373409a0988016127062488065a3e95148d9d953a0d49", "executable": true}
+      ]
+    },
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/reversing/[Very Easy] LootStash",
+      "init_script_sha256": "5a4039b3af210511e2ca73b20b81b5ed9fab55db6e37a3b033a523d13c5f13a4",
+      "inputs": [
+        {"kind": "zip_member", "source": "release/rev_lootstash.zip", "member": "rev_lootstash/stash", "target": "stash", "size": 30704, "sha256": "2de89e7ea8347d190dbd9314f8a8f5680678abe03e520a530ecd87c29fb99c72", "archive_sha256": "17b0c167a30a51247ff901be455cd5491d58e276981707bb17231177922f7d3d", "executable": true}
+      ]
+    },
+    {
+      "upstream_id": "benchmark/hackthebox/cyber-apocalypse-2024/forensics/[Very Easy] It Has Begun",
+      "init_script_sha256": "752a5373d38329e6aef1d2bc3c26ca6fae090e68480b2aaa613e2183af006f7d",
+      "inputs": [
+        {"kind": "zip_member", "source": "release/forensics_it_has_begun.zip", "member": "script.sh", "target": "script.sh", "size": 2269, "sha256": "5ce310ea3eec3b99c723742a273e5de4e09c0fe377dc8b6e888e75518a2fd760", "archive_sha256": "866c515f6c43838f346926071d0f80ce0afab0c715f2df0e3b771e5c42e8c6f1"}
+      ]
+    }
+  ]
+}

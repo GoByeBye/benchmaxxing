@@ -153,6 +153,21 @@ def _validate_recipe(task: ImportedTask) -> None:
         raise PreparationError("; ".join(task.recipe.blockers))
     if task.recipe.network == "external":
         raise PreparationError("This imported task requires external networking and is not offline")
+    executable = task.recipe.settings.get("candidate_executable_files", [])
+    candidate_targets = {asset.target for asset in task.assets if asset.scope == "candidate"}
+    if (
+        not isinstance(executable, list)
+        or len(executable) > 64
+        or bool(executable) and task.recipe.workdir != "/workspace"
+        or any(
+            not isinstance(name, str)
+            or name not in candidate_targets
+            or PurePosixPath(name).name != name
+            for name in executable
+        )
+        or len(executable) != len(set(executable))
+    ):
+        raise PreparationError("Executable candidate files must be declared candidate basenames")
     if task.recipe.settings.get("requires_filesystem_snapshot"):
         raise PreparationError(
             "Native task needs a full filesystem snapshot; prepare an explicit bounded artifact "

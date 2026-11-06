@@ -42,6 +42,13 @@ with p.open('wb') as target:
  while block:=sys.stdin.buffer.read(1048576): target.write(block)
 """
 
+_CHMOD_CANDIDATE = """import pathlib,stat,sys
+root=pathlib.Path('/workspace').resolve(); p=root/sys.argv[1]
+if p.parent!=root or p.is_symlink() or not stat.S_ISREG(p.stat().st_mode):
+ raise ValueError('Executable candidate input is not a regular workspace file')
+p.chmod(0o755)
+"""
+
 _READ_ABSOLUTE = """import base64,pathlib,stat,sys
 p=pathlib.Path(sys.argv[1]); limit=int(sys.argv[2])
 if p.is_symlink() or not stat.S_ISREG(p.stat().st_mode): raise ValueError('Not a regular artifact')
@@ -390,6 +397,14 @@ class NativeEnvironment(DockerEnvironment):
                 for name, text in self.task.public_files.items():
                     self._put("/workspace", name, text.encode())
                 self._copy_assets("candidate")
+                for name in self.task.recipe.settings.get("candidate_executable_files", []):
+                    _require_success(
+                        self._operation(
+                            ["exec", self.name, "python", "-I", "-c", _CHMOD_CANDIDATE, name],
+                            timeout=15,
+                        ),
+                        "Could not set a pinned candidate input executable",
+                    )
             self._start_watch()
         except BaseException:
             self.close()
