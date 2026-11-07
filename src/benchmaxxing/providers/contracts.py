@@ -170,6 +170,14 @@ class SWEPreparationRequest(SWEPlanRequest):
     pull: bool = False
 
 
+class CyberGymPreparationRequest(Contract):
+    upstream_id: str = Field(pattern=r"^(?:arvo|oss-fuzz):[0-9]+$")
+    source_path: str = Field(min_length=1, max_length=4096)
+    candidate_image: Literal["python:3.13-slim"] = "python:3.13-slim"
+    vulnerable_image_id: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+    fixed_image_id: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+
+
 class ImportSettings(Contract):
     schema_version: Literal[1] = 1
     storage_limit_bytes: int = Field(default=250_000_000_000, ge=1_000_000_000, le=250_000_000_000)

@@ -686,6 +686,44 @@
         }
       }
     },
+    "/api/v1/providers/cybergym-prepare": {
+      "post": {
+        "summary": "Prepare Cybergym Provider",
+        "operationId": "prepare_cybergym_provider_api_v1_providers_cybergym_prepare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CyberGymPreparationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparationJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/activity": {
       "get": {
         "summary": "Activity",
@@ -1170,6 +1208,46 @@
           "passed"
         ],
         "title": "CheckResult"
+      },
+      "CyberGymPreparationRequest": {
+        "properties": {
+          "upstream_id": {
+            "type": "string",
+            "pattern": "^(?:arvo|oss-fuzz):[0-9]+$",
+            "title": "Upstream Id"
+          },
+          "source_path": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Source Path"
+          },
+          "candidate_image": {
+            "type": "string",
+            "const": "python:3.13-slim",
+            "title": "Candidate Image",
+            "default": "python:3.13-slim"
+          },
+          "vulnerable_image_id": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "title": "Vulnerable Image Id"
+          },
+          "fixed_image_id": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "title": "Fixed Image Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "upstream_id",
+          "source_path",
+          "vulnerable_image_id",
+          "fixed_image_id"
+        ],
+        "title": "CyberGymPreparationRequest"
       },
       "DoctorReport": {
         "properties": {

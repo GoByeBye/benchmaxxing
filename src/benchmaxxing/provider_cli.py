@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -30,7 +31,7 @@ def _print(value: Any) -> None:
 
 def _operation(
     directory: Path,
-    name: Literal["fetch", "import", "prepare", "swe-plan", "swe-prepare"],
+    name: Literal["fetch", "import", "prepare", "swe-plan", "swe-prepare", "cybergym-prepare"],
     payload: dict[str, Any],
 ) -> None:
     from benchmaxxing.cli import _remote
@@ -93,6 +94,17 @@ def _operation(
                         pull=payload["pull"],
                     )
                 )
+        elif name == "cybergym-prepare":
+            from benchmaxxing.providers.cybergym_prepare import prepare_pilot_task
+
+            result = prepare_pilot_task(
+                directory,
+                payload["upstream_id"],
+                Path(payload["source_path"]).resolve(),
+                payload["candidate_image"],
+                payload["vulnerable_image_id"],
+                payload["fixed_image_id"],
+            )
         else:
             tasks = imported_tasks(directory, payload["suite_id"])
             if not tasks:
@@ -224,4 +236,61 @@ def swe_prepare(
         _directory(data_dir),
         "swe-prepare",
         {"task_id": task_id, "reservation_bytes": reserve_gb * 1_000_000_000, "pull": pull},
+    )
+
+
+@app.command("cybergym-plan")
+def cybergym_plan(
+    data_dir: DataOption = None,
+    image_map: Annotated[
+        Path | None,
+        typer.Option(help="Optional JSON mapping of 18 local verifier tags to immutable IDs"),
+    ] = None,
+) -> None:
+    """Inspect the bounded nine-task pilot; never fetch, pull or mark tasks prepared."""
+    from benchmaxxing.providers.cybergym_pilot import plan_pilot, preflight_local_images
+
+    try:
+        directory = _directory(data_dir)
+        plan = plan_pilot(directory)
+        result: dict[str, Any] = {"plan": plan.model_dump(mode="json")}
+        if image_map is not None:
+            if image_map.stat().st_size > 16_384:
+                raise ValueError("CyberGym image map exceeds its 16 KiB limit")
+            pins = json.loads(image_map.read_text(encoding="utf-8"))
+            if not isinstance(pins, dict) or not all(
+                isinstance(key, str) and isinstance(value, str) for key, value in pins.items()
+            ):
+                raise ValueError("CyberGym image map must contain image-tag to sha256-ID strings")
+            result["image_preflight"] = preflight_local_images(directory, plan, pins).model_dump(
+                mode="json"
+            )
+        _print(result)
+    except (ValueError, OSError, json.JSONDecodeError) as exc:
+        typer.echo(f"CyberGym pilot plan failed: {exc}", err=True)
+        raise typer.Exit(2) from None
+
+
+@app.command("cybergym-prepare")
+def cybergym_prepare(
+    upstream_id: str,
+    source: Path,
+    vulnerable_image_id: Annotated[str, typer.Option(help="Pinned vulnerable Docker image ID")],
+    fixed_image_id: Annotated[str, typer.Option(help="Pinned fixed Docker image ID")],
+    data_dir: DataOption = None,
+    candidate_image: Annotated[
+        str, typer.Option(help="Local official Python base; clean tools image is built offline")
+    ] = "python:3.13-slim",
+) -> None:
+    """Prepare one local CyberGym level-1 task; never pull images or fetch assets."""
+    _operation(
+        _directory(data_dir),
+        "cybergym-prepare",
+        {
+            "upstream_id": upstream_id,
+            "source_path": str(source.resolve()),
+            "candidate_image": candidate_image,
+            "vulnerable_image_id": vulnerable_image_id,
+            "fixed_image_id": fixed_image_id,
+        },
     )

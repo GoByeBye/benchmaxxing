@@ -42,6 +42,7 @@ from benchmaxxing.providers.registry import get_imported, public_task
 from benchmaxxing.storage import Store
 
 IMPORT_HARNESS_VERSION = "benchmaxxing-imports/1"
+BROWSER_AXTREE_HARNESS_VERSION = "benchmaxxing-imports/1-browser-axtree/1"
 BROWSER_TOOLS = [
     _tool("browser_observe", "Observe the isolated benchmark browser.", {}, []),
     _tool(
@@ -228,13 +229,19 @@ def execute_imported(
             artifact_bytes += len(content)
             event("artifact", artifact.model_dump(mode="json"))
             observation["screenshot_artifact_id"] = artifact.id
-            images.append(
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}"}}
-            )
+            if browser_observation_profile != "axtree":
+                images.append(
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded}"}}
+                )
         goal = observation.get("goal_object")
         if isinstance(goal, list):
             for part in goal:
                 if isinstance(part, dict) and part.get("type") == "image_url":
+                    if browser_observation_profile == "axtree":
+                        raise UnsupportedModel(
+                            "This browser task has an image-bearing goal; "
+                            "use a visual model profile"
+                        )
                     image_url = part.get("image_url")
                     if isinstance(image_url, dict) and str(image_url.get("url", "")).startswith(
                         "data:image/"
@@ -255,10 +262,21 @@ def execute_imported(
 
         require_active_suite(task.suite_id)
         prepared = preparation_info(store.data_dir, task)
+        browser_observation_profile = (
+            "axtree"
+            if task.recipe.tools == "browser" and task.suite_id == "miniwob"
+            else "axtree+screenshot"
+            if task.recipe.tools == "browser"
+            else None
+        )
         metadata.update(
             {
                 "framework_version": __version__,
-                "harness_version": IMPORT_HARNESS_VERSION,
+                "harness_version": (
+                    BROWSER_AXTREE_HARNESS_VERSION
+                    if browser_observation_profile == "axtree"
+                    else IMPORT_HARNESS_VERSION
+                ),
                 "participant_kind": "model_with_harness"
                 if spec.participant == "openai"
                 else "scripted_fixture",
@@ -289,6 +307,12 @@ def execute_imported(
                 "model_provenance": None,
             }
         )
+        if browser_observation_profile is not None:
+            metadata["browser_observation_profile"] = browser_observation_profile
+        if browser_observation_profile == "axtree":
+            metadata["comparison_variant"] = (
+                f"{task.variant or 'upstream'}+benchmaxxing-axtree-v1"
+            )
         if spec.participant == "openai":
             assert spec.inference is not None
             model = OpenAIAdapter(
@@ -311,7 +335,12 @@ def execute_imported(
                     store.data_dir, run_id, spec.budgets, task, cancel, deadline=deadline
                 )
             else:
-                environment = NativeEnvironment(
+                environment_class = NativeEnvironment
+                if task.recipe.family == "cybergym-pilot":
+                    from benchmaxxing.providers.cybergym_runtime import CyberGymEnvironment
+
+                    environment_class = CyberGymEnvironment
+                environment = environment_class(
                     store.data_dir, run_id, spec.budgets, task, cancel, deadline=deadline
                 )
             environment.start()
@@ -585,13 +614,29 @@ def execute_imported(
         )
         event("artifact", evidence.model_dump(mode="json"))
         score = _score(result, task.suite_id, task.revision)
-        metadata["assessment_status"] = "graded" if score else "needs_review"
+        metadata["assessment_status"] = (
+            "graded"
+            if score
+            else "ungraded"
+            if task.recipe.family == "cybergym-pilot"
+            else "needs_review"
+        )
         if score is None:
-            status = "completed"
-            event(
-                "assessment.pending",
-                {"reason": "Human assessment or a prepared local judge is required"},
-            )
+            if task.recipe.family == "cybergym-pilot":
+                observations = [result.get("vulnerable", {}), result.get("fixed", {})]
+                infrastructure = any(
+                    isinstance(item, dict) and item.get("outcome") == "infrastructure_error"
+                    for item in observations
+                )
+                status = "infrastructure_error" if infrastructure else "budget_exhausted"
+                error = str(result.get("reason", "CyberGym verifier was inconclusive"))[:2000]
+                event("assessment.ungraded", {"reason": error, "status": status})
+            else:
+                status = "completed"
+                event(
+                    "assessment.pending",
+                    {"reason": "Human assessment or a prepared local judge is required"},
+                )
         else:
             store.update_run(run_id, score=score)
             event("grading", score.model_dump(mode="json"))

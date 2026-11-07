@@ -178,7 +178,10 @@ def _validate_recipe(task: ImportedTask) -> None:
             "Prepare and validate the task-local website snapshot/reset runtime; "
             "Python packages alone cannot make this browser suite ready"
         )
-    if not task.recipe.grader_command or not task.recipe.grader_result_path:
+    if task.recipe.family == "cybergym-pilot":
+        if task.recipe.grader_command or task.recipe.grader_result_path:
+            raise PreparationError("CyberGym pilot must use its isolated two-image verifier")
+    elif not task.recipe.grader_command or not task.recipe.grader_result_path:
         raise PreparationError("Prepare a native grading command and recorded result path")
     workdir = task.recipe.workdir
     if (
@@ -440,6 +443,10 @@ def prepare_suite(
 def preparation_info(data_dir: Path, task: ImportedTask) -> dict[str, Any]:
     """Read-only verification; never pull, build, install, or repair dependencies."""
     _validate_recipe(task)
+    if task.recipe.family == "cybergym-pilot":
+        from benchmaxxing.providers.cybergym_prepare import pilot_preparation_info
+
+        return pilot_preparation_info(data_dir, task)
     record = registry.prepared_record(data_dir, task)
     if record is None or record.get("sandbox_profile") != SANDBOX_PROFILE:
         raise PreparationError(

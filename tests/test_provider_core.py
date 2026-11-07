@@ -1,5 +1,6 @@
 """Shared import lifecycle tests with explicitly fake, non-executing environments."""
 
+import base64
 import hashlib
 import io
 import json
@@ -197,6 +198,105 @@ def test_adapter_stream_precedes_validated_tool(tmp_path, monkeypatch, fake_runt
     assert runner.execute_imported(store, record.id).status == "passed"
     kinds = [item.kind for item in store.events(record.id)]
     assert kinds.index("model.delta") < kinds.index("model.response") < kinds.index("tool.started")
+
+
+@pytest.mark.parametrize("image_goal", [False, True])
+def test_miniwob_text_profile_keeps_screenshot_out_of_model_requests(
+    tmp_path, monkeypatch, image_goal
+):
+    from benchmaxxing.providers import browser
+
+    task = fake_task(
+        suite_id="miniwob",
+        category="browser",
+        recipe=NativeRecipe(family="browsergym", tools="browser"),
+    )
+    registry.install(tmp_path, tmp_path, [task])
+    monkeypatch.setattr(preparation, "preparation_info", lambda *args: {"image_id": "fake"})
+    png = b"\x89PNG\r\n\x1a\nfixture"
+
+    class FakeBrowser:
+        def __init__(self, *args, **kwargs):
+            self.closed = False
+
+        def start(self):
+            pass
+
+        def observe(self):
+            goal = [{"type": "text", "text": "Click the link"}]
+            if image_goal:
+                goal.append(
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}}
+                )
+            return {
+                "observation": {
+                    "goal": "Click the link",
+                    "axtree_object": {"nodes": [{"name": "Link", "bid": "1"}]},
+                    "screenshot_png_base64": base64.b64encode(png).decode(),
+                    "goal_object": goal,
+                }
+            }
+
+        def finalize(self, answer):
+            assert answer == "done"
+            return {"passed": True, "score": 1, "checks": []}
+
+        def close(self):
+            self.closed = True
+
+        def freeze(self):
+            return {}
+
+    class FakeAdapter:
+        def __init__(self, *args, **kwargs):
+            self.turn = 0
+
+        def redact(self, value):
+            return value
+
+        def complete(self, messages, tools, **kwargs):
+            self.turn += 1
+            if self.turn == 1:
+                return ModelResponse(
+                    content=None,
+                    tool_calls=[ToolCall("1", "browser_observe", "{}")],
+                    model="text-only",
+                    finish_reason="tool_calls",
+                )
+            assert "image_url" not in json.dumps(messages)
+            return ModelResponse(
+                content=None,
+                tool_calls=[ToolCall("2", "submit", '{"answer":"done"}')],
+                model="text-only",
+                finish_reason="tool_calls",
+            )
+
+    monkeypatch.setattr(browser, "BrowserEnvironment", FakeBrowser)
+    monkeypatch.setattr(runner, "OpenAIAdapter", FakeAdapter)
+    store = Store(tmp_path)
+    record = store.create_run(
+        RunSpec(
+            task_id=task.id,
+            participant="openai",
+            inference=InferenceProfile(base_url="http://127.0.0.1/v1", model="text-only"),
+        )
+    )
+    result = runner.execute_imported(store, record.id)
+    assert result.metadata["harness_version"] == "benchmaxxing-imports/1-browser-axtree/1"
+    assert result.metadata["browser_observation_profile"] == "axtree"
+    assert result.metadata["comparison_variant"].endswith("+benchmaxxing-axtree-v1")
+    assert any(item.name.startswith("browser-turn-") for item in store.artifacts(record.id))
+    if image_goal:
+        assert result.status == "unsupported"
+        assert "image-bearing goal" in (result.error or "")
+    else:
+        assert result.status == "passed", result.error
+        requests = [
+            event.data for event in store.events(record.id) if event.kind == "model.request"
+        ]
+        assert len(requests) == 2
+        assert "image_url" not in json.dumps(requests[1]["messages"])
+        assert "axtree_object" in json.dumps(requests[1]["messages"])
 
 
 @pytest.mark.parametrize(

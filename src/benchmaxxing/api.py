@@ -36,6 +36,7 @@ from benchmaxxing.endpoints import (
     discover_models,
 )
 from benchmaxxing.providers.contracts import (
+    CyberGymPreparationRequest,
     FetchRequest,
     ImportRequest,
     ImportSettings,
@@ -305,6 +306,27 @@ def create_app(
     )
     def prepare_swe_provider(value: SWEPreparationRequest) -> PreparationJob:
         return swe_job(value, prepare=True)
+
+    @application.post(
+        "/api/v1/providers/cybergym-prepare", status_code=202, response_model=PreparationJob
+    )
+    def prepare_cybergym_provider(value: CyberGymPreparationRequest) -> PreparationJob:
+        from benchmaxxing.providers.cybergym_prepare import prepare_pilot_task
+        from benchmaxxing.providers.jobs import submit_job
+
+        return submit_job(
+            owner.store.data_dir,
+            "cybergym",
+            "prepare",
+            lambda: prepare_pilot_task(
+                owner.store.data_dir,
+                value.upstream_id,
+                Path(value.source_path).resolve(),
+                value.candidate_image,
+                value.vulnerable_image_id,
+                value.fixed_image_id,
+            ),
+        )
 
     @application.get("/api/v1/run-progress", response_model=ActivitySnapshot)
     @application.get("/api/v1/activity", response_model=ActivitySnapshot, deprecated=True)
